@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Pencil, Trash2, Check, Clock, Filter, BookOpen } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, Clock, Filter, BookOpen, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import { useNovelStore } from '@/stores/novelStore';
 import { cn } from '@/lib/utils';
 import type { PlotCard as PlotCardType } from '@/types';
@@ -8,6 +8,7 @@ interface ChapterOutlineProps {
   onEditCard: (card: PlotCardType) => void;
   onCreateCard: () => void;
   onCreateVolume?: () => void;
+  onEditVolume?: (volume: PlotCardType) => void;
 }
 
 const statusConfig = {
@@ -17,10 +18,12 @@ const statusConfig = {
 
 type StatusFilter = 'all' | 'pending' | 'completed';
 
-export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume }: ChapterOutlineProps) {
+export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEditVolume }: ChapterOutlineProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [deleteVolume, setDeleteVolume] = useState<PlotCardType | null>(null);
+  const [collapsedVolumes, setCollapsedVolumes] = useState<Set<string>>(new Set());
 
   const currentNovelId = useNovelStore((state) => state.currentNovelId);
   const allPlotCards = useNovelStore((state) => state.plotCards);
@@ -103,6 +106,34 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume }: Cha
     }
   };
 
+  // 删除卷
+  const handleDeleteVolume = (volume: PlotCardType) => {
+    setDeleteVolume(volume);
+  };
+
+  const confirmDeleteVolume = () => {
+    if (!deleteVolume) return;
+    const volChapters = chapterOutlines.filter(c => c.volumeId === deleteVolume.id);
+    // 删除卷下的所有章节大纲
+    volChapters.forEach(ch => deletePlotCard(ch.id));
+    // 删除卷
+    deletePlotCard(deleteVolume.id);
+    setDeleteVolume(null);
+  };
+
+  // 切换卷的收缩状态
+  const toggleVolumeCollapse = (volumeId: string) => {
+    setCollapsedVolumes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(volumeId)) {
+        newSet.delete(volumeId);
+      } else {
+        newSet.add(volumeId);
+      }
+      return newSet;
+    });
+  };
+
   const handleJumpToChapter = (chapterId: string) => {
     setCurrentChapter(chapterId);
     useNovelStore.getState().setCurrentView('chapters');
@@ -118,35 +149,27 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume }: Cha
   return (
     <div className="h-full overflow-y-auto p-4">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-semibold">章节大纲</h2>
-            <p className="text-sm text-muted-foreground">
-              {volumes.length > 0 ? `共 ${volumes.length} 卷，${chapterOutlines.length} 章` : `共 ${chapterOutlines.length} 章`}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            {onCreateVolume && (
-              <button
-                onClick={onCreateVolume}
-                className="flex items-center gap-2 px-3 py-2 border rounded-md text-sm hover:bg-muted"
-              >
-                <BookOpen className="h-4 w-4" />
-                新建卷
-              </button>
-            )}
+        {/* 操作按钮区 */}
+        <div className="flex items-center justify-end mb-4 gap-2">
+          {onCreateVolume && (
             <button
-              onClick={onCreateCard}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90"
+              onClick={onCreateVolume}
+              className="flex items-center gap-2 px-4 py-2 border rounded-md text-sm hover:bg-muted"
             >
-              <Plus className="h-4 w-4" />
-              新建章节大纲
+              <BookOpen className="h-4 w-4" />
+              新建卷
             </button>
-          </div>
+          )}
+          <button
+            onClick={onCreateCard}
+            className="flex items-center gap-2 px-4 py-2 border rounded-md text-sm hover:bg-muted"
+          >
+            <Plus className="h-4 w-4" />
+            新建章节大纲
+          </button>
         </div>
 
-        {/* Stats */}
+        {/* 状态筛选 */}
         <div className="grid grid-cols-3 gap-3 mb-6">
           <button
             onClick={() => setStatusFilter('all')}
@@ -200,62 +223,88 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume }: Cha
         {/* 卷分组显示 */}
         {volumes.length > 0 && statusFilter === 'all' ? (
           // 按卷分组显示
-          <div className="space-y-6">
+          <div className="space-y-4">
             {volumes.map((vol) => {
               const volChapters = chapterOutlines.filter(c => c.volumeId === vol.id);
+              const isCollapsed = collapsedVolumes.has(vol.id);
               return (
                 <div key={vol.id} className="border rounded-lg overflow-hidden">
-                  {/* 卷标题 */}
-                  <div className="bg-muted/30 p-3 border-b">
-                    <h3 className="font-medium">{vol.title}</h3>
-                    {vol.summary && (
-                      <p className="text-sm text-muted-foreground mt-1">{vol.summary}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-2">{volChapters.length} 章</p>
-                  </div>
-                  {/* 章节列表 */}
-                  <div className="divide-y">
-                    {volChapters.map((card, idx) => {
-                      const StatusIcon = statusConfig[card.status].icon;
-
-                      return (
-                        <div
-                          key={card.id}
-                          className="group p-3 hover:bg-muted/30 flex items-start gap-3"
-                        >
-                          <span className="text-sm font-bold text-muted-foreground w-8">{idx + 1}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-medium truncate">{card.title}</h4>
-                              <span className={cn(
-                                'text-xs px-2 py-0.5 rounded-full border flex items-center gap-1 shrink-0',
-                                statusConfig[card.status].color
-                              )}>
-                                <StatusIcon className="h-3 w-3" />
-                                {statusConfig[card.status].label}
-                              </span>
-                            </div>
-                            {card.summary && (
-                              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{card.summary}</p>
-                            )}
-                          </div>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100">
-                            <button onClick={() => onEditCard(card)} className="p-1 hover:bg-muted rounded">
-                              <Pencil className="h-4 w-4 text-muted-foreground" />
-                            </button>
-                            <button onClick={() => handleDeleteCard(card.id)} className="p-1 hover:bg-muted rounded">
-                              <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {volChapters.length === 0 && (
-                      <div className="p-4 text-center text-sm text-muted-foreground">
-                        该卷暂无章节大纲
+                  {/* 卷标题 - 可点击收缩 */}
+                  <div
+                    className="bg-muted/30 p-3 border-b group/vol cursor-pointer select-none"
+                    onClick={() => toggleVolumeCollapse(vol.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      {/* 收缩图标 */}
+                      {isCollapsed ? (
+                        <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-muted-foreground shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium">{vol.title}</h3>
+                        {vol.summary && !isCollapsed && (
+                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{vol.summary}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">{volChapters.length} 章</p>
                       </div>
-                    )}
+                      <div className="flex gap-1 opacity-0 group-hover/vol:opacity-100 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        {onEditVolume && (
+                          <button onClick={() => onEditVolume(vol)} className="p-1 hover:bg-muted rounded">
+                            <Pencil className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                        )}
+                        <button onClick={() => handleDeleteVolume(vol)} className="p-1 hover:bg-muted rounded">
+                          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
+                  {/* 章节列表 - 收缩时隐藏 */}
+                  {!isCollapsed && (
+                    <div className="divide-y">
+                      {volChapters.map((card, idx) => {
+                        const StatusIcon = statusConfig[card.status].icon;
+
+                        return (
+                          <div
+                            key={card.id}
+                            className="group p-3 hover:bg-muted/30 flex items-start gap-3"
+                          >
+                            <span className="text-sm font-bold text-muted-foreground w-8">{idx + 1}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-medium truncate">{card.title}</h4>
+                                <span className={cn(
+                                  'text-xs px-2 py-0.5 rounded-full border flex items-center gap-1 shrink-0',
+                                  statusConfig[card.status].color
+                                )}>
+                                  <StatusIcon className="h-3 w-3" />
+                                  {statusConfig[card.status].label}
+                                </span>
+                              </div>
+                              {card.summary && (
+                                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{card.summary}</p>
+                              )}
+                            </div>
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100">
+                              <button onClick={() => onEditCard(card)} className="p-1 hover:bg-muted rounded">
+                                <Pencil className="h-4 w-4 text-muted-foreground" />
+                              </button>
+                              <button onClick={() => handleDeleteCard(card.id)} className="p-1 hover:bg-muted rounded">
+                                <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {volChapters.length === 0 && (
+                        <div className="p-4 text-center text-sm text-muted-foreground">
+                          该卷暂无章节大纲
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -396,6 +445,43 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume }: Cha
           </div>
         )}
       </div>
+
+      {/* 删除卷确认弹窗 */}
+      {deleteVolume && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-card rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
+              <h3 className="text-lg font-semibold">删除卷</h3>
+            </div>
+            <p className="text-sm text-muted-foreground mb-2">
+              确定要删除卷「{deleteVolume.title}」吗？
+            </p>
+            {chapterOutlines.filter(c => c.volumeId === deleteVolume.id).length > 0 && (
+              <p className="text-sm text-destructive mb-4">
+                该卷下有 {chapterOutlines.filter(c => c.volumeId === deleteVolume.id).length} 个章节大纲，删除卷将同时删除这些章节大纲，此操作不可撤销。
+              </p>
+            )}
+            {chapterOutlines.filter(c => c.volumeId === deleteVolume.id).length === 0 && (
+              <p className="text-sm text-muted-foreground mb-4">此操作不可撤销。</p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setDeleteVolume(null)}
+                className="px-4 py-2 border rounded-md text-sm hover:bg-muted"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmDeleteVolume}
+                className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md text-sm hover:bg-destructive/90"
+              >
+                确认删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

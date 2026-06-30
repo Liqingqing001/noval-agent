@@ -110,10 +110,10 @@ export function PlotCardEditor({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className={type === 'volume' ? 'sm:max-w-xl' : 'sm:max-w-lg'}>
         <DialogHeader>
           <DialogTitle>
-            {card?.id ? '编辑大纲' : type === 'volume' ? '新建卷' : '新建章节大纲'}
+            {card?.id ? (type === 'volume' ? '编辑卷' : '编辑章节大纲') : type === 'volume' ? '新建卷' : '新建章节大纲'}
           </DialogTitle>
         </DialogHeader>
 
@@ -190,7 +190,9 @@ export function PlotCardEditor({
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
               placeholder={type === 'volume' ? '描述这一卷的主要情节...' : '描述这一章的情节内容...'}
-              className="w-full min-h-[100px] px-3 py-2 text-sm border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+              className={`w-full px-3 py-2 text-sm border rounded-md resize-y focus:outline-none focus:ring-2 focus:ring-ring ${
+                type === 'volume' ? 'min-h-[180px]' : 'min-h-[120px]'
+              }`}
             />
           </div>
 

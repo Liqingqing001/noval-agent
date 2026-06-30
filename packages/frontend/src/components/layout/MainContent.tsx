@@ -220,7 +220,8 @@ export function MainContent({ currentView }: MainContentProps) {
               导出
             </button>
           </div>
-          {novel?.summary && (
+          {/* 简介：只在 outline 视图不显示（因为 OutlineView 自己会显示） */}
+          {novel?.summary && currentView !== 'outline' && (
             <div className="px-6 pb-3">
               <p className="text-sm text-muted-foreground line-clamp-2 italic">
                 "{novel.summary}"

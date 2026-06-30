@@ -212,6 +212,38 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
     return `\n\n【最近章节内容】\n${text}`;
   }, [chapters]);
 
+  // 创作阶段和大纲完整性判断
+  const getCreationStage = useCallback(() => {
+    // 检查大纲完整性
+    const volumes = plotCards.filter(c => c.type === 'volume');
+    const chapterOutlines = plotCards.filter(c => c.type === 'chapter');
+
+    // 判断大纲是否完整
+    const incompleteChapters = chapterOutlines.filter(c => !c.summary || c.summary.trim() === '');
+    const hasIncompleteOutline = incompleteChapters.length > 0;
+    const hasEmptyOutline = chapterOutlines.length === 0;
+
+    // 判断是否有基础设定
+    const hasBasicSetting = currentNovel?.summary || characters.length > 0 || worldSettings.length > 0;
+
+    if (!hasBasicSetting && chapters.length === 0) {
+      return '空白阶段：小说刚创建，尚未建立任何设定。你需要引导用户建立世界观和角色设定。';
+    }
+    if (hasEmptyOutline) {
+      return '大纲缺失：尚未建立章节大纲。你必须引导用户先建立卷结构和章节大纲，禁止直接写章节内容。';
+    }
+    if (hasIncompleteOutline) {
+      const incompleteTitles = incompleteChapters.map(c => c.title).join('、');
+      return `大纲不完整：以下章节缺少情节概要：${incompleteTitles}。你必须帮用户补充这些概要，禁止直接写章节内容。`;
+    }
+    if (chapters.length === 0) {
+      return `准备写作：大纲完整（${volumes.length} 卷，${chapterOutlines.length} 章），可以开始写作。请按大纲顺序写作。`;
+    }
+    const writtenCount = chapters.length;
+    const pendingOutlines = chapterOutlines.filter(c => c.status === 'pending');
+    return `创作中：已写 ${writtenCount} 章，大纲共 ${chapterOutlines.length} 章。待写作章节：${pendingOutlines.length} 章。请按大纲顺序继续写作。`;
+  }, [plotCards, chapters, characters, worldSettings, currentNovel]);
+
   // 格式化 AI 响应，高亮结构化内容，收缩章节内容
   const formatAIResponse = useCallback((content: string): string => {
     let formatted = content;
@@ -456,12 +488,14 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
     if (currentChapter) {
       enhancedContent += `\n\n【当前编辑章节】\n${currentChapter.title}\n字数: ${currentChapter.wordCount}`;
     }
-    enhancedContent += `\n\n【用户的问题】\n${sendContent}`;
 
-    // 如果用户要求写章节，强制添加格式提醒
-    if (sendContent.includes('写') || sendContent.includes('章') || sendContent.includes('生成') || sendContent.includes('续写')) {
-      enhancedContent += `\n\n⚠️ 格式提醒：你必须用【章节】...【/章节】格式输出，系统才能识别并同步到左侧面板。不要用其他格式！`;
-    }
+    // 🔴 核心新增：创作阶段判断（决定 AI 行为）
+    enhancedContent += `\n\n【创作阶段】${getCreationStage()}`;
+
+    // 大纲完整性要求提醒
+    enhancedContent += `\n\n【大纲完整性要求】必须建立完整的卷和章节大纲结构，每个章节都要有情节概要（summary），才能开始写作章节内容。如果创作阶段显示"大纲缺失"或"大纲不完整"，你必须拒绝写章节请求并引导用户先完成大纲。`;
+
+    enhancedContent += `\n\n【用户的问题】\n${sendContent}`;
 
     // 在用户消息末尾再次强调自定义要求
     if (currentNovel?.agentPrompt) {
@@ -556,7 +590,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
       setStreamingContent('');
       streamingContentRef.current = '';
     }
-  }, [input, currentNovelId, isLoading, apiKey, currentChapter, activeAgent, activeSession, messages, addSession, updateSession, getOutlineContext, getChaptersContext, currentNovel, handleSlashCommand]);
+  }, [input, currentNovelId, isLoading, apiKey, currentChapter, activeAgent, activeSession, messages, addSession, updateSession, getOutlineContext, getChaptersContext, getPreviousChaptersContent, getCreationStage, currentNovel, handleSlashCommand]);
 
   if (!currentNovelId) {
     return (

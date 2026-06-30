@@ -7,8 +7,8 @@ import { useNovelStore } from '@/stores/novelStore';
  * 解析修改指令
  */
 interface ModifyInstruction {
-  target: '章节' | '大纲' | '角色' | '世界观';
-  title?: string;  // 章节/大纲/世界观的标题
+  target: '章节' | '大纲' | '角色' | '世界观' | '卷';
+  title?: string;  // 章节/大纲/世界观/卷的标题
   name?: string;   // 角色的姓名
   field?: string;  // 角色的字段（性格、背景等）
   originalContent: string;
@@ -26,7 +26,7 @@ export function parseModifyInstructions(content: string): ModifyInstruction[] {
     const instruction: Partial<ModifyInstruction> = {};
 
     // 解析目标
-    const targetMatch = block.match(/目标[：:]\s*(章节|大纲|角色|世界观)/);
+    const targetMatch = block.match(/目标[：:]\s*(章节|大纲|角色|世界观|卷)/);
     if (targetMatch) instruction.target = targetMatch[1] as ModifyInstruction['target'];
 
     // 解析标题
@@ -61,7 +61,7 @@ export function parseModifyInstructions(content: string): ModifyInstruction[] {
  * 解析删除指令
  */
 interface DeleteInstruction {
-  target: '章节' | '大纲' | '角色' | '世界观';
+  target: '章节' | '大纲' | '角色' | '世界观' | '卷';
   title?: string;
   name?: string;
 }
@@ -76,7 +76,7 @@ export function parseDeleteInstructions(content: string): DeleteInstruction[] {
     const block = match[1];
     const instruction: Partial<DeleteInstruction> = {};
 
-    const targetMatch = block.match(/目标[：:]\s*(章节|大纲|角色|世界观)/);
+    const targetMatch = block.match(/目标[：:]\s*(章节|大纲|角色|世界观|卷)/);
     if (targetMatch) instruction.target = targetMatch[1] as DeleteInstruction['target'];
 
     const titleMatch = block.match(/标题[：:]\s*(.+?)(?:\n|【|$)/);
@@ -582,6 +582,28 @@ function modifyPlotCard(novelId: string, title: string, original: string, newCon
 }
 
 /**
+ * 精准修改卷
+ */
+function modifyVolume(novelId: string, title: string, original: string, newContent: string): boolean {
+  const store = useNovelStore.getState();
+  const volume = store.plotCards.find(p =>
+    p.novelId === novelId && p.type === 'volume' && p.title.trim() === title.trim()
+  );
+
+  if (!volume) {
+    console.log(`未找到卷: ${title}`);
+    return false;
+  }
+
+  // 替换摘要中的内容
+  const newSummary = volume.summary?.replace(original, newContent) || newContent;
+  store.updatePlotCard(volume.id, { summary: newSummary });
+
+  console.log(`已修改卷 "${title}"`);
+  return true;
+}
+
+/**
  * 精准修改角色
  */
 function modifyCharacter(novelId: string, name: string, field: string, _original: string, newContent: string): boolean {
@@ -658,6 +680,23 @@ function deleteContent(novelId: string, instruction: DeleteInstruction): boolean
       if (plotCard) {
         store.deletePlotCard(plotCard.id);
         console.log(`已删除大纲: ${instruction.title}`);
+        return true;
+      }
+      break;
+
+    case '卷':
+      const volume = store.plotCards.find(p =>
+        p.novelId === novelId && p.type === 'volume' && p.title.trim() === instruction.title?.trim()
+      );
+      if (volume) {
+        // 先删除卷下的章节大纲
+        const volChapters = store.plotCards.filter(p =>
+          p.novelId === novelId && p.type === 'chapter' && p.volumeId === volume.id
+        );
+        volChapters.forEach(ch => store.deletePlotCard(ch.id));
+        // 再删除卷本身
+        store.deletePlotCard(volume.id);
+        console.log(`已删除卷: ${instruction.title}（含 ${volChapters.length} 个章节大纲）`);
         return true;
       }
       break;
@@ -836,12 +875,25 @@ export function parseCharacterContent(content: string): Array<Record<string, str
 
         if (key.includes('姓名') || key.includes('名字')) {
           character.name = value;
+        } else if (key.includes('定位') || key.includes('角色类型') || key.includes('角色定位')) {
+          // 解析角色定位：主角/配角/龙套
+          if (value.includes('主角') || value.toLowerCase().includes('protagonist')) {
+            character.role = 'protagonist';
+          } else if (value.includes('龙套') || value.includes('路人') || value.toLowerCase().includes('minor')) {
+            character.role = 'minor';
+          } else {
+            character.role = 'supporting'; // 默认配角
+          }
         } else if (key.includes('性格')) {
           character.personality = value;
         } else if (key.includes('背景')) {
           character.background = value;
         } else if (key.includes('外貌')) {
           character.appearance = value;
+        } else if (key.includes('内心') || key.includes('内心冲突')) {
+          character.innerConflict = value;
+        } else if (key.includes('成长') || key.includes('成长弧线')) {
+          character.growthArc = value;
         } else if (key.includes('描述') || key.includes('简介')) {
           character.description = value;
         } else {
@@ -1083,6 +1135,9 @@ export function autoSyncContent(content: string, novelId: string): {
         case '大纲':
           success = modifyPlotCard(novelId, instruction.title!, instruction.originalContent, instruction.newContent);
           break;
+        case '卷':
+          success = modifyVolume(novelId, instruction.title!, instruction.originalContent, instruction.newContent);
+          break;
         case '角色':
           success = modifyCharacter(novelId, instruction.name!, instruction.field!, instruction.originalContent, instruction.newContent);
           break;
@@ -1224,6 +1279,9 @@ export function autoSyncContent(content: string, novelId: string): {
         c => c.novelId === novelId && c.name.trim() === (char.name || '').trim()
       );
 
+      // 解析角色定位
+      const roleValue = char.role as 'protagonist' | 'supporting' | 'minor' | undefined;
+
       if (existingChar) {
         // 更新已有的角色
         store.updateCharacter(existingChar.id, {
@@ -1231,8 +1289,9 @@ export function autoSyncContent(content: string, novelId: string): {
           personality: char.personality || existingChar.personality,
           background: char.background || existingChar.background,
           appearance: char.appearance || existingChar.appearance,
+          role: roleValue || existingChar.role, // 更新角色定位
         });
-        console.log(`更新角色: ${char.name}`);
+        console.log(`更新角色: ${char.name}，定位: ${roleValue || existingChar.role || 'supporting'}`);
       } else {
         // 添加新角色
         store.addCharacter({
@@ -1243,8 +1302,9 @@ export function autoSyncContent(content: string, novelId: string): {
           personality: char.personality,
           background: char.background,
           appearance: char.appearance,
+          role: roleValue || 'supporting', // 默认配角，但会根据解析结果设置
         });
-        console.log(`新增角色: ${char.name}`);
+        console.log(`新增角色: ${char.name}，定位: ${roleValue || 'supporting'}`);
       }
       result.characterCount++;
     });
@@ -1365,10 +1425,12 @@ export function hasSyncableContent(content: string): boolean {
   // 完整闭合的标签
   const hasClosedTags = (
     /【基本信息】[\s\S]*?【\/基本信息】/.test(content) ||
+    /【卷】[\s\S]*?【\/卷】/.test(content) ||
     /【大纲】[\s\S]*?【\/大纲】/.test(content) ||
     /【角色】[\s\S]*?【\/角色】/.test(content) ||
     /【世界观】[\s\S]*?【\/世界观】/.test(content) ||
     /【章节】[\s\S]*?【\/章节】/.test(content) ||
+    /【章节大纲】[\s\S]*?【\/章节大纲】/.test(content) ||
     /【插入章节】[\s\S]*?【\/插入章节】/.test(content) ||
     /【替换】[\s\S]*?【\/替换】/.test(content) ||
     /【合并章节】[\s\S]*?【\/合并章节】/.test(content) ||
@@ -1380,7 +1442,9 @@ export function hasSyncableContent(content: string): boolean {
 
   // 未闭合但有开始标签的情况（AI被截断时）
   const hasOpenTags = (
+    /【卷】/.test(content) ||
     /【章节】/.test(content) ||
+    /【章节大纲】/.test(content) ||
     /【插入章节】/.test(content) ||
     /【大纲】/.test(content) ||
     /【角色】/.test(content) ||
