@@ -1,0 +1,24 @@
+{
+  "name": "novel-agent-monorepo",
+  "version": "0.2.0",
+  "private": true,
+  "description": "AI 小说创作助手 - 全栈 monorepo",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\"",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build": "npm run build --workspace=backend && npm run build --workspace=frontend",
+    "build:backend": "npm run build --workspace=backend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "db:generate": "npm run prisma:generate --workspace=backend",
+    "db:migrate": "npm run prisma:migrate --workspace=backend",
+    "db:studio": "npm run prisma:studio --workspace=backend",
+    "db:reset": "npm run prisma:reset --workspace=backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}
