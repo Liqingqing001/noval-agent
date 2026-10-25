@@ -17,6 +17,7 @@
 | `assets/save-flow.png` | 正文保存责任与数据流示意 |
 | `schema-metadata.json` | 生成 SQL 和字典使用的共同字段元数据 |
 | `validation-results.json` | 45 项实际 SQL 验证结果及执行引擎信息 |
+| `windows-layout-check.json` | Windows Word 字体和布局检查记录，包括 25 页逐页检查及 10 项自动检查 |
 | `tools/` | 可复用的建模生成、验证、Word 构建和排版检查工具 |
 
 ## 按数据库课程推进
@@ -71,9 +72,24 @@ node docs/database-design/tools/verify_sql.cjs
 py docs/database-design/tools/build_report.py
 ```
 
-Word 构建需 Python、python-docx、Pillow 和 Windows 微软雅黑字体。此环境未提供系统 `py` 启动器，制作时仅在任务 PowerShell 中把 `py` 别名指向应用打包的 Python；没有改系统设置。其他电脑请使用自己的 `py` 环境。
+Word 构建需 Python、python-docx、Pillow，以及 Windows 已安装的宋体、黑体、微软雅黑。PDF 字体检查另需 pdfplumber。此环境未提供系统 `py` 启动器，制作时仅在任务 PowerShell 中把 `py` 别名指向应用打包的 Python；没有改系统设置。其他电脑请使用自己的 `py` 环境。
 
 最终 Word 已用本机 Microsoft Word 渲染为 25 页，并检查全部页面。因本机未安装 LibreOffice，排版检查使用 `export_word_pdf.ps1` 后台导出 PDF，再以 `render_from_word_pdf.py` 调用 documents 技能的渲染模块生成页面 PNG。PDF 和 PNG 仅用于内部排版检查，不作为必须提交的作业成果。
+
+### Windows 中文排版要求
+
+2026年10月25日重新修复了 Word 报告的字体设置。正文使用 11 磅宋体，表格使用 9.5 磅宋体，标题使用黑体、副标题使用微软雅黑；英文、数字与 SQL 分别设置 Times New Roman、Arial 或 Consolas。文档在文字片段、段落标记、默认样式、表格条件样式、页眉页脚中均明确指定东亚字体，并清除冲突的主题字体引用。
+
+表格行允许自动增高，中文段落关闭文档网格对齐，不使用固定行高或浮动文本框来堆叠正文。图中文字沿用已检查的微软雅黑图像；数据库设计正文与原报告一致。
+
+`tools/windows_word.py` 已接入报告构建器，之后重新生成也会应用上述设置；也可只修复现有报告的字体与行距：
+
+```powershell
+py docs/database-design/tools/windows_word.py 'docs/database-design/NovelAgent数据库设计报告_李晴_202400702062.docx'
+py docs/database-design/tools/verify_windows_doc.py 'docs/database-design/NovelAgent数据库设计报告_李晴_202400702062.docx'
+```
+
+字体引用使用 Windows 字体名及字体表声明，不嵌入或分发商业字体。此次已确认本机安装三种中文字体，Microsoft Word 实际渲染也使用这些字体。全部 25 页已逐页检查，未发现乱码、文字重叠、表格裁切或分页错位；文档及渲染结果的 10 项自动检查全部通过。检查其他环境时仍需实际打开并渲染，不能只凭字体名称判断兼容性。
 
 ## 已验证和未验证
 

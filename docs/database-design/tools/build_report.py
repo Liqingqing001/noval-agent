@@ -9,6 +9,7 @@ from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
 from docx.enum.section import WD_SECTION_START, WD_ORIENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from windows_word import apply_windows_format
 
 ROOT = Path(__file__).resolve().parent.parent
 TABLES = json.loads((ROOT / 'schema-metadata.json').read_text(encoding='utf-8'))
@@ -479,6 +480,7 @@ for paragraph in doc.element.iter(qn('w:p')):
     snap=OxmlElement('w:snapToGrid');snap.set(qn('w:val'),'0');ppr.append(snap)
 for root in [doc.element,doc.styles.element]:
     for border in list(root.iter(qn('w:pBdr'))): border.getparent().remove(border)
+apply_windows_format(doc)
 doc.save(OUT)
 print(OUT)
 print(f'{len(TABLES)} tables, {sum(len(t["fields"]) for t in TABLES)} dictionary fields')

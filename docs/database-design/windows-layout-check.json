@@ -1,0 +1,115 @@
+{
+  "source": "docs\\database-design\\NovelAgent数据库设计报告_李晴_202400702062.docx",
+  "checks": [
+    {
+      "name": "explicit_chinese_fonts_for_all_text_runs",
+      "passed": true,
+      "detail": {
+        "text_runs": 1112,
+        "fonts": {
+          "微软雅黑": 2,
+          "黑体": 55,
+          "宋体": 1055
+        }
+      }
+    },
+    {
+      "name": "no_conflicting_theme_font_attributes",
+      "passed": true,
+      "detail": 0
+    },
+    {
+      "name": "no_exact_line_or_row_heights",
+      "passed": true,
+      "detail": 0
+    },
+    {
+      "name": "valid_run_property_order",
+      "passed": true,
+      "detail": 0
+    },
+    {
+      "name": "no_replacement_characters",
+      "passed": true,
+      "detail": 1110
+    },
+    {
+      "name": "original_body_text_preserved",
+      "passed": true,
+      "detail": {
+        "text_nodes": 1110
+      }
+    },
+    {
+      "name": "inline_figures_only",
+      "passed": true,
+      "detail": 1
+    },
+    {
+      "name": "native_word_pages_have_no_off_page_text",
+      "passed": true,
+      "detail": {
+        "page_count": 25,
+        "outside_characters": 0
+      }
+    },
+    {
+      "name": "native_word_cjk_uses_requested_fonts",
+      "passed": true,
+      "detail": {
+        "unexpected_font_characters": 0,
+        "rendered_fonts": {
+          "SimSun": 9182,
+          "TimesNewRomanPSMT": 9359,
+          "MicrosoftYaHei": 24,
+          "ArialMT": 29,
+          "SimHei": 351,
+          "Arial-BoldMT": 328,
+          "Consolas": 1189,
+          "TimesNewRomanPS-BoldMT": 9
+        }
+      }
+    },
+    {
+      "name": "native_word_no_replacement_glyphs",
+      "passed": true,
+      "detail": 0
+    }
+  ],
+  "passed": 10,
+  "total": 10,
+  "checked_on": "2026-10-25",
+  "docx_sha256": "8e243f8fefe9b54a0ac1cba454d86e62f4a0b135ef823edd98faf80417a755c0",
+  "render_engine": "Microsoft Word on Windows",
+  "render_dpi": 150,
+  "visual_review": {
+    "pages_checked": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25
+    ],
+    "pages_with_layout_issues": []
+  }
+}
