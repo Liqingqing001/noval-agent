@@ -1,0 +1,22 @@
+erDiagram
+    app_user ||--o{ novel : owns
+    app_user ||--o{ model_profile : configures
+    novel ||--o{ chapter : contains
+    novel ||--o{ story_character : describes
+    novel ||--o{ world_setting : defines
+    novel ||--o{ volume_outline : plans
+    novel ||--o{ chapter_outline : plans
+    novel ||--o{ foreshadowing : tracks
+    novel ||--o{ chat_session : contains
+    novel ||--o| novel_reading_state : remembers
+    story_character ||--o{ character_alias : has
+    volume_outline |o--o{ chapter_outline : groups
+    chapter |o--o| chapter_outline : realizes
+    chapter ||--|{ chapter_revision : versions
+    chapter |o--o{ story_character : first_appearance
+    chapter |o--o{ foreshadowing : planted_or_resolved
+    chapter_outline |o--o{ foreshadowing : planned_anchor
+    chapter |o--o| novel_reading_state : last_opened
+    model_profile ||--o| model_credential : encrypts
+    chat_session ||--o{ chat_message : orders
+    model_profile |o--o{ chat_message : used_by

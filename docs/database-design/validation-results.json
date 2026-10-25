@@ -1,0 +1,233 @@
+{
+  "engine": "PostgreSQL 18.6 (PGlite 0.5.11) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 3.1.74 (1092ec30a3fb1d46b1782ff1b4db5094d3d06ae5), 32-bit",
+  "environment": "PGlite 内存 PostgreSQL 非独立 PostgreSQL 16 服务器",
+  "tables": 15,
+  "fields": 133,
+  "total": 45,
+  "passed": 45,
+  "failed": 0,
+  "results": [
+    {
+      "name": "T01 完整建表脚本",
+      "passed": true
+    },
+    {
+      "name": "T02 示例数据导入",
+      "passed": true
+    },
+    {
+      "name": "T03 表数量为15",
+      "passed": true
+    },
+    {
+      "name": "T04 初始正文自动生成3条快照",
+      "passed": true
+    },
+    {
+      "name": "T05 小说汇总视图无重复累计",
+      "passed": true
+    },
+    {
+      "name": "T06 无章节小说汇总为零",
+      "passed": true
+    },
+    {
+      "name": "T07 重复邮箱拒绝",
+      "passed": true,
+      "expected": "23505",
+      "actual": "23505"
+    },
+    {
+      "name": "T08 非归一化邮箱拒绝",
+      "passed": true,
+      "expected": "23514",
+      "actual": "23514"
+    },
+    {
+      "name": "T09 无主小说拒绝",
+      "passed": true,
+      "expected": "23503",
+      "actual": "23503"
+    },
+    {
+      "name": "T10 负字数拒绝",
+      "passed": true,
+      "expected": "23514",
+      "actual": "23514"
+    },
+    {
+      "name": "T11 重复章节顺序拒绝",
+      "passed": true,
+      "expected": "23505",
+      "actual": "23505"
+    },
+    {
+      "name": "T12 重复角色别名拒绝",
+      "passed": true,
+      "expected": "23505",
+      "actual": "23505"
+    },
+    {
+      "name": "T13 跨小说关联卷纲拒绝",
+      "passed": true,
+      "expected": "23503",
+      "actual": "23503"
+    },
+    {
+      "name": "T14 跨小说关联正文拒绝",
+      "passed": true,
+      "expected": "23503",
+      "actual": "23503"
+    },
+    {
+      "name": "T15 未归卷章纲重复顺序拒绝",
+      "passed": true,
+      "expected": "23505",
+      "actual": "23505"
+    },
+    {
+      "name": "T16 完成章纲必须关联正文",
+      "passed": true,
+      "expected": "23514",
+      "actual": "23514"
+    },
+    {
+      "name": "T17 回收伏笔必须有回收锚点",
+      "passed": true,
+      "expected": "23514",
+      "actual": "23514"
+    },
+    {
+      "name": "T18 同用户只能有一个默认模型",
+      "passed": true,
+      "expected": "23505",
+      "actual": "23505"
+    },
+    {
+      "name": "T19 非对象扩展参数拒绝",
+      "passed": true,
+      "expected": "23514",
+      "actual": "23514"
+    },
+    {
+      "name": "T20 密钥随机数长度错误拒绝",
+      "passed": true,
+      "expected": "23514",
+      "actual": "23514"
+    },
+    {
+      "name": "T21 跨用户模型配置引用拒绝",
+      "passed": true,
+      "expected": "23514",
+      "actual": "23514"
+    },
+    {
+      "name": "T22 重复请求幂等标识拒绝",
+      "passed": true,
+      "expected": "23505",
+      "actual": "23505"
+    },
+    {
+      "name": "T23 终态消息必须记录完成时间",
+      "passed": true,
+      "expected": "23514",
+      "actual": "23514"
+    },
+    {
+      "name": "T24 正文保存递增版本",
+      "passed": true
+    },
+    {
+      "name": "T25 正文保存自动写快照",
+      "passed": true
+    },
+    {
+      "name": "T26 过期及缺失版本保存拒绝",
+      "passed": true
+    },
+    {
+      "name": "T27 非拥有者保存拒绝",
+      "passed": true,
+      "expected": "42501",
+      "actual": "42501"
+    },
+    {
+      "name": "T28 绕过版本递增改正文拒绝",
+      "passed": true,
+      "expected": "23514",
+      "actual": "23514"
+    },
+    {
+      "name": "T29 已有小说不能直接更换拥有者",
+      "passed": true,
+      "expected": "23514",
+      "actual": "23514"
+    },
+    {
+      "name": "T30 恢复旧快照生成新版本",
+      "passed": true
+    },
+    {
+      "name": "T31 章节换序可延迟唯一性检查",
+      "passed": true
+    },
+    {
+      "name": "T32 事务失败后不残留部分小说",
+      "passed": true
+    },
+    {
+      "name": "T33 删除仍被引用的章节需先解绑",
+      "passed": true,
+      "expected": "23503",
+      "actual": "23503"
+    },
+    {
+      "name": "T34 删除配置后凭据删除且消息保留快照",
+      "passed": true
+    },
+    {
+      "name": "T35 删除小说级联清理完整聚合",
+      "passed": true
+    },
+    {
+      "name": "查询示例 Q01 用户小说列表及总字数",
+      "passed": true
+    },
+    {
+      "name": "查询示例 Q02 卷纲与章纲层级 左连接保留未归卷大纲",
+      "passed": true
+    },
+    {
+      "name": "查询示例 Q03 尚未回收的伏笔",
+      "passed": true
+    },
+    {
+      "name": "查询示例 Q04 消息游标分页 以 sequence 大于游标替代深 OFFSET",
+      "passed": true
+    },
+    {
+      "name": "查询示例 Q05 GROUP BY 与 HAVING 查询至少有两章的小说",
+      "passed": true
+    },
+    {
+      "name": "查询示例 Q06 NOT EXISTS 查询没有章节的小说",
+      "passed": true
+    },
+    {
+      "name": "查询示例 Q07 窗口函数 每章字数与本书累计字数",
+      "passed": true
+    },
+    {
+      "name": "查询示例 Q08 查询角色与其多个别名",
+      "passed": true
+    },
+    {
+      "name": "查询示例 Q09 查询特定章节的所有历史版本",
+      "passed": true
+    },
+    {
+      "name": "查询示例 Q10 使用关联子查询查询每本小说的最近章节",
+      "passed": true
+    }
+  ]
+}

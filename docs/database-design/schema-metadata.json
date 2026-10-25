@@ -1,0 +1,956 @@
+[
+  {
+    "name": "app_user",
+    "label": "用户账户",
+    "fields": [
+      [
+        "id",
+        "uuid",
+        "实体主键",
+        "PRIMARY KEY DEFAULT gen_random_uuid()"
+      ],
+      [
+        "email",
+        "varchar(254)",
+        "归一化邮箱",
+        "NOT NULL UNIQUE CHECK (email = lower(btrim(email)) AND position('@' in email) > 1)"
+      ],
+      [
+        "password_hash",
+        "text",
+        "应用层生成的密码哈希",
+        "NOT NULL CHECK (length(password_hash) >= 20)"
+      ],
+      [
+        "nickname",
+        "varchar(80)",
+        "显示昵称",
+        "NOT NULL DEFAULT ''"
+      ],
+      [
+        "status",
+        "varchar(16)",
+        "账户状态",
+        "NOT NULL DEFAULT 'active' CHECK (status IN ('active','disabled'))"
+      ],
+      [
+        "created_at",
+        "timestamptz",
+        "创建时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ],
+      [
+        "updated_at",
+        "timestamptz",
+        "最后更新时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ]
+    ],
+    "constraints": [],
+    "note": ""
+  },
+  {
+    "name": "novel",
+    "label": "小说",
+    "fields": [
+      [
+        "id",
+        "uuid",
+        "实体主键",
+        "PRIMARY KEY DEFAULT gen_random_uuid()"
+      ],
+      [
+        "user_id",
+        "uuid",
+        "拥有者",
+        "NOT NULL REFERENCES app_user(id) ON DELETE RESTRICT"
+      ],
+      [
+        "title",
+        "varchar(200)",
+        "小说标题",
+        "NOT NULL CHECK (length(btrim(title)) > 0)"
+      ],
+      [
+        "genre",
+        "varchar(80)",
+        "题材",
+        "NOT NULL DEFAULT ''"
+      ],
+      [
+        "summary",
+        "text",
+        "小说简介",
+        "NOT NULL DEFAULT ''"
+      ],
+      [
+        "cover_url",
+        "text",
+        "对象存储图片地址",
+        "NOT NULL DEFAULT ''"
+      ],
+      [
+        "agent_prompt",
+        "text",
+        "本书自定义提示词",
+        "NOT NULL DEFAULT ''"
+      ],
+      [
+        "status",
+        "varchar(16)",
+        "创作状态",
+        "NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','writing','completed'))"
+      ],
+      [
+        "created_at",
+        "timestamptz",
+        "创建时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ],
+      [
+        "updated_at",
+        "timestamptz",
+        "最后更新时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ]
+    ],
+    "constraints": [
+      "UNIQUE (user_id, id)"
+    ],
+    "note": "不持久化小说总字数 由章节汇总视图计算 避免冗余计数漂移"
+  },
+  {
+    "name": "chapter",
+    "label": "章节正文",
+    "fields": [
+      [
+        "id",
+        "uuid",
+        "实体主键",
+        "PRIMARY KEY DEFAULT gen_random_uuid()"
+      ],
+      [
+        "novel_id",
+        "uuid",
+        "所属小说",
+        "NOT NULL REFERENCES novel(id) ON DELETE CASCADE"
+      ],
+      [
+        "title",
+        "varchar(200)",
+        "章节标题",
+        "NOT NULL CHECK (length(btrim(title)) > 0)"
+      ],
+      [
+        "content",
+        "text",
+        "正文 HTML 或纯文本",
+        "NOT NULL DEFAULT ''"
+      ],
+      [
+        "content_format",
+        "varchar(8)",
+        "正文格式",
+        "NOT NULL DEFAULT 'html' CHECK (content_format IN ('html','text'))"
+      ],
+      [
+        "word_count",
+        "integer",
+        "按统一口径统计的正文字符数",
+        "NOT NULL DEFAULT 0 CHECK (word_count >= 0)"
+      ],
+      [
+        "sequence",
+        "integer",
+        "同级显示顺序 从零开始",
+        "NOT NULL CHECK (sequence >= 0)"
+      ],
+      [
+        "version",
+        "bigint",
+        "乐观锁版本号",
+        "NOT NULL DEFAULT 1 CHECK (version >= 1)"
+      ],
+      [
+        "created_at",
+        "timestamptz",
+        "创建时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ],
+      [
+        "updated_at",
+        "timestamptz",
+        "最后更新时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ]
+    ],
+    "constraints": [
+      "UNIQUE (novel_id, id)",
+      "UNIQUE (novel_id, sequence) DEFERRABLE INITIALLY IMMEDIATE"
+    ],
+    "note": ""
+  },
+  {
+    "name": "story_character",
+    "label": "角色",
+    "fields": [
+      [
+        "id",
+        "uuid",
+        "实体主键",
+        "PRIMARY KEY DEFAULT gen_random_uuid()"
+      ],
+      [
+        "novel_id",
+        "uuid",
+        "所属小说",
+        "NOT NULL REFERENCES novel(id) ON DELETE CASCADE"
+      ],
+      [
+        "name",
+        "varchar(100)",
+        "角色姓名",
+        "NOT NULL CHECK (length(btrim(name)) > 0)"
+      ],
+      [
+        "description",
+        "text",
+        "角色简介",
+        "NOT NULL DEFAULT ''"
+      ],
+      [
+        "appearance",
+        "text",
+        "外貌",
+        "NOT NULL DEFAULT ''"
+      ],
+      [
+        "personality",
+        "text",
+        "性格",
+        "NOT NULL DEFAULT ''"
+      ],
+      [
+        "background",
+        "text",
+        "背景",
+        "NOT NULL DEFAULT ''"
+      ],
+      [
+        "role",
+        "varchar(16)",
+        "角色类别",
+        "NOT NULL DEFAULT 'supporting' CHECK (role IN ('protagonist','supporting','minor'))"
+      ],
+      [
+        "sequence",
+        "integer",
+        "同级显示顺序 从零开始",
+        "NOT NULL CHECK (sequence >= 0)"
+      ],
+      [
+        "first_chapter_id",
+        "uuid",
+        "首次出场章节",
+        "NULL"
+      ],
+      [
+        "created_at",
+        "timestamptz",
+        "创建时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ],
+      [
+        "updated_at",
+        "timestamptz",
+        "最后更新时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ]
+    ],
+    "constraints": [
+      "UNIQUE (novel_id, id)",
+      "FOREIGN KEY (novel_id, first_chapter_id) REFERENCES chapter(novel_id, id) DEFERRABLE INITIALLY DEFERRED"
+    ],
+    "note": ""
+  },
+  {
+    "name": "character_alias",
+    "label": "角色别名",
+    "fields": [
+      [
+        "character_id",
+        "uuid",
+        "角色主键",
+        "NOT NULL REFERENCES story_character(id) ON DELETE CASCADE"
+      ],
+      [
+        "alias",
+        "varchar(100)",
+        "单个别名",
+        "NOT NULL CHECK (length(btrim(alias)) > 0)"
+      ]
+    ],
+    "constraints": [
+      "PRIMARY KEY (character_id, alias)"
+    ],
+    "note": "将重复别名拆分为独立关系 不使用逗号拼接列表"
+  },
+  {
+    "name": "world_setting",
+    "label": "世界观设定",
+    "fields": [
+      [
+        "id",
+        "uuid",
+        "实体主键",
+        "PRIMARY KEY DEFAULT gen_random_uuid()"
+      ],
+      [
+        "novel_id",
+        "uuid",
+        "所属小说",
+        "NOT NULL REFERENCES novel(id) ON DELETE CASCADE"
+      ],
+      [
+        "category",
+        "varchar(50)",
+        "设定分类",
+        "NOT NULL DEFAULT '其他'"
+      ],
+      [
+        "title",
+        "varchar(200)",
+        "设定标题",
+        "NOT NULL CHECK (length(btrim(title)) > 0)"
+      ],
+      [
+        "content",
+        "text",
+        "设定内容",
+        "NOT NULL DEFAULT ''"
+      ],
+      [
+        "created_at",
+        "timestamptz",
+        "创建时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ],
+      [
+        "updated_at",
+        "timestamptz",
+        "最后更新时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ]
+    ],
+    "constraints": [],
+    "note": ""
+  },
+  {
+    "name": "volume_outline",
+    "label": "卷大纲",
+    "fields": [
+      [
+        "id",
+        "uuid",
+        "实体主键",
+        "PRIMARY KEY DEFAULT gen_random_uuid()"
+      ],
+      [
+        "novel_id",
+        "uuid",
+        "所属小说",
+        "NOT NULL REFERENCES novel(id) ON DELETE CASCADE"
+      ],
+      [
+        "title",
+        "varchar(200)",
+        "卷标题",
+        "NOT NULL CHECK (length(btrim(title)) > 0)"
+      ],
+      [
+        "summary",
+        "text",
+        "卷概要",
+        "NOT NULL DEFAULT ''"
+      ],
+      [
+        "sequence",
+        "integer",
+        "同级显示顺序 从零开始",
+        "NOT NULL CHECK (sequence >= 0)"
+      ],
+      [
+        "created_at",
+        "timestamptz",
+        "创建时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ],
+      [
+        "updated_at",
+        "timestamptz",
+        "最后更新时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ]
+    ],
+    "constraints": [
+      "UNIQUE (novel_id, id)",
+      "UNIQUE (novel_id, sequence) DEFERRABLE INITIALLY IMMEDIATE"
+    ],
+    "note": ""
+  },
+  {
+    "name": "chapter_outline",
+    "label": "章节大纲",
+    "fields": [
+      [
+        "id",
+        "uuid",
+        "实体主键",
+        "PRIMARY KEY DEFAULT gen_random_uuid()"
+      ],
+      [
+        "novel_id",
+        "uuid",
+        "所属小说",
+        "NOT NULL REFERENCES novel(id) ON DELETE CASCADE"
+      ],
+      [
+        "volume_id",
+        "uuid",
+        "所属卷 可暂不归卷",
+        "NULL"
+      ],
+      [
+        "title",
+        "varchar(200)",
+        "章纲标题",
+        "NOT NULL CHECK (length(btrim(title)) > 0)"
+      ],
+      [
+        "summary",
+        "text",
+        "章纲情节",
+        "NOT NULL DEFAULT ''"
+      ],
+      [
+        "sequence",
+        "integer",
+        "同级显示顺序 从零开始",
+        "NOT NULL CHECK (sequence >= 0)"
+      ],
+      [
+        "status",
+        "varchar(16)",
+        "章纲进度",
+        "NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','completed'))"
+      ],
+      [
+        "chapter_id",
+        "uuid",
+        "关联正文 可为空",
+        "NULL"
+      ],
+      [
+        "created_at",
+        "timestamptz",
+        "创建时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ],
+      [
+        "updated_at",
+        "timestamptz",
+        "最后更新时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ]
+    ],
+    "constraints": [
+      "UNIQUE (novel_id, id)",
+      "UNIQUE (chapter_id)",
+      "UNIQUE NULLS NOT DISTINCT (novel_id, volume_id, sequence) DEFERRABLE INITIALLY IMMEDIATE",
+      "FOREIGN KEY (novel_id, volume_id) REFERENCES volume_outline(novel_id, id) DEFERRABLE INITIALLY DEFERRED",
+      "FOREIGN KEY (novel_id, chapter_id) REFERENCES chapter(novel_id, id) DEFERRABLE INITIALLY DEFERRED",
+      "CHECK (status <> 'completed' OR chapter_id IS NOT NULL)"
+    ],
+    "note": "同一小说中 未归卷章纲也不能出现重复顺序 一个正文最多关联一个章纲"
+  },
+  {
+    "name": "foreshadowing",
+    "label": "伏笔",
+    "fields": [
+      [
+        "id",
+        "uuid",
+        "实体主键",
+        "PRIMARY KEY DEFAULT gen_random_uuid()"
+      ],
+      [
+        "novel_id",
+        "uuid",
+        "所属小说",
+        "NOT NULL REFERENCES novel(id) ON DELETE CASCADE"
+      ],
+      [
+        "title",
+        "varchar(200)",
+        "伏笔标题",
+        "NOT NULL CHECK (length(btrim(title)) > 0)"
+      ],
+      [
+        "description",
+        "text",
+        "伏笔说明",
+        "NOT NULL DEFAULT ''"
+      ],
+      [
+        "status",
+        "varchar(16)",
+        "伏笔状态",
+        "NOT NULL DEFAULT 'planted' CHECK (status IN ('planted','hinted','resolved'))"
+      ],
+      [
+        "planted_chapter_id",
+        "uuid",
+        "埋设正文锚点",
+        "NULL"
+      ],
+      [
+        "resolved_chapter_id",
+        "uuid",
+        "回收正文锚点",
+        "NULL"
+      ],
+      [
+        "planted_outline_id",
+        "uuid",
+        "埋设章纲锚点",
+        "NULL"
+      ],
+      [
+        "resolved_outline_id",
+        "uuid",
+        "回收章纲锚点",
+        "NULL"
+      ],
+      [
+        "created_at",
+        "timestamptz",
+        "创建时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ],
+      [
+        "updated_at",
+        "timestamptz",
+        "最后更新时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ]
+    ],
+    "constraints": [
+      "FOREIGN KEY (novel_id, planted_chapter_id) REFERENCES chapter(novel_id, id) DEFERRABLE INITIALLY DEFERRED",
+      "FOREIGN KEY (novel_id, resolved_chapter_id) REFERENCES chapter(novel_id, id) DEFERRABLE INITIALLY DEFERRED",
+      "FOREIGN KEY (novel_id, planted_outline_id) REFERENCES chapter_outline(novel_id, id) DEFERRABLE INITIALLY DEFERRED",
+      "FOREIGN KEY (novel_id, resolved_outline_id) REFERENCES chapter_outline(novel_id, id) DEFERRABLE INITIALLY DEFERRED",
+      "CHECK (status <> 'resolved' OR resolved_chapter_id IS NOT NULL OR resolved_outline_id IS NOT NULL)"
+    ],
+    "note": ""
+  },
+  {
+    "name": "model_profile",
+    "label": "模型配置",
+    "fields": [
+      [
+        "id",
+        "uuid",
+        "实体主键",
+        "PRIMARY KEY DEFAULT gen_random_uuid()"
+      ],
+      [
+        "user_id",
+        "uuid",
+        "配置拥有者",
+        "NOT NULL REFERENCES app_user(id) ON DELETE CASCADE"
+      ],
+      [
+        "name",
+        "varchar(80)",
+        "用户自定义配置名",
+        "NOT NULL CHECK (length(btrim(name)) > 0)"
+      ],
+      [
+        "provider",
+        "varchar(50)",
+        "服务商标识 不限制新增服务商",
+        "NOT NULL"
+      ],
+      [
+        "protocol",
+        "varchar(16)",
+        "接口协议",
+        "NOT NULL CHECK (protocol IN ('openai','responses','anthropic','gemini'))"
+      ],
+      [
+        "base_url",
+        "text",
+        "API 基础地址 不含密钥",
+        "NOT NULL CHECK (base_url ~ '^https?://' AND base_url !~* '[?&](key|api_key|token)=')"
+      ],
+      [
+        "model_id",
+        "varchar(200)",
+        "API 模型 ID 或部署名",
+        "NOT NULL CHECK (length(btrim(model_id)) > 0)"
+      ],
+      [
+        "auth_mode",
+        "varchar(16)",
+        "认证方式",
+        "NOT NULL DEFAULT 'bearer' CHECK (auth_mode IN ('bearer','x-api-key','api-key','none'))"
+      ],
+      [
+        "temperature",
+        "numeric(3,2)",
+        "随机性",
+        "NOT NULL DEFAULT 0.70 CHECK (temperature BETWEEN 0 AND 2)"
+      ],
+      [
+        "send_temperature",
+        "boolean",
+        "是否发送随机性",
+        "NOT NULL DEFAULT true"
+      ],
+      [
+        "max_tokens",
+        "integer",
+        "最大输出预算",
+        "NOT NULL DEFAULT 8192 CHECK (max_tokens > 0)"
+      ],
+      [
+        "token_parameter",
+        "varchar(24)",
+        "长度参数选择",
+        "NOT NULL DEFAULT 'auto' CHECK (token_parameter IN ('auto','max_tokens','max_completion_tokens','omit'))"
+      ],
+      [
+        "stream",
+        "boolean",
+        "是否流式输出",
+        "NOT NULL DEFAULT true"
+      ],
+      [
+        "timeout_seconds",
+        "integer",
+        "总超时秒数",
+        "NOT NULL DEFAULT 180 CHECK (timeout_seconds BETWEEN 5 AND 1800)"
+      ],
+      [
+        "extra_body",
+        "jsonb",
+        "服务商扩展参数",
+        "NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(extra_body) = 'object')"
+      ],
+      [
+        "extra_headers",
+        "jsonb",
+        "不含凭据的扩展请求头",
+        "NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(extra_headers) = 'object' AND NOT (extra_headers ?| ARRAY['Authorization','authorization','api-key','x-api-key','x-goog-api-key']))"
+      ],
+      [
+        "is_default",
+        "boolean",
+        "是否为用户默认配置",
+        "NOT NULL DEFAULT false"
+      ],
+      [
+        "created_at",
+        "timestamptz",
+        "创建时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ],
+      [
+        "updated_at",
+        "timestamptz",
+        "最后更新时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ]
+    ],
+    "constraints": [
+      "UNIQUE (user_id, name)",
+      "CHECK (protocol <> 'anthropic' OR token_parameter <> 'omit')"
+    ],
+    "note": "API Key 不属于本表 JSON 扩展仅承载供应商特有参数 核心业务字段仍使用有类型的列"
+  },
+  {
+    "name": "model_credential",
+    "label": "模型凭据",
+    "fields": [
+      [
+        "profile_id",
+        "uuid",
+        "配置主键 一对零或一",
+        "PRIMARY KEY REFERENCES model_profile(id) ON DELETE CASCADE"
+      ],
+      [
+        "ciphertext",
+        "bytea",
+        "AES GCM 密文 含认证标签",
+        "NOT NULL CHECK (octet_length(ciphertext) > 16)"
+      ],
+      [
+        "nonce",
+        "bytea",
+        "每次加密重新生成的随机数",
+        "NOT NULL CHECK (octet_length(nonce) = 12)"
+      ],
+      [
+        "key_version",
+        "integer",
+        "服务端加密密钥版本",
+        "NOT NULL CHECK (key_version > 0)"
+      ],
+      [
+        "created_at",
+        "timestamptz",
+        "创建时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ],
+      [
+        "updated_at",
+        "timestamptz",
+        "最后更新时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ]
+    ],
+    "constraints": [],
+    "note": "数据库只存密文和密钥版本 加密主密钥放服务端密钥管理 本 SQL 不实现密码学算法"
+  },
+  {
+    "name": "chat_session",
+    "label": "对话会话",
+    "fields": [
+      [
+        "id",
+        "uuid",
+        "实体主键",
+        "PRIMARY KEY DEFAULT gen_random_uuid()"
+      ],
+      [
+        "novel_id",
+        "uuid",
+        "所属小说",
+        "NOT NULL REFERENCES novel(id) ON DELETE CASCADE"
+      ],
+      [
+        "title",
+        "varchar(200)",
+        "会话标题",
+        "NOT NULL DEFAULT '新会话'"
+      ],
+      [
+        "created_at",
+        "timestamptz",
+        "创建时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ],
+      [
+        "updated_at",
+        "timestamptz",
+        "最后更新时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ]
+    ],
+    "constraints": [],
+    "note": ""
+  },
+  {
+    "name": "chat_message",
+    "label": "对话消息",
+    "fields": [
+      [
+        "id",
+        "uuid",
+        "实体主键",
+        "PRIMARY KEY DEFAULT gen_random_uuid()"
+      ],
+      [
+        "session_id",
+        "uuid",
+        "所属会话",
+        "NOT NULL REFERENCES chat_session(id) ON DELETE CASCADE"
+      ],
+      [
+        "role",
+        "varchar(16)",
+        "消息角色",
+        "NOT NULL CHECK (role IN ('system','user','assistant'))"
+      ],
+      [
+        "content",
+        "text",
+        "消息正文 不持久化隐藏推理",
+        "NOT NULL DEFAULT ''"
+      ],
+      [
+        "status",
+        "varchar(16)",
+        "生成生命周期",
+        "NOT NULL DEFAULT 'completed' CHECK (status IN ('queued','streaming','completed','failed','cancelled'))"
+      ],
+      [
+        "sequence",
+        "integer",
+        "同级显示顺序 从零开始",
+        "NOT NULL CHECK (sequence >= 0)"
+      ],
+      [
+        "model_profile_id",
+        "uuid",
+        "调用时使用的配置",
+        "NULL REFERENCES model_profile(id) ON DELETE SET NULL"
+      ],
+      [
+        "model_snapshot",
+        "varchar(200)",
+        "调用时模型 ID 快照",
+        "NULL"
+      ],
+      [
+        "protocol_snapshot",
+        "varchar(16)",
+        "调用时协议快照",
+        "NULL CHECK (protocol_snapshot IS NULL OR protocol_snapshot IN ('openai','responses','anthropic','gemini'))"
+      ],
+      [
+        "request_id",
+        "uuid",
+        "客户端请求幂等标识",
+        "NULL UNIQUE"
+      ],
+      [
+        "input_tokens",
+        "integer",
+        "上游返回的输入用量",
+        "NULL CHECK (input_tokens >= 0)"
+      ],
+      [
+        "output_tokens",
+        "integer",
+        "上游返回的输出用量",
+        "NULL CHECK (output_tokens >= 0)"
+      ],
+      [
+        "created_at",
+        "timestamptz",
+        "创建时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ],
+      [
+        "finished_at",
+        "timestamptz",
+        "终态完成时间",
+        "NULL"
+      ]
+    ],
+    "constraints": [
+      "UNIQUE (session_id, sequence)",
+      "CHECK (status NOT IN ('completed','failed','cancelled') OR finished_at IS NOT NULL)"
+    ],
+    "note": "Token 用量未知时保持 NULL 不虚构为零 配置删除后保留历史模型快照"
+  },
+  {
+    "name": "chapter_revision",
+    "label": "章节历史版本",
+    "fields": [
+      [
+        "id",
+        "uuid",
+        "实体主键",
+        "PRIMARY KEY DEFAULT gen_random_uuid()"
+      ],
+      [
+        "chapter_id",
+        "uuid",
+        "所属正文",
+        "NOT NULL REFERENCES chapter(id) ON DELETE CASCADE"
+      ],
+      [
+        "version",
+        "bigint",
+        "对应正文版本",
+        "NOT NULL CHECK (version >= 1)"
+      ],
+      [
+        "title",
+        "varchar(200)",
+        "当时的标题",
+        "NOT NULL"
+      ],
+      [
+        "content",
+        "text",
+        "当时的完整正文",
+        "NOT NULL DEFAULT ''"
+      ],
+      [
+        "content_format",
+        "varchar(8)",
+        "快照格式",
+        "NOT NULL CHECK (content_format IN ('html','text'))"
+      ],
+      [
+        "word_count",
+        "integer",
+        "当时统计字数",
+        "NOT NULL CHECK (word_count >= 0)"
+      ],
+      [
+        "change_source",
+        "varchar(16)",
+        "修改来源",
+        "NOT NULL CHECK (change_source IN ('manual','ai','restore','import'))"
+      ],
+      [
+        "created_at",
+        "timestamptz",
+        "创建时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ]
+    ],
+    "constraints": [
+      "UNIQUE (chapter_id, version)"
+    ],
+    "note": "通过触发器在正文新建和版本递增后自动写快照 历史恢复生成新版本"
+  },
+  {
+    "name": "novel_reading_state",
+    "label": "小说阅读状态",
+    "fields": [
+      [
+        "novel_id",
+        "uuid",
+        "小说主键 拥有者由小说推导",
+        "PRIMARY KEY REFERENCES novel(id) ON DELETE CASCADE"
+      ],
+      [
+        "last_chapter_id",
+        "uuid",
+        "上次打开的章节",
+        "NULL"
+      ],
+      [
+        "cursor_offset",
+        "integer",
+        "编辑光标位置",
+        "NOT NULL DEFAULT 0 CHECK (cursor_offset >= 0)"
+      ],
+      [
+        "updated_at",
+        "timestamptz",
+        "最后更新时间",
+        "NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      ]
+    ],
+    "constraints": [
+      "FOREIGN KEY (novel_id, last_chapter_id) REFERENCES chapter(novel_id, id) DEFERRABLE INITIALLY DEFERRED"
+    ],
+    "note": "本期一个小说仅有一位拥有者 不重复存储可推导的 user_id 多人协作需另行设计成员表"
+  }
+]
