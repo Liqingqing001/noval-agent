@@ -6,6 +6,7 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { API_PRESETS, isModelConfigured } from '@/lib/modelConfig';
 import type { GenerationPhase } from '@/services/modelService';
 import { GenerationStatus } from './GenerationStatus';
+import { AssistantReply } from './AssistantReply';
 import { extractContentBlocks } from '@/lib/structuredContent';
 import { syncFeedback } from '@/lib/syncFeedback';
 import { DeepSeekService } from '@/services/deepseek';
@@ -714,9 +715,11 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
                   <div className="flex flex-col gap-2 max-w-[85%]">
                     <div className={`rounded-lg px-3 py-2 text-sm ${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
                       {message.role === 'assistant' ? (
-                        <div className="prose prose-sm max-w-none dark:prose-invert [&_p]:mb-2 [&_p:last-child]:mb-0 [&_strong]:font-bold [&_ul]:mb-2 [&_ol]:mb-2 [&_li]:mb-0.5">
-                          <MemoMarkdown>{formatAIResponse(message.content)}</MemoMarkdown>
-                        </div>
+                        <AssistantReply content={message.content} syncStatus={message.syncStatus}>
+                          <div className="prose prose-sm max-w-none dark:prose-invert [&_p]:mb-2 [&_p:last-child]:mb-0 [&_strong]:font-bold [&_ul]:mb-2 [&_ol]:mb-2 [&_li]:mb-0.5">
+                            <MemoMarkdown>{formatAIResponse(message.content)}</MemoMarkdown>
+                          </div>
+                        </AssistantReply>
                       ) : (
                         <div className="whitespace-pre-wrap">{message.content}</div>
                       )}
@@ -737,7 +740,9 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
                   <span className="text-sm">{AGENT_CONFIGS[activeAgent].avatar}</span>
                 </div>
                 <div className="max-w-[85%] rounded-lg px-3 py-2 text-sm bg-muted">
-                  <div className="whitespace-pre-wrap break-words">{streamingContent}</div>
+                  <AssistantReply content={streamingContent} streaming>
+                    <div className="whitespace-pre-wrap break-words">{streamingContent}</div>
+                  </AssistantReply>
                   <GenerationStatus phase={generationPhase} startedAt={generationStartedAt} />
                   <div className="flex gap-1 mt-2">
                     <span className="w-1.5 h-1.5 bg-primary/50 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
