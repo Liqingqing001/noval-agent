@@ -2,10 +2,12 @@ import { apiRoot, endpoint, isModelConfigured, normalizeConfig, parseJsonObject,
 import type { ModelConfig } from '../lib/modelConfig';
 
 export interface ChatMessage { role: 'system' | 'user' | 'assistant'; content: string }
+export type GenerationPhase = 'connecting' | 'waiting' | 'reasoning' | 'streaming' | 'non-streaming';
 export interface GenerateOptions {
   messages: ChatMessage[];
   signal?: AbortSignal;
   onStream?: (content: string) => void;
+  onProgress?: (phase: GenerationPhase) => void;
 }
 type Json = Record<string, unknown>;
 const object = (value: unknown): Json => value && typeof value === 'object' && !Array.isArray(value) ? value as Json : {};
@@ -180,14 +182,21 @@ export class ModelService {
   async generate(options: GenerateOptions): Promise<string> {
     return this.connection(true, options.signal, async signal => {
       const { config } = this;
+      let phase: GenerationPhase | undefined;
+      const progress = (next: GenerationPhase) => {
+        if (phase !== next) { phase = next; options.onProgress?.(next); }
+      };
+      progress('connecting');
       const response = await this.fetchResponse(endpoint(config, 'chat'), { method: 'POST', signal,
         body: JSON.stringify(buildRequestBody(config, options.messages, config.stream)) });
       let content = '';
       const mime = response.headers.get('content-type') || '';
       if (!config.stream || mime.includes('application/json')) {
+        progress('non-streaming');
         content = responseText(object(await response.json()), config.protocol);
         if (content) options.onStream?.(content);
       } else {
+        progress('waiting');
         if (mime.includes('text/html')) throw new Error('该地址返回了网页，请填写模型 API 地址');
         let terminal = false;
         await consumeSSE(response, (data, event) => {
@@ -197,6 +206,12 @@ export class ModelService {
           // Some compatible servers only set the SSE event field, not the JSON type.
           if (!value.type && event) value.type = event;
           checkResult(value, config.protocol);
+          const choiceDelta = object(object(array(value.choices)[0]).delta);
+          const reasoning = choiceDelta.reasoning_content || choiceDelta.reasoning ||
+            ['thinking_delta', 'reasoning_delta'].includes(string(object(value.delta).type)) ||
+            string(value.type).startsWith('response.reasoning') ||
+            array(object(object(array(value.candidates)[0]).content).parts).some(part => object(part).thought);
+          if (!content && reasoning) progress('reasoning');
           let delta = '';
           if (config.protocol === 'openai') {
             const choice = object(array(value.choices)[0]);
@@ -217,8 +232,9 @@ export class ModelService {
             delta = textParts(object(object(array(value.candidates)[0]).content).parts);
             if (object(array(value.candidates)[0]).finishReason) terminal = true;
           }
-          if (delta) { content += delta; options.onStream?.(content); }
-          if (['response.completed', 'message_stop'].includes(string(value.type))) return false;
+          if (delta) { content += delta; progress('streaming'); options.onStream?.(content); }
+          // A provider can keep its HTTP connection open after the semantic finish event.
+          if (terminal) return false;
         });
         if (!terminal) throw new Error('响应流意外结束，生成未确认完成，请重试');
       }

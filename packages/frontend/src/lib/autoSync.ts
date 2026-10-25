@@ -2,6 +2,8 @@
 // 解析 AI 响应中的结构化内容并同步到 store
 
 import { useNovelStore } from '@/stores/novelStore';
+import { extractContentBlocks, normalizeCreationSections, parseBasicInfo, parseCharacterContent, parseWorldContent, parseChapterContent } from './structuredContent';
+export { parseBasicInfo, parseCharacterContent, parseWorldContent, parseChapterContent } from './structuredContent';
 
 /**
  * 解析修改指令
@@ -728,34 +730,10 @@ function deleteContent(novelId: string, instruction: DeleteInstruction): boolean
 }
 
 /**
- * 解析 AI 响应中的基本信息
- */
-export function parseBasicInfo(content: string): { genre?: string; summary?: string } | null {
-  const match = content.match(/【基本信息】([\s\S]*?)【\/基本信息】/);
-  if (!match) return null;
-
-  const block = match[1];
-  const result: { genre?: string; summary?: string } = {};
-
-  // 解析题材
-  const genreMatch = block.match(/题材[：:]\s*(.+?)(?:\n|简介|$)/);
-  if (genreMatch) {
-    result.genre = genreMatch[1].trim();
-  }
-
-  // 解析简介 - 使用更宽松的匹配
-  const summaryMatch = block.match(/简介[：:]\s*([\s\S]+?)(?:【|$)/);
-  if (summaryMatch) {
-    result.summary = summaryMatch[1].trim();
-  }
-
-  return Object.keys(result).length > 0 ? result : null;
-}
-
-/**
  * 解析卷大纲
  */
 export function parseVolumeContent(content: string): Array<{ title: string; summary: string }> {
+  content = normalizeCreationSections(content);
   const results: Array<{ title: string; summary: string }> = [];
   const regex = /【卷】([\s\S]*?)【\/卷】/g;
   let match;
@@ -780,6 +758,7 @@ export function parseVolumeContent(content: string): Array<{ title: string; summ
  * 解析章节大纲（带卷关联）
  */
 export function parseChapterOutlineContent(content: string): Array<{ volumeTitle?: string; chapters: Array<{ title: string; summary: string }> }> {
+  content = normalizeCreationSections(content);
   const results: Array<{ volumeTitle?: string; chapters: Array<{ title: string; summary: string }> }> = [];
   const regex = /【章节大纲】([\s\S]*?)【\/章节大纲】/g;
   let match;
@@ -813,6 +792,7 @@ export function parseChapterOutlineContent(content: string): Array<{ volumeTitle
  * 解析 AI 响应中的大纲内容
  */
 export function parseOutlineContent(content: string): Array<{ title: string; summary: string }> {
+  content = normalizeCreationSections(content);
   const results: Array<{ title: string; summary: string }> = [];
 
   const outlineMatch = content.match(/【大纲】([\s\S]*?)【\/大纲】/);
@@ -854,201 +834,11 @@ export function parseOutlineContent(content: string): Array<{ title: string; sum
 }
 
 /**
- * 解析 AI 响应中的角色内容
- */
-export function parseCharacterContent(content: string): Array<Record<string, string>> {
-  const results: Array<Record<string, string>> = [];
-
-  const regex = /【角色】([\s\S]*?)【\/角色】/g;
-  let match;
-
-  while ((match = regex.exec(content)) !== null) {
-    const block = match[1];
-    const character: Record<string, string> = {};
-
-    const lines = block.split('\n').filter(l => l.trim());
-    lines.forEach(line => {
-      const lineMatch = line.match(/^(.+?)[：:]\s*(.+)$/);
-      if (lineMatch) {
-        const key = lineMatch[1].trim();
-        const value = lineMatch[2].trim();
-
-        if (key.includes('姓名') || key.includes('名字')) {
-          character.name = value;
-        } else if (key.includes('定位') || key.includes('角色类型') || key.includes('角色定位')) {
-          // 解析角色定位：主角/配角/龙套
-          if (value.includes('主角') || value.toLowerCase().includes('protagonist')) {
-            character.role = 'protagonist';
-          } else if (value.includes('龙套') || value.includes('路人') || value.toLowerCase().includes('minor')) {
-            character.role = 'minor';
-          } else {
-            character.role = 'supporting'; // 默认配角
-          }
-        } else if (key.includes('性格')) {
-          character.personality = value;
-        } else if (key.includes('背景')) {
-          character.background = value;
-        } else if (key.includes('外貌')) {
-          character.appearance = value;
-        } else if (key.includes('内心') || key.includes('内心冲突')) {
-          character.innerConflict = value;
-        } else if (key.includes('成长') || key.includes('成长弧线')) {
-          character.growthArc = value;
-        } else if (key.includes('描述') || key.includes('简介')) {
-          character.description = value;
-        } else {
-          character[key.toLowerCase()] = value;
-        }
-      }
-    });
-
-    if (character.name) {
-      results.push(character);
-    }
-  }
-
-  return results;
-}
-
-/**
- * 解析 AI 响应中的世界观内容
- */
-export function parseWorldContent(content: string): Array<Record<string, string>> {
-  const results: Array<Record<string, string>> = [];
-
-  const regex = /【世界观】([\s\S]*?)【\/世界观】/g;
-  let match;
-
-  while ((match = regex.exec(content)) !== null) {
-    const block = match[1];
-    const world: Record<string, string> = {};
-
-    const lines = block.split('\n').filter(l => l.trim());
-    lines.forEach(line => {
-      const lineMatch = line.match(/^(.+?)[：:]\s*(.+)$/);
-      if (lineMatch) {
-        const key = lineMatch[1].trim();
-        const value = lineMatch[2].trim();
-
-        if (key.includes('分类') || key.includes('类别')) {
-          world.category = value;
-        } else if (key.includes('名称') || key.includes('标题')) {
-          world.title = value;
-        } else if (key.includes('内容') || key.includes('描述')) {
-          world.content = value;
-        } else {
-          world[key.toLowerCase()] = value;
-        }
-      }
-    });
-
-    if (world.title) {
-      results.push(world);
-    }
-  }
-
-  return results;
-}
-
-/**
- * 解析 AI 响应中的章节内容
- * 格式：
- * 【章节】
- * 标题：第一章 觉醒
- * 内容：
- * 林风走在山路上，突然一道光芒从天而降...
- *
- * 光芒消散后，林风发现自己体内多了一股奇异的能量...
- * 【/章节】
- */
-export function parseChapterContent(content: string): Array<{ title: string; content: string }> {
-  const results: Array<{ title: string; content: string }> = [];
-
-  // 先匹配完整闭合的章节
-  const closedRegex = /【章节】([\s\S]*?)【\/章节】/g;
-  let match;
-  let matchCount = 0;
-
-  while ((match = closedRegex.exec(content)) !== null) {
-    matchCount++;
-    const block = match[1];
-    let title = '';
-    let chapterContent = '';
-
-    console.log(`📝 解析章节 #${matchCount}, block 长度: ${block.length}`);
-
-    // 解析标题
-    const titleMatch = block.match(/标题[：:]\s*(.+?)(?:\n|内容|$)/);
-    if (titleMatch) {
-      title = titleMatch[1].trim();
-      console.log(`  标题: "${title}"`);
-    } else {
-      console.warn(`  ⚠️ 未找到标题`);
-    }
-
-    // 解析内容
-    let contentMatch = block.match(/内容[：:][\s]*([\s\S]+)$/);
-    if (!contentMatch) {
-      contentMatch = block.match(/内容[：:][\s]*([\s\S]+?)(?=【|$)/);
-    }
-    if (!contentMatch) {
-      contentMatch = block.match(/内容[：:]\s*([\s\S]+)/);
-    }
-
-    if (contentMatch) {
-      chapterContent = contentMatch[1].trim();
-      if (chapterContent.endsWith('【')) {
-        chapterContent = chapterContent.slice(0, -1).trim();
-      }
-      console.log(`  内容长度: ${chapterContent.length}字`);
-    } else {
-      console.warn(`  ⚠️ 未找到内容`);
-    }
-
-    if (title) {
-      results.push({ title, content: chapterContent });
-    }
-  }
-
-  // 再检查未闭合的章节（AI被截断的情况）
-  const openRegex = /【章节】([\s\S]*?)(?=【章节】|【\/章节】|$)/g;
-  while ((match = openRegex.exec(content)) !== null) {
-    const block = match[1];
-    if (!block.trim()) continue;
-
-    // 检查是否已被完整闭合处理过
-    const titleMatch = block.match(/标题[：:]\s*(.+?)(?:\n|内容|$)/);
-    if (!titleMatch) continue;
-
-    const title = titleMatch[1].trim();
-
-    // 检查是否已存在
-    if (results.some(r => r.title === title)) continue;
-
-    console.log(`📝 解析未闭合章节: "${title}"`);
-
-    let chapterContent = '';
-    const contentMatch = block.match(/内容[：:][\s]*([\s\S]+)$/);
-    if (contentMatch) {
-      chapterContent = contentMatch[1].trim();
-    }
-
-    if (title && chapterContent.length > 50) { // 至少50字才同步
-      results.push({ title, content: chapterContent });
-      console.log(`  ✅ 已同步未闭合章节，内容长度: ${chapterContent.length}字`);
-    }
-  }
-
-  console.log(`📊 共解析 ${results.length} 个章节`);
-  return results;
-}
-
-/**
  * 自动同步 AI 响应中的所有内容到 store
  * 如果已存在同名/同标题的内容，则更新而不是追加
  * 支持精准修改指令、插入、替换、合并、拆分、调整顺序
  */
-export function autoSyncContent(content: string, novelId: string): {
+export function autoSyncContent(content: string, novelId: string, options: { contentOnly?: boolean } = {}): {
   basicInfo: boolean;
   outlineCount: number;
   characterCount: number;
@@ -1078,90 +868,93 @@ export function autoSyncContent(content: string, novelId: string): {
     reorderCount: 0,
   };
 
-  // 优先处理插入章节指令
-  const insertInstructions = parseInsertChapterInstructions(content);
-  if (insertInstructions.length > 0) {
-    insertInstructions.forEach(instruction => {
-      const success = insertChapterAtPosition(novelId, instruction.position, instruction.title, instruction.content);
-      if (success) result.insertCount++;
-    });
-  }
+  if (!options.contentOnly) {
+    // 优先处理插入章节指令
+    const insertInstructions = parseInsertChapterInstructions(content);
+    if (insertInstructions.length > 0) {
+      insertInstructions.forEach(instruction => {
+        const success = insertChapterAtPosition(novelId, instruction.position, instruction.title, instruction.content);
+        if (success) result.insertCount++;
+      });
+    }
 
-  // 处理替换指令
-  const replaceInstructions = parseReplaceInstructions(content);
-  if (replaceInstructions.length > 0) {
-    replaceInstructions.forEach(instruction => {
-      const success = replaceContent(novelId, instruction.target, instruction.title, instruction.newContent);
-      if (success) result.replaceCount++;
-    });
-  }
+    // 处理替换指令
+    const replaceInstructions = parseReplaceInstructions(content);
+    if (replaceInstructions.length > 0) {
+      replaceInstructions.forEach(instruction => {
+        const success = replaceContent(novelId, instruction.target, instruction.title, instruction.newContent);
+        if (success) result.replaceCount++;
+      });
+    }
 
-  // 处理合并章节指令
-  const mergeInstructions = parseMergeChaptersInstructions(content);
-  if (mergeInstructions.length > 0) {
-    mergeInstructions.forEach(instruction => {
-      const success = mergeChapters(novelId, instruction.sources, instruction.newTitle, instruction.newContent);
-      if (success) result.mergeCount++;
-    });
-  }
+    // 处理合并章节指令
+    const mergeInstructions = parseMergeChaptersInstructions(content);
+    if (mergeInstructions.length > 0) {
+      mergeInstructions.forEach(instruction => {
+        const success = mergeChapters(novelId, instruction.sources, instruction.newTitle, instruction.newContent);
+        if (success) result.mergeCount++;
+      });
+    }
 
-  // 处理拆分章节指令
-  const splitInstructions = parseSplitChapterInstructions(content);
-  if (splitInstructions.length > 0) {
-    splitInstructions.forEach(instruction => {
-      const success = splitChapter(novelId, instruction.source, instruction.newChapters);
-      if (success) result.splitCount++;
-    });
-  }
+    // 处理拆分章节指令
+    const splitInstructions = parseSplitChapterInstructions(content);
+    if (splitInstructions.length > 0) {
+      splitInstructions.forEach(instruction => {
+        const success = splitChapter(novelId, instruction.source, instruction.newChapters);
+        if (success) result.splitCount++;
+      });
+    }
 
-  // 处理调整顺序指令
-  const reorderInstructions = parseReorderInstructions(content);
-  if (reorderInstructions.length > 0) {
-    reorderInstructions.forEach(instruction => {
-      const success = reorderItems(novelId, instruction.type, instruction.newOrder);
-      if (success) result.reorderCount++;
-    });
-  }
+    // 处理调整顺序指令
+    const reorderInstructions = parseReorderInstructions(content);
+    if (reorderInstructions.length > 0) {
+      reorderInstructions.forEach(instruction => {
+        const success = reorderItems(novelId, instruction.type, instruction.newOrder);
+        if (success) result.reorderCount++;
+      });
+    }
 
-  // 优先处理修改指令
-  const modifyInstructions = parseModifyInstructions(content);
-  if (modifyInstructions.length > 0) {
-    modifyInstructions.forEach(instruction => {
-      let success = false;
-      switch (instruction.target) {
-        case '章节':
-          success = modifyChapterContent(novelId, instruction.title!, instruction.originalContent, instruction.newContent);
-          break;
-        case '大纲':
-          success = modifyPlotCard(novelId, instruction.title!, instruction.originalContent, instruction.newContent);
-          break;
-        case '卷':
-          success = modifyVolume(novelId, instruction.title!, instruction.originalContent, instruction.newContent);
-          break;
-        case '角色':
-          success = modifyCharacter(novelId, instruction.name!, instruction.field!, instruction.originalContent, instruction.newContent);
-          break;
-        case '世界观':
-          success = modifyWorldSetting(novelId, instruction.title!, instruction.originalContent, instruction.newContent);
-          break;
-      }
-      if (success) result.modifyCount++;
-    });
-  }
+    // 优先处理修改指令
+    const modifyInstructions = parseModifyInstructions(content);
+    if (modifyInstructions.length > 0) {
+      modifyInstructions.forEach(instruction => {
+        let success = false;
+        switch (instruction.target) {
+          case '章节':
+            success = modifyChapterContent(novelId, instruction.title!, instruction.originalContent, instruction.newContent);
+            break;
+          case '大纲':
+            success = modifyPlotCard(novelId, instruction.title!, instruction.originalContent, instruction.newContent);
+            break;
+          case '卷':
+            success = modifyVolume(novelId, instruction.title!, instruction.originalContent, instruction.newContent);
+            break;
+          case '角色':
+            success = modifyCharacter(novelId, instruction.name!, instruction.field!, instruction.originalContent, instruction.newContent);
+            break;
+          case '世界观':
+            success = modifyWorldSetting(novelId, instruction.title!, instruction.originalContent, instruction.newContent);
+            break;
+        }
+        if (success) result.modifyCount++;
+      });
+    }
 
-  // 处理删除指令
-  const deleteInstructions = parseDeleteInstructions(content);
-  if (deleteInstructions.length > 0) {
-    deleteInstructions.forEach(instruction => {
-      const success = deleteContent(novelId, instruction);
-      if (success) result.deleteCount++;
-    });
+    // 处理删除指令
+    const deleteInstructions = parseDeleteInstructions(content);
+    if (deleteInstructions.length > 0) {
+      deleteInstructions.forEach(instruction => {
+        const success = deleteContent(novelId, instruction);
+        if (success) result.deleteCount++;
+      });
+    }
+
   }
 
   // 同步基本信息
   const basicInfo = parseBasicInfo(content);
   if (basicInfo) {
-    store.updateNovel(novelId, basicInfo as any);
+    store.updateNovel(novelId, basicInfo);
     result.basicInfo = true;
   }
 
@@ -1275,7 +1068,7 @@ export function autoSyncContent(content: string, novelId: string): {
   const characters = parseCharacterContent(content);
   if (characters.length > 0) {
     characters.forEach(char => {
-      const existingChar = store.characters.find(
+      const existingChar = useNovelStore.getState().characters.find(
         c => c.novelId === novelId && c.name.trim() === (char.name || '').trim()
       );
 
@@ -1314,7 +1107,7 @@ export function autoSyncContent(content: string, novelId: string): {
   const worlds = parseWorldContent(content);
   if (worlds.length > 0) {
     worlds.forEach(world => {
-      const existingWorld = store.worldSettings.find(
+      const existingWorld = useNovelStore.getState().worldSettings.find(
         w => w.novelId === novelId && w.title.trim() === (world.title || '').trim()
       );
 
@@ -1422,35 +1215,6 @@ export function autoSyncContent(content: string, novelId: string): {
  * 检查内容是否包含可同步的结构化数据（放宽条件：支持未闭合标签）
  */
 export function hasSyncableContent(content: string): boolean {
-  // 完整闭合的标签
-  const hasClosedTags = (
-    /【基本信息】[\s\S]*?【\/基本信息】/.test(content) ||
-    /【卷】[\s\S]*?【\/卷】/.test(content) ||
-    /【大纲】[\s\S]*?【\/大纲】/.test(content) ||
-    /【角色】[\s\S]*?【\/角色】/.test(content) ||
-    /【世界观】[\s\S]*?【\/世界观】/.test(content) ||
-    /【章节】[\s\S]*?【\/章节】/.test(content) ||
-    /【章节大纲】[\s\S]*?【\/章节大纲】/.test(content) ||
-    /【插入章节】[\s\S]*?【\/插入章节】/.test(content) ||
-    /【替换】[\s\S]*?【\/替换】/.test(content) ||
-    /【合并章节】[\s\S]*?【\/合并章节】/.test(content) ||
-    /【拆分章节】[\s\S]*?【\/拆分章节】/.test(content) ||
-    /【调整顺序】[\s\S]*?【\/调整顺序】/.test(content) ||
-    /【修改】[\s\S]*?【\/修改】/.test(content) ||
-    /【删除】[\s\S]*?【\/删除】/.test(content)
-  );
-
-  // 未闭合但有开始标签的情况（AI被截断时）
-  const hasOpenTags = (
-    /【卷】/.test(content) ||
-    /【章节】/.test(content) ||
-    /【章节大纲】/.test(content) ||
-    /【插入章节】/.test(content) ||
-    /【大纲】/.test(content) ||
-    /【角色】/.test(content) ||
-    /【世界观】/.test(content) ||
-    /【基本信息】/.test(content)
-  );
-
-  return hasClosedTags || hasOpenTags;
+  return extractContentBlocks(content).some(block => block.body.trim()) ||
+    /【(插入章节|替换|合并章节|拆分章节|调整顺序|修改|删除)】[\s\S]*?【\/\1】/.test(content);
 }

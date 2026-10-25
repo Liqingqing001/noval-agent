@@ -9,7 +9,7 @@ export interface ChatOptions extends GenerateOptions {
   messages: ChatMessage[];
   agentType: AgentType;
   onError?: (error: string) => void;
-  onComplete?: () => void;
+  onComplete?: (content: string) => void | Promise<void>;
 }
 
 export class DeepSeekService extends ModelService {
@@ -19,8 +19,8 @@ export class DeepSeekService extends ModelService {
   }
   async chatStream(options: ChatOptions): Promise<void> {
     try {
-      await this.generate(options);
-      options.onComplete?.();
+      const content = await this.generate(options);
+      await options.onComplete?.(content);
     } catch (error) {
       if (!options.onError) throw error;
       options.onError(error instanceof Error ? error.message : '模型请求失败');

@@ -61,6 +61,10 @@ export interface Message {
   content: string;
   timestamp: number;
   agentType?: string;
+  syncStatus?: {
+    state: 'pending' | 'success' | 'warning' | 'error' | 'partial';
+    message: string;
+  };
 }
 
 // 情节卡片 - 大纲视图核心数据

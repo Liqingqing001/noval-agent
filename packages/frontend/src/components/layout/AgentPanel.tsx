@@ -1,14 +1,21 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Bot, Send, Sparkles, User, AlertCircle, Settings2, X, Check, Trash2, Info, HelpCircle, Download, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNovelStore } from '@/stores/novelStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { API_PRESETS, isModelConfigured } from '@/lib/modelConfig';
+import type { GenerationPhase } from '@/services/modelService';
+import { GenerationStatus } from './GenerationStatus';
+import { extractContentBlocks } from '@/lib/structuredContent';
+import { syncFeedback } from '@/lib/syncFeedback';
 import { DeepSeekService } from '@/services/deepseek';
 import { AgentType, AGENT_CONFIGS } from '@/types/agents';
 import type { Message, ViewType } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import { autoSyncContent, hasSyncableContent } from '@/lib/autoSync';
+
+// Markdown options are static at each call site; history text does not change on stream updates.
+const MemoMarkdown = memo(ReactMarkdown, (previous, next) => previous.children === next.children);
 
 interface AgentPanelProps {
   currentView: ViewType;
@@ -69,6 +76,9 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
   const [activeAgent] = useState<AgentType>(AgentType.MASTER);
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [generationPhase, setGenerationPhase] = useState<GenerationPhase>('connecting');
+  const [generationStartedAt, setGenerationStartedAt] = useState(0);
+  const streamTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showPromptDialog, setShowPromptDialog] = useState(false);
   const [promptText, setPromptText] = useState('');
@@ -149,15 +159,16 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
     return allSessions.find((s) => s.novelId === currentNovelId && s.agentType === activeAgent);
   }, [allSessions, currentNovelId, activeAgent]);
 
-  const messages = activeSession?.messages || [];
+  const messages = useMemo(() => activeSession?.messages || [], [activeSession?.messages]);
+  const syncableMessageIds = useMemo(() => new Set(messages.filter(message => message.role === 'assistant' && message.syncStatus?.state !== 'partial' && extractContentBlocks(message.content).some(block => block.body.trim())).map(message => message.id)), [messages]);
 
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: isLoading ? 'instant' : 'smooth' });
     }
-  }, [messages.length, streamingContent]);
+  }, [messages.length, streamingContent, isLoading]);
 
-  useEffect(() => { streamingContentRef.current = streamingContent; }, [streamingContent]);
+  useEffect(() => () => { if (streamTimerRef.current) clearTimeout(streamTimerRef.current); }, []);
 
   const getOutlineContext = useCallback(() => {
     if (plotCards.length === 0) return '';
@@ -248,33 +259,19 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
     return `创作中：已写 ${writtenCount} 章，大纲共 ${chapterOutlines.length} 章。待写作章节：${pendingOutlines.length} 章。请按大纲顺序继续写作。`;
   }, [plotCards, chapters, characters, worldSettings, currentNovel]);
 
-  // 格式化 AI 响应，高亮结构化内容，收缩章节内容
-  const formatAIResponse = useCallback((content: string): string => {
-    let formatted = content;
+  // Formatting must never claim that a store write succeeded.
+  const formatAIResponse = useCallback((content: string): string => content
+    .replace(/【(基本信息|角色|人物|世界观|卷|大纲|章节大纲|章节)】/g, '\n**$1**\n')
+    .replace(/【\/(基本信息|角色|人物|世界观|卷|大纲|章节大纲|章节)】/g, '\n'), []);
 
-    // 处理章节内容：替换为摘要显示
-    formatted = formatted.replace(
-      /【章节】([\s\S]*?)【\/章节】/g,
-      (_match, block) => {
-        const titleMatch = block.match(/标题[：:]\s*(.+?)(?:\n|内容|$)/);
-        const title = titleMatch ? titleMatch[1].trim() : '未命名章节';
-        return `\n**📖 已生成章节：${title}**\n✅ *已同步到左侧"章节"面板*\n`;
-      }
-    );
-
-    // 处理其他结构化内容
-    formatted = formatted
-      .replace(/【大纲】/g, '**📋 大纲**\n')
-      .replace(/【\/大纲】/g, '\n✅ *已同步到左侧"大纲"面板*')
-      .replace(/【角色】/g, '**👤 角色**\n')
-      .replace(/【\/角色】/g, '\n✅ *已同步到左侧"人物"面板*')
-      .replace(/【世界观】/g, '**🌍 世界观**\n')
-      .replace(/【\/世界观】/g, '\n✅ *已同步到左侧"世界观"面板*')
-      .replace(/【基本信息】/g, '**📝 基本信息**\n')
-      .replace(/【\/基本信息】/g, '\n✅ *已同步*');
-
-    return formatted;
-  }, []);
+  const retrySync = useCallback((message: Message) => {
+    if (!currentNovelId || !activeSession || isLoading) return;
+    let status: NonNullable<Message['syncStatus']>;
+    try { status = syncFeedback(autoSyncContent(message.content, currentNovelId, { contentOnly: true })); }
+    catch { status = { state: 'error', message: '同步未完成，可能有部分内容已写入；请检查面板后重试。' }; }
+    const latest = useNovelStore.getState().sessions.find(s => s.id === activeSession.id);
+    if (latest) updateSession(latest.id, { messages: latest.messages.map(m => m.id === message.id ? { ...m, syncStatus: status } : m) });
+  }, [currentNovelId, activeSession, isLoading, updateSession]);
 
   // 上下文管理：限制消息数量，避免超出token限制
   const MAX_MESSAGES = 15; // 保留最近15条消息
@@ -522,6 +519,8 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
     updateSession(sessionId, { messages: updatedMessages });
 
     setIsLoading(true);
+    setGenerationPhase('connecting');
+    setGenerationStartedAt(Date.now());
     setStreamingContent('');
     streamingContentRef.current = '';
 
@@ -533,7 +532,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
       await new Promise(resolve => setTimeout(resolve, 50));
 
       // 使用压缩后的消息列表发送请求
-      const trimmedMessages = getTrimmedMessages(updatedMessages);
+      const trimmedMessages = getTrimmedMessages(messages);
 
       // 在 system prompt 中提示 AI 使用选项格式
       let enhancedSystemPrompt = AGENT_CONFIGS[activeAgent].systemPrompt;
@@ -541,10 +540,8 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
       // 附加用户自定义的提示词（必须遵守）
       if (currentNovel?.agentPrompt) {
         enhancedSystemPrompt += `\n\n========================================\n【必须遵守的用户自定义要求】\n以下是用户为本书设定的专属要求，你必须严格遵守，不能忽略：\n========================================\n${currentNovel.agentPrompt}\n========================================\n以上要求必须100%遵守，特别是字数要求！\n========================================`;
-        console.log('📝 用户自定义提示词:', currentNovel.agentPrompt);
-      }
 
-      console.log('📤 完整 system prompt:\n', enhancedSystemPrompt);
+      }
 
       console.log('📤 发送的 system prompt 长度:', enhancedSystemPrompt.length);
       console.log('📤 发送的消息数量:', trimmedMessages.length + 2);
@@ -557,47 +554,67 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
           { role: 'user', content: enhancedContent },
         ],
         agentType: activeAgent,
+        onProgress: (phase) => {
+          if (generationRef.current === generation) setGenerationPhase(phase);
+        },
         onStream: (content) => {
+          if (generationRef.current !== generation) return;
+          const first = !streamingContentRef.current;
           streamingContentRef.current = content;
-          setStreamingContent(content);
+          if (first) setStreamingContent(content);
+          else if (!streamTimerRef.current) streamTimerRef.current = setTimeout(() => {
+            streamTimerRef.current = null;
+            setStreamingContent(streamingContentRef.current);
+          }, 80);
         },
         onError: (err) => {
-          setError(err);
-          setIsLoading(false);
-          setStreamingContent('');
-          streamingContentRef.current = '';
-        },
-        onComplete: () => {
-          // 使用 ref 中的最终内容
-          const finalContent = streamingContentRef.current || '抱歉，我没有生成任何内容。';
-          const aiMessage: Message = {
-            id: Date.now().toString(),
-            role: 'assistant',
-            content: finalContent,
-            timestamp: Date.now(),
-            agentType: activeAgent,
-          };
-          const currentMessages = useNovelStore.getState().sessions.find((s) => s.id === sessionId)?.messages || [];
-          updateSession(sessionId, { messages: [...currentMessages, aiMessage] });
-
-          // 自动同步结构化内容到左侧面板
-          if (currentNovelId && hasSyncableContent(finalContent)) {
-            const syncResult = autoSyncContent(finalContent, currentNovelId);
-            console.log('自动同步完成:', syncResult);
+          const partial = streamingContentRef.current;
+          if (partial) {
+            const latest = useNovelStore.getState().sessions.find(s => s.id === sessionId);
+            if (latest) updateSession(sessionId, { messages: [...latest.messages, {
+              id: crypto.randomUUID(), role: 'assistant', content: partial, timestamp: Date.now(), agentType: activeAgent,
+              syncStatus: { state: 'partial', message: '回复未完成，已保留收到的文字，未自动同步。' },
+            }] });
           }
-
-          setIsLoading(false);
-          setStreamingContent('');
+          if (useNovelStore.getState().currentNovelId === currentNovelId) setError(err);
+        },
+        onComplete: async (finalContent) => {
+          if (streamTimerRef.current) clearTimeout(streamTimerRef.current);
+          streamTimerRef.current = null;
           streamingContentRef.current = '';
+          const aiMessage: Message = {
+            id: crypto.randomUUID(), role: 'assistant', content: finalContent, timestamp: Date.now(), agentType: activeAgent,
+            ...(hasSyncableContent(finalContent) ? { syncStatus: { state: 'pending' as const, message: '正在写入本地面板…' } } : {}),
+          };
+          const latest = useNovelStore.getState().sessions.find(s => s.id === sessionId);
+          if (!latest) return;
+          updateSession(sessionId, { messages: [...latest.messages, aiMessage] });
+          setStreamingContent('');
+          // Let the completed reply paint before synchronous parsing/storage work.
+          await new Promise<void>(resolve => setTimeout(resolve, 16));
+          if (aiMessage.syncStatus) {
+            let status: NonNullable<Message['syncStatus']>;
+            if (generation.signal.aborted) status = { state: 'warning', message: '自动同步已取消，可检查回复后重新同步。' };
+            else {
+              try { status = syncFeedback(autoSyncContent(finalContent, currentNovelId)); }
+              catch { status = { state: 'error', message: '同步未完成，可能有部分内容已写入；请检查面板后重试。' }; }
+            }
+            const current = useNovelStore.getState().sessions.find(s => s.id === sessionId);
+            if (current) updateSession(sessionId, { messages: current.messages.map(m => m.id === aiMessage.id ? { ...m, syncStatus: status } : m) });
+          }
         },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : '请求失败');
+      if (useNovelStore.getState().currentNovelId === currentNovelId) setError(err instanceof Error ? err.message : '请求失败');
+    } finally {
+      if (streamTimerRef.current) clearTimeout(streamTimerRef.current);
+      streamTimerRef.current = null;
       setIsLoading(false);
       setStreamingContent('');
       streamingContentRef.current = '';
+      generationRef.current = null;
     }
-  }, [input, currentNovelId, isLoading, modelConfigured, currentChapter, activeAgent, activeSession, messages, addSession, updateSession, getOutlineContext, getChaptersContext, getPreviousChaptersContent, getCreationStage, currentNovel, handleSlashCommand]);
+  }, [input, currentNovelId, isLoading, modelConfigured, currentChapter, activeAgent, activeSession, messages, addSession, updateSession, getOutlineContext, getCharactersContext, getWorldContext, getTrimmedMessages, getChaptersContext, getPreviousChaptersContent, getCreationStage, currentNovel, handleSlashCommand]);
 
   if (!currentNovelId) {
     return (
@@ -684,7 +701,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
                     <div className="flex items-start gap-2">
                       <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
                       <div className="prose prose-sm max-w-none dark:prose-invert text-muted-foreground [&_p]:mb-2 [&_p:last-child]:mb-0 [&_strong]:font-bold [&_ul]:mb-2 [&_ol]:mb-2 [&_li]:mb-0.5">
-                        <ReactMarkdown>{message.content}</ReactMarkdown>
+                        <MemoMarkdown>{message.content}</MemoMarkdown>
                       </div>
                     </div>
                   </div>
@@ -698,27 +715,30 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
                     <div className={`rounded-lg px-3 py-2 text-sm ${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
                       {message.role === 'assistant' ? (
                         <div className="prose prose-sm max-w-none dark:prose-invert [&_p]:mb-2 [&_p:last-child]:mb-0 [&_strong]:font-bold [&_ul]:mb-2 [&_ol]:mb-2 [&_li]:mb-0.5">
-                          <ReactMarkdown>{formatAIResponse(message.content)}</ReactMarkdown>
+                          <MemoMarkdown>{formatAIResponse(message.content)}</MemoMarkdown>
                         </div>
                       ) : (
                         <div className="whitespace-pre-wrap">{message.content}</div>
                       )}
                     </div>
+                    {message.syncStatus && <p role="status" className={`text-xs ${message.syncStatus.state === 'success' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>{message.syncStatus.message}</p>}
+                    {syncableMessageIds.has(message.id) && (
+                      <Button variant="ghost" size="sm" className="self-start h-7 text-xs" disabled={isLoading} onClick={() => retrySync(message)}>重新同步到面板</Button>
+                    )}
                   </div>
                 </div>
               )
             ))}
 
             {/* Streaming */}
-            {streamingContent && (
+            {isLoading && (
               <div className="flex gap-2">
                 <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
                   <span className="text-sm">{AGENT_CONFIGS[activeAgent].avatar}</span>
                 </div>
                 <div className="max-w-[85%] rounded-lg px-3 py-2 text-sm bg-muted">
-                  <div className="prose prose-sm max-w-none dark:prose-invert">
-                    <ReactMarkdown>{formatAIResponse(streamingContent)}</ReactMarkdown>
-                  </div>
+                  <div className="whitespace-pre-wrap break-words">{streamingContent}</div>
+                  <GenerationStatus phase={generationPhase} startedAt={generationStartedAt} />
                   <div className="flex gap-1 mt-2">
                     <span className="w-1.5 h-1.5 bg-primary/50 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-1.5 h-1.5 bg-primary/50 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />

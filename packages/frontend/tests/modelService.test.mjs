@@ -15,6 +15,35 @@ function streamResponse(text, width = 3) {
 }
 const sse = data => `data: ${JSON.stringify(data)}\n\n`;
 
+for (const protocol of ['openai', 'gemini']) {
+  test(`${protocol}: semantic completion finishes even when the server keeps HTTP open`, { timeout: 2000 }, async t => {
+    let cancelled = false;
+    const event = protocol === 'openai' ? { choices: [{ delta: { content: '完整回复' }, finish_reason: 'stop' }] }
+      : { candidates: [{ content: { parts: [{ text: '完整回复' }] }, finishReason: 'STOP' }] };
+    t.mock.method(globalThis, 'fetch', async () => new Response(new ReadableStream({
+      start(controller) { controller.enqueue(new TextEncoder().encode(sse(event))); },
+      cancel() { cancelled = true; },
+    }), { headers: { 'content-type': 'text/event-stream' } }));
+    assert.equal(await new ModelService(config({ protocol })).generate({ messages }), '完整回复');
+    assert.equal(cancelled, true);
+  });
+}
+
+test('progress reports reasoning without exposing reasoning text; final text is authoritative', async t => {
+  const phases = [], chunks = [];
+  t.mock.method(globalThis, 'fetch', async () => streamResponse(sse({ choices: [{ delta: { reasoning_content: 'private reasoning' } }] }) + sse({ choices: [{ delta: { content: '最后一字' }, finish_reason: 'stop' }] })));
+  assert.equal(await new ModelService(config()).generate({ messages, onStream: text => chunks.push(text), onProgress: phase => phases.push(phase) }), '最后一字');
+  assert.deepEqual(phases, ['connecting', 'waiting', 'reasoning', 'streaming']);
+  assert.deepEqual(chunks, ['最后一字']);
+});
+
+test('a gateway returning JSON reports non-streaming wait explicitly', async t => {
+  const phases = [];
+  t.mock.method(globalThis, 'fetch', async () => jsonResponse({ choices: [{ message: { content: 'OK' } }] }));
+  await new ModelService(config()).generate({ messages, onProgress: phase => phases.push(phase) });
+  assert.deepEqual(phases, ['connecting', 'non-streaming']);
+});
+
 test('endpoint preserves prefixes, query parameters and full request URLs', () => {
   for (const suffix of ['', '/', '/chat/completions', '/responses', '/messages']) {
     assert.equal(endpoint(config({ baseUrl: `https://model.example/deploy/gpt${suffix}?api-version=2025-01-01` }), 'chat'), 'https://model.example/deploy/gpt/chat/completions?api-version=2025-01-01');
