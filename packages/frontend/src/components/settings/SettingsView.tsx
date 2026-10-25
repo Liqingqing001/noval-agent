@@ -1,372 +1,208 @@
-import { useSettingsStore, API_PRESETS, type APIProvider } from '@/stores/settingsStore';
+import { useEffect, useRef, useState } from 'react';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { API_PRESETS, PROTOCOL_NAMES, createDefaultConfig, endpoint, normalizeConfig, validateConfig } from '@/lib/modelConfig';
+import type { APIProvider, ModelConfig, ModelProtocol } from '@/lib/modelConfig';
+import { ModelService } from '@/services/modelService';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Slider } from '@/components/ui/slider';
-import { useState, useEffect } from 'react';
-import { Key, Thermometer, Hash, Check, ExternalLink, Server, Cpu } from 'lucide-react';
+import { Check, ExternalLink, Eye, EyeOff, Loader2, Plug, Save, Server } from 'lucide-react';
+
+const controlClass = 'flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm';
+const textAreaClass = 'w-full min-h-24 rounded-md border border-input bg-background p-3 font-mono text-sm';
 
 export function SettingsView() {
-  const {
-    apiProvider,
-    apiKey,
-    baseUrl,
-    model,
-    temperature,
-    maxTokens,
-    setApiProvider,
-    setApiKey,
-    setBaseUrl,
-    setModel,
-    setTemperature,
-    setMaxTokens,
-  } = useSettingsStore();
+  const settings = useSettingsStore();
+  const [provider, setProvider] = useState<APIProvider>(settings.apiProvider);
+  const [drafts, setDrafts] = useState<Partial<Record<APIProvider, ModelConfig>>>(() => ({
+    ...settings.profiles, [settings.apiProvider]: normalizeConfig(settings),
+  }));
+  const draft = drafts[provider] ?? createDefaultConfig(provider);
+  const preset = API_PRESETS[provider];
+  const [showKey, setShowKey] = useState(false);
+  const [models, setModels] = useState<string[]>([]);
+  const [busy, setBusy] = useState<'models' | 'test' | null>(null);
+  const [notice, setNotice] = useState<{ kind: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
+  const validation = validateConfig(draft);
+  const active = settings.apiProvider === provider && JSON.stringify(normalizeConfig(settings)) === JSON.stringify(normalizeConfig(draft));
+  let requestUrl = '';
+  try { requestUrl = endpoint(draft, 'chat'); } catch { /* Display validation below. */ }
 
-  const [apiKeyInput, setApiKeyInput] = useState(apiKey);
-  const [baseUrlInput, setBaseUrlInput] = useState(baseUrl);
-  const [modelInput, setModelInput] = useState(model);
-  const [saved, setSaved] = useState(false);
+  useEffect(() => () => { requestRef.current?.abort(); requestRef.current = null; }, []);
 
-  // 当 store 值变化时同步到本地 state（例如其他地方修改了配置）
-  useEffect(() => {
-    setApiKeyInput(apiKey);
-    setBaseUrlInput(baseUrl);
-    setModelInput(model);
-  }, [apiKey, baseUrl, model]);
-
-  const handleSaveAll = () => {
-    setApiKey(apiKeyInput);
-    setBaseUrl(baseUrlInput);
-    setModel(modelInput);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const update = <K extends keyof ModelConfig>(key: K, value: ModelConfig[K]) => {
+    setDrafts(previous => ({ ...previous, [provider]: { ...draft, [key]: value } }));
+    setNotice(null);
+    if (['baseUrl', 'apiKey', 'protocol', 'authMode', 'extraHeaders'].includes(key)) setModels([]);
   };
 
-  const handleProviderChange = (provider: APIProvider) => {
-    // 只切换服务商，不覆盖已有配置
-    setApiProvider(provider);
-    setSaved(false);
+  const changeProvider = (next: APIProvider) => {
+    setProvider(next); setModels([]); setNotice(null); setShowKey(false);
   };
 
-  const isConfigured = !!apiKey;
-  const currentPreset = API_PRESETS[apiProvider];
+  const changeProtocol = (protocol: ModelProtocol) => {
+    setDrafts(previous => ({ ...previous, [provider]: { ...draft, protocol,
+      authMode: protocol === 'anthropic' ? 'x-api-key' : protocol === 'gemini' ? 'bearer' : draft.authMode,
+      tokenParameter: protocol === 'anthropic' && draft.tokenParameter === 'omit' ? 'auto' : draft.tokenParameter,
+    } }));
+    setModels([]); setNotice(null);
+  };
+
+  const save = () => {
+    try {
+      settings.saveConfig(draft);
+      setNotice({ kind: 'success', text: '配置已保存并启用，写作助手将使用这份配置。' });
+    } catch (error) { setNotice({ kind: 'error', text: error instanceof Error ? error.message : '保存失败' }); }
+  };
+
+  const run = async (operation: 'models' | 'test') => {
+    if (requestRef.current) return;
+    const errors = validateConfig(draft, operation === 'test');
+    if (errors.length) { setNotice({ kind: 'error', text: errors[0] }); return; }
+    const controller = new AbortController();
+    requestRef.current = controller; setBusy(operation); setNotice(null);
+    try {
+      const service = new ModelService(draft);
+      if (operation === 'models') {
+        const available = await service.listModels(controller.signal);
+        if (requestRef.current !== controller) return;
+        setModels(available);
+        setNotice({ kind: 'info', text: `已获取 ${available.length} 个模型。请选择文本生成模型；列表中出现不代表已通过调用测试，也可手动输入模型 ID。` });
+      } else {
+        const result = await service.testConnection(controller.signal);
+        if (requestRef.current !== controller) return;
+        setNotice({ kind: 'success', text: `连接测试成功 · ${result.milliseconds} ms · 回复：${result.text.slice(0, 160)}${active ? '' : '。测试使用当前草稿，请保存并启用后用于写作。'}` });
+      }
+    } catch (error) {
+      if (requestRef.current === controller) setNotice({ kind: 'error', text: error instanceof Error ? error.message : '请求失败' });
+    } finally {
+      if (requestRef.current === controller) { requestRef.current = null; setBusy(null); }
+    }
+  };
 
   return (
     <div className="h-full overflow-y-auto p-6">
-      <div className="max-w-3xl mx-auto space-y-6">
-        <h2 className="text-2xl font-semibold">设置</h2>
-
-        {/* API 提供商选择 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Server className="h-5 w-5" />
-              API 提供商
-            </CardTitle>
-            <CardDescription>
-              选择您要使用的 AI 服务提供商
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              {(Object.keys(API_PRESETS) as APIProvider[]).map((provider) => {
-                const preset = API_PRESETS[provider];
-                return (
-                  <button
-                    key={provider}
-                    onClick={() => handleProviderChange(provider)}
-                    className={`p-4 rounded-lg border-2 text-left transition-all ${
-                      apiProvider === provider
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/50 hover:bg-muted/50'
-                    }`}
-                  >
-                    <div className="font-medium">{preset.name}</div>
-                    {provider !== 'custom' && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {preset.models.length} 个模型可用
-                      </div>
-                    )}
+      <div className="max-w-3xl mx-auto space-y-6 pb-10">
+        <div>
+          <h2 className="text-2xl font-semibold">模型设置</h2>
+          <p className="mt-2 text-sm text-muted-foreground">选择服务商 → 配置地址与密钥 → 选择模型 → 测试连接 → 保存并启用</p>
+          <p className="mt-2 text-xs text-muted-foreground">当前启用：{API_PRESETS[settings.apiProvider]?.name ?? '自定义'} / {settings.model || '尚未选择模型'}</p>
+        </div>
+        <fieldset disabled={busy !== null} className="space-y-6 disabled:opacity-70">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Server className="h-5 w-5" />服务商</CardTitle>
+              <CardDescription>预设帮助填写地址；各服务商分别保存配置，模型 ID 可自由填写。</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2" role="group" aria-label="模型服务商">
+                {(Object.keys(API_PRESETS) as APIProvider[]).map(id => (
+                  <button key={id} type="button" aria-pressed={provider === id} onClick={() => changeProvider(id)}
+                    className={`rounded-lg border p-3 text-left text-sm transition-colors ${provider === id ? 'border-primary bg-primary/10 text-primary' : 'hover:bg-muted'}`}>
+                    {API_PRESETS[id].name}
                   </button>
-                );
-              })}
-            </div>
-
-            {/* 帮助链接 */}
-            {currentPreset.helpUrl && (
-              <a
-                href={currentPreset.helpUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-              >
-                <ExternalLink className="h-3 w-3" />
-                获取 {currentPreset.name} API Key
-              </a>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* API 配置 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Key className="h-5 w-5" />
-              API 配置
-            </CardTitle>
-            <CardDescription>
-              配置您的 API Key 和服务地址
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-2 text-sm">
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  isConfigured ? 'bg-green-500' : 'bg-red-500'
-                }`}
-              />
-              <span className={isConfigured ? 'text-green-600' : 'text-red-600'}>
-                {isConfigured ? '已配置' : '未配置'}
-              </span>
-            </div>
-
-            {/* API Key */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">API Key</label>
-              <Input
-                type="password"
-                placeholder={apiProvider === 'deepseek' ? 'sk-xxxxxxxxxxxxxxxx' :
-                            apiProvider === 'openai' ? 'sk-...' :
-                            '请输入 API Key'}
-                value={apiKeyInput}
-                onChange={(e) => setApiKeyInput(e.target.value)}
-              />
-            </div>
-
-            {/* Base URL */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">API 地址 (Base URL)</label>
-              <Input
-                type="text"
-                placeholder="https://api.example.com/v1"
-                value={baseUrlInput}
-                onChange={(e) => setBaseUrlInput(e.target.value)}
-              />
-              {apiProvider !== 'custom' && (
-                <p className="text-xs text-muted-foreground">
-                  当前使用 {currentPreset.name} 默认地址，如需修改请选择"自定义"
-                </p>
-              )}
-            </div>
-
-            {/* 模型选择 */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-1">
-                <Cpu className="h-4 w-4" />
-                模型
-              </label>
-              <Input
-                type="text"
-                placeholder={apiProvider === 'deepseek' ? 'deepseek-chat' :
-                            apiProvider === 'openai' ? 'gpt-4o' :
-                            apiProvider === 'tencent' ? 'hunyuan-lite' :
-                            '输入模型名称'}
-                value={modelInput}
-                onChange={(e) => setModelInput(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                {apiProvider === 'deepseek' && '常见模型: deepseek-chat, deepseek-coder'}
-                {apiProvider === 'openai' && '常见模型: gpt-4o, gpt-4-turbo, gpt-3.5-turbo'}
-                {apiProvider === 'tencent' && '常见模型: hunyuan-lite, hunyuan-standard, hunyuan-pro, hunyuan-turbo'}
-                {apiProvider === 'custom' && '请输入您的 API 支持的模型名称'}
-              </p>
-            </div>
-
-            {/* 保存按钮 */}
-            <Button onClick={handleSaveAll} disabled={saved} className="w-full">
-              {saved ? (
-                <>
-                  <Check className="h-4 w-4 mr-1" />
-                  已保存
-                </>
-              ) : (
-                '保存配置'
-              )}
-            </Button>
-
-            <p className="text-xs text-muted-foreground">
-              您的配置将安全地存储在本地浏览器中
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* 模型参数配置 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Thermometer className="h-5 w-5" />
-              模型参数
-            </CardTitle>
-            <CardDescription>调整 AI 生成内容的参数</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <label className="text-sm font-medium">Temperature (随机性)</label>
-                <span className="text-sm text-muted-foreground">{temperature}</span>
+                ))}
               </div>
-              <Slider
-                value={[temperature]}
-                onValueChange={([value]) => setTemperature(value)}
-                min={0}
-                max={2}
-                step={0.1}
-              />
-              <p className="text-xs text-muted-foreground">
-                较低值(0.2)使输出更确定，较高值(1.0+)使输出更有创意
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <label className="text-sm font-medium flex items-center gap-1">
-                  <Hash className="h-4 w-4" />
-                  Max Tokens (最大长度)
-                </label>
-                <span className="text-sm text-muted-foreground">{maxTokens}</span>
+              {preset.hint && <p className="text-xs text-muted-foreground">{preset.hint}</p>}
+              {preset.helpUrl && <a href={preset.helpUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">服务商官方文档<ExternalLink className="h-3 w-3" /></a>}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle>连接配置</CardTitle><CardDescription>地址可修改为自己的地域、部署或中转接口。切换服务商后，保存才会启用。</CardDescription></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="model-protocol" className="text-sm font-medium">接口协议</label>
+                <select id="model-protocol" value={draft.protocol} onChange={e => changeProtocol(e.target.value as ModelProtocol)} className={controlClass}>
+                  {(Object.keys(PROTOCOL_NAMES) as ModelProtocol[]).map(id => <option key={id} value={id}>{PROTOCOL_NAMES[id]}</option>)}
+                </select>
               </div>
-              <Slider
-                value={[Math.min(maxTokens, 32768)]}
-                onValueChange={([value]) => setMaxTokens(value)}
-                min={1024}
-                max={32768}
-                step={1024}
-              />
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  value={maxTokens}
-                  onChange={(e) => setMaxTokens(Math.max(1024, parseInt(e.target.value) || 4096))}
-                  min={1024}
-                  max={65536}
-                  className="w-32 h-8 text-sm"
-                />
-                <span className="text-xs text-muted-foreground">tokens</span>
+              <div className="space-y-2">
+                <label htmlFor="model-base-url" className="text-sm font-medium">API 地址（Base URL 或完整请求地址）</label>
+                <Input id="model-base-url" value={draft.baseUrl} onChange={e => update('baseUrl', e.target.value)} placeholder="https://api.example.com/v1" autoComplete="off" />
+                <p className="text-xs text-muted-foreground">保留服务要求的版本和路径前缀；不会自动补 /v1。支持完整的 /chat/completions、/responses、/messages 地址。</p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                控制 AI 单次回复的最大长度。建议：章节 8000-16000，短内容 4096。DeepSeek 最大支持 64K。
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 常见问题 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>常见 API 配置</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="p-3 bg-muted rounded-lg">
-              <p className="font-medium">腾讯云混元 (Hunyuan)</p>
-              <p className="text-muted-foreground mt-1">API 地址: https://api.hunyuan.tencent.com/v1</p>
-              <p className="text-muted-foreground">模型: hunyuan-lite, hunyuan-standard, hunyuan-pro, hunyuan-turbo, hunyuan-role, hunyuan-code, hunyuan-translation 等</p>
-            </div>
-            <div className="p-3 bg-muted rounded-lg">
-              <p className="font-medium">DeepSeek</p>
-              <p className="text-muted-foreground mt-1">API 地址: https://api.deepseek.com/v1</p>
-              <p className="text-muted-foreground">模型: deepseek-chat, deepseek-coder</p>
-            </div>
-            <div className="p-3 bg-muted rounded-lg">
-              <p className="font-medium">OpenAI</p>
-              <p className="text-muted-foreground mt-1">API 地址: https://api.openai.com/v1</p>
-              <p className="text-muted-foreground">模型: gpt-4o, gpt-4-turbo, gpt-3.5-turbo</p>
-            </div>
-            <div className="p-3 bg-muted rounded-lg">
-              <p className="font-medium">其他兼容 OpenAI 格式的 API</p>
-              <p className="text-muted-foreground mt-1">选择"自定义"，填入 API 地址和模型名称即可</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 关于 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>关于 NovelAgent</CardTitle>
-            <CardDescription>版本信息和开源协议</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>
-              <span className="font-medium">版本:</span> v0.2.0
-            </p>
-            <p>
-              <span className="font-medium">支持的 API:</span> DeepSeek、OpenAI、腾讯云 CodingPlan、自定义
-            </p>
-            <p>
-              <span className="font-medium">数据存储:</span> 本地浏览器存储
-            </p>
-            <p className="text-muted-foreground pt-2">
-              NovelAgent 是一款 AI 驱动的小说创作助手，帮助作家高效完成高质量小说创作。
-            </p>
-
-            <div className="h-20" />
-          </CardContent>
-        </Card>
-
-        {/* 数据调试 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>数据调试</CardTitle>
-            <CardDescription>查看本地存储数据状态</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const data = JSON.parse(localStorage.getItem('novel-agent-storage') || '{}');
-                  const chapters = data?.state?.chapters || [];
-                  console.log('=== 数据调试 ===');
-                  console.log('章节数量:', chapters.length);
-                  console.log('章节列表:', chapters.map((c: { title: string; wordCount: number }) => `${c.title} (${c.wordCount}字)`));
-                  console.log('当前小说ID:', data?.state?.currentNovelId);
-                  console.log('完整数据:', data);
-                  alert(`章节数量: ${chapters.length}\n点击确定查看控制台详情`);
-                }}
-              >
-                查看章节数据
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const size = JSON.stringify(localStorage).length;
-                  const sizeKB = Math.round(size / 1024);
-                  const sizeMB = Math.round(size / 1024 / 1024 * 100) / 100;
-                  alert(`localStorage 使用量: ${sizeKB} KB (${sizeMB} MB)\n限制: 5 MB`);
-                }}
-              >
-                查看存储大小
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => {
-                  if (confirm('确定要清空所有数据吗？此操作不可恢复！')) {
-                    localStorage.clear();
-                    alert('数据已清空，请刷新页面');
-                    window.location.reload();
-                  }
-                }}
-              >
-                清空数据
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              点击按钮后在浏览器控制台查看详细数据
-            </p>
-          </CardContent>
-        </Card>
+              <div className="space-y-2">
+                <label htmlFor="model-auth" className="text-sm font-medium">认证方式</label>
+                <select id="model-auth" className={controlClass} value={draft.protocol === 'gemini' ? 'google' : draft.authMode} disabled={draft.protocol === 'gemini'} onChange={e => update('authMode', e.target.value as ModelConfig['authMode'])}>
+                  {draft.protocol === 'gemini' && <option value="google">Google API Key（x-goog-api-key）</option>}
+                  <option value="bearer">Bearer Token（OpenAI 兼容服务）</option>
+                  <option value="x-api-key">x-api-key（Anthropic）</option>
+                  <option value="api-key">api-key（Azure 等网关）</option>
+                  <option value="none">无需认证（本地服务）</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="model-api-key" className="text-sm font-medium">API Key {draft.authMode === 'none' && draft.protocol !== 'gemini' ? '（可留空，不发送）' : ''}</label>
+                <div className="flex gap-2">
+                  <Input id="model-api-key" type={showKey ? 'text' : 'password'} value={draft.apiKey} onChange={e => update('apiKey', e.target.value)} autoComplete="off" spellCheck={false} placeholder="填写当前服务商的 API Key" />
+                  <Button type="button" variant="outline" size="icon" aria-label={showKey ? '隐藏 API Key' : '显示 API Key'} onClick={() => setShowKey(!showKey)}>{showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="model-id" className="text-sm font-medium">模型 ID</label>
+                <div className="flex gap-2">
+                  <Input id="model-id" list="available-models" value={draft.model} onChange={e => update('model', e.target.value)} placeholder="填写实际模型 ID / 部署名称" autoComplete="off" />
+                  <Button type="button" variant="outline" onClick={() => void run('models')}>获取模型列表</Button>
+                </div>
+                <datalist id="available-models">{models.map(model => <option key={model} value={model} />)}</datalist>
+                {models.length > 0 && <select aria-label="已获取的模型" className={controlClass} value={models.includes(draft.model) ? draft.model : ''} onChange={e => { if (e.target.value) update('model', e.target.value); }}>
+                  <option value="">从 {models.length} 个模型中选择，也可在上方搜索或输入</option>
+                  {models.map(model => <option key={model} value={model}>{model}</option>)}
+                </select>}
+                <p className="text-xs text-muted-foreground">模型列表由服务返回；不支持列表接口时可手动填写。使用 API 模型 ID，不是网页聊天产品名称。</p>
+              </div>
+              {requestUrl && <p className="break-all text-xs text-muted-foreground">实际请求地址：{requestUrl}</p>}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle>生成参数</CardTitle><CardDescription>不同模型支持的参数和长度不同，可关闭不支持的可选参数。</CardDescription></CardHeader>
+            <CardContent className="space-y-4">
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.stream} onChange={e => update('stream', e.target.checked)} />流式输出（关闭后等待完整回复）</label>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.sendTemperature} onChange={e => update('sendTemperature', e.target.checked)} />发送随机性参数（Temperature）</label>
+                <Input aria-label="随机性" type="number" min="0" max="2" step="0.1" value={Number.isNaN(draft.temperature) ? '' : draft.temperature} disabled={!draft.sendTemperature} onChange={e => update('temperature', e.target.valueAsNumber)} />
+                <p className="text-xs text-muted-foreground">部分推理模型仅接受默认随机性，遇到不支持 temperature 的错误时关闭此选项。</p>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-2"><label htmlFor="model-max-tokens" className="text-sm font-medium">最大输出 Tokens</label><Input id="model-max-tokens" type="number" min="1" step="1" value={Number.isNaN(draft.maxTokens) ? '' : draft.maxTokens} onChange={e => update('maxTokens', e.target.valueAsNumber)} /></div>
+                <div className="space-y-2"><label htmlFor="model-timeout" className="text-sm font-medium">请求超时（秒）</label><Input id="model-timeout" type="number" min="5" max="1800" value={Number.isNaN(draft.timeoutSeconds) ? '' : draft.timeoutSeconds} onChange={e => update('timeoutSeconds', e.target.valueAsNumber)} /></div>
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="model-token-param" className="text-sm font-medium">输出长度参数兼容方式</label>
+                <select id="model-token-param" className={controlClass} value={draft.tokenParameter} onChange={e => update('tokenParameter', e.target.value as ModelConfig['tokenParameter'])}>
+                  <option value="auto">自动（按协议与常见模型名称选择）</option>
+                  <option value="max_tokens" disabled={draft.protocol !== 'openai'}>max_tokens（Chat Completions）</option>
+                  <option value="max_completion_tokens" disabled={draft.protocol !== 'openai'}>max_completion_tokens（Chat Completions 推理模型）</option>
+                  <option value="omit" disabled={draft.protocol === 'anthropic'}>不发送（使用服务默认值）</option>
+                </select>
+                <p className="text-xs text-muted-foreground">Responses 使用 max_output_tokens，Gemini 使用 maxOutputTokens，Claude 使用 max_tokens。Token 包含的推理预算及最大允许值以服务商为准。</p>
+              </div>
+              <details className="rounded-lg border p-3">
+                <summary className="cursor-pointer text-sm font-medium">高级配置：附加参数与请求头</summary>
+                <div className="mt-4 space-y-3">
+                  <label htmlFor="model-extra-body" className="block text-sm">附加请求参数（JSON 对象）</label>
+                  <textarea id="model-extra-body" className={textAreaClass} value={draft.extraBody} spellCheck={false} onChange={e => update('extraBody', e.target.value)} placeholder={'例如：{"enable_thinking": false}'} />
+                  <p className="text-xs text-muted-foreground">用于服务特有参数，例如 enable_thinking、reasoning_effort。Gemini 可在 generationConfig 中填写 thinkingConfig；不要覆盖消息或已有设置。</p>
+                  <label htmlFor="model-extra-headers" className="block text-sm">自定义请求头（JSON 对象，值为字符串）</label>
+                  <textarea id="model-extra-headers" className={textAreaClass} value={draft.extraHeaders} spellCheck={false} onChange={e => update('extraHeaders', e.target.value)} placeholder={'例如：{"OpenAI-Organization": "org-..."}'} />
+                </div>
+              </details>
+            </CardContent>
+          </Card>
+          {validation.length > 0 && <div className="rounded-lg border p-4 text-sm" aria-label="配置检查"><p className="font-medium">还需完善</p><ul className="mt-2 list-disc pl-5 space-y-1">{validation.map((error, index) => <li key={`${index}-${error}`}>{error}</li>)}</ul></div>}
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="button" variant="outline" onClick={() => void run('test')}><Plug className="h-4 w-4 mr-2" />测试连接</Button>
+            <Button type="button" onClick={save} disabled={validation.length > 0 || active}>{active ? <Check className="h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}{active ? '已保存并启用' : '保存并启用'}</Button>
+          </div>
+        </fieldset>
+        {busy && <div className="flex items-center gap-3 text-sm" role="status"><Loader2 className="h-4 w-4 animate-spin" />{busy === 'test' ? '正在测试当前模型（将发送少量文本，可能产生 API 费用）…' : '正在获取模型列表…'}<Button variant="outline" size="sm" onClick={() => requestRef.current?.abort()}>取消请求</Button></div>}
+        {notice && <div role={notice.kind === 'error' ? 'alert' : 'status'} className={`rounded-lg border p-4 text-sm whitespace-pre-wrap break-words ${notice.kind === 'error' ? 'border-red-400 text-red-600' : notice.kind === 'success' ? 'border-green-500 text-green-700 dark:text-green-400' : 'text-muted-foreground'}`}>{notice.text}</div>}
+        <div className="space-y-2 text-xs text-muted-foreground">
+          <p>配置和密钥保存在当前浏览器的 localStorage，未加密；请求从浏览器直接发往所填地址。请使用可信服务，不要在公共设备保存密钥。</p>
+          <p>测试会发送少量文本并可能产生 API 费用。网页订阅通常不等于 API 额度。第三方服务需允许当前网页来源的 CORS；本地模型需开启服务。无法连接时请检查网络、浏览器限制和服务日志。</p>
+          <p>支持以上四种协议的文本模型；云平台签名认证、工具调用、图片和语音接口不在本模块范围。模型可用性以账号权限和连接测试为准。</p>
+        </div>
       </div>
     </div>
   );

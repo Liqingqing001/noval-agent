@@ -3,6 +3,7 @@ import { Bot, Send, Sparkles, User, AlertCircle, Settings2, X, Check, Trash2, In
 import { Button } from '@/components/ui/button';
 import { useNovelStore } from '@/stores/novelStore';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { API_PRESETS, isModelConfigured } from '@/lib/modelConfig';
 import { DeepSeekService } from '@/services/deepseek';
 import { AgentType, AGENT_CONFIGS } from '@/types/agents';
 import type { Message, ViewType } from '@/types';
@@ -74,13 +75,16 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
   const [slashCommandHint, setSlashCommandHint] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const streamingContentRef = useRef('');
+  const generationRef = useRef<AbortController | null>(null);
   const inputSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentNovelId = useNovelStore((state) => state.currentNovelId);
+  useEffect(() => () => generationRef.current?.abort(), [currentNovelId]);
   const allSessions = useNovelStore((state) => state.sessions);
   const addSession = useNovelStore((state) => state.addSession);
   const updateSession = useNovelStore((state) => state.updateSession);
   const apiKey = useSettingsStore((state) => state.apiKey);
+  const modelConfigured = useSettingsStore(isModelConfigured);
   const apiProvider = useSettingsStore((state) => state.apiProvider);
   const model = useSettingsStore((state) => state.model);
   const temperature = useSettingsStore((state) => state.temperature);
@@ -376,7 +380,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
         const estimatedTokens = Math.round(totalChars / 2);
         resultContent =
           `📊 **状态信息**\n` +
-          `- API 提供商: ${apiProvider === 'deepseek' ? 'DeepSeek' : apiProvider === 'openai' ? 'OpenAI' : apiProvider === 'tencent' ? '腾讯云混元' : '自定义'}\n` +
+          `- API 提供商: ${API_PRESETS[apiProvider]?.name ?? '自定义'}\n` +
           `- 模型: ${model || '未设置'}\n` +
           `- Temperature: ${temperature}\n` +
           `- Max Tokens: ${maxTokens}\n` +
@@ -460,8 +464,8 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
       return;
     }
 
-    if (!apiKey) {
-      setError('请先在"设定"页面配置 DeepSeek API Key');
+    if (!modelConfigured) {
+      setError('请先在“模型设置”中填写有效的地址、模型和认证信息');
       return;
     }
 
@@ -522,6 +526,8 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
     streamingContentRef.current = '';
 
     const deepseek = new DeepSeekService();
+    const generation = new AbortController();
+    generationRef.current = generation;
 
     try {
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -544,6 +550,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
       console.log('📤 发送的消息数量:', trimmedMessages.length + 2);
 
       await deepseek.chatStream({
+        signal: generation.signal,
         messages: [
           { role: 'system', content: enhancedSystemPrompt },
           ...trimmedMessages.map((m) => ({ role: m.role as 'system' | 'user' | 'assistant', content: m.content })),
@@ -590,7 +597,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
       setStreamingContent('');
       streamingContentRef.current = '';
     }
-  }, [input, currentNovelId, isLoading, apiKey, currentChapter, activeAgent, activeSession, messages, addSession, updateSession, getOutlineContext, getChaptersContext, getPreviousChaptersContent, getCreationStage, currentNovel, handleSlashCommand]);
+  }, [input, currentNovelId, isLoading, modelConfigured, currentChapter, activeAgent, activeSession, messages, addSession, updateSession, getOutlineContext, getChaptersContext, getPreviousChaptersContent, getCreationStage, currentNovel, handleSlashCommand]);
 
   if (!currentNovelId) {
     return (
@@ -627,11 +634,11 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
       </div>
 
       {/* API Key Warning */}
-      {!apiKey && (
+      {!modelConfigured && (
         <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 dark:bg-amber-950 dark:border-amber-800">
           <div className="flex items-start gap-2 text-xs text-amber-800 dark:text-amber-200">
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-            <div><p className="font-medium">未配置 API Key</p><p>请在"设定"页面配置 DeepSeek API Key</p></div>
+            <div><p className="font-medium">模型尚未配置完整</p><p>请在“模型设置”中填写地址、模型和认证信息</p></div>
           </div>
         </div>
       )}
@@ -640,13 +647,13 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
 
       {/* Quick Actions */}
       <div className="px-3 py-2 border-b flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleSend('请帮我生成这本小说的大纲，请先问我一些关键问题')} disabled={!apiKey || isLoading}>
+        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleSend('请帮我生成这本小说的大纲，请先问我一些关键问题')} disabled={!modelConfigured || isLoading}>
           <Sparkles className="h-3 w-3 mr-1" />生成大纲
         </Button>
-        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleSend('请帮我优化当前大纲')} disabled={!apiKey || isLoading || plotCards.length === 0}>
+        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleSend('请帮我优化当前大纲')} disabled={!modelConfigured || isLoading || plotCards.length === 0}>
           优化大纲
         </Button>
-        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleSend('请帮我续写当前章节')} disabled={!apiKey || isLoading || !currentChapter}>
+        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleSend('请帮我续写当前章节')} disabled={!modelConfigured || isLoading || !currentChapter}>
           续写章节
         </Button>
       </div>
@@ -822,12 +829,13 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
                 }
               }
             }}
-                        placeholder={apiKey ? '输入需求... (/help 查看命令)' : '请先配置 API Key'}
-            disabled={!apiKey || isLoading}
+                        placeholder={modelConfigured ? '输入需求... (/help 查看命令)' : '请先完成模型设置'}
+            disabled={!modelConfigured || isLoading}
             rows={1}
             className="flex-1 px-3 py-2 text-sm bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 resize-none overflow-hidden min-h-[36px] max-h-[120px]"
           />
-          <Button size="icon" onClick={() => { handleSend(); localStorage.removeItem(INPUT_DRAFT_KEY); }} disabled={!input.trim() || !apiKey || isLoading} className="self-end">
+          {isLoading && <Button variant="outline" onClick={() => generationRef.current?.abort()} className="self-end">停止生成</Button>}
+          <Button size="icon" onClick={() => { handleSend(); localStorage.removeItem(INPUT_DRAFT_KEY); }} disabled={!input.trim() || !modelConfigured || isLoading} className="self-end">
             <Send className="h-4 w-4" />
           </Button>
         </div>

@@ -365,3 +365,18 @@ npm run db:reset         # 重置数据库（删除数据）
 ---
 
 *最后更新: 2026-06-30*
+
+## 2026-10-25 模型设置架构更新
+
+模型配置与多协议请求的权威实现为：
+
+- `packages/frontend/src/lib/modelConfig.ts`：ModelConfig、12 类服务商预设、四种协议、地址规范化、校验和旧配置迁移。
+- `packages/frontend/src/stores/settingsStore.ts`：当前启用配置和按服务商保存的 profiles，统一 saveConfig，持久化版本为 1。
+- `packages/frontend/src/services/modelService.ts`：协议请求、SSE 与 JSON 正文解析、认证、超时/取消、模型列表及连接测试。
+- `packages/frontend/src/services/deepseek.ts`：保留 DeepSeekService 名称以兼容既有调用，内部委托通用 ModelService，名称不再代表仅支持 DeepSeek。
+- SettingsView 编辑草稿；保存并启用后才更新实际写作配置。测试直接使用草稿，通过同一 ModelService 发起请求。
+- AgentPanel 使用完整配置有效性判断，不再仅以 API Key 非空判断；本地模型支持免认证，并可停止生成。
+
+数据路径：设置草稿 → 校验 / 模型发现 / 连接测试 → saveConfig → novel-agent-settings（version 1）→ 写作面板 → ModelService → 用户配置的服务端点。
+
+仍由浏览器直接请求模型服务，未引入后端代理或服务端密钥存储。支持范围、限制和迁移规则见 [模型设置升级说明](docs/MODEL_SETTINGS.md)。
