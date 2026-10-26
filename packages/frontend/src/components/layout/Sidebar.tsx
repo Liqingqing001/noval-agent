@@ -103,19 +103,19 @@ export function Sidebar({ currentView, onLogout }: SidebarProps) {
   ];
 
   return (
-    <div className="flex h-full flex-col border-r border-border/50 bg-gradient-to-b from-background to-muted/20">
+    <div className="bookshelf flex h-full min-h-0 flex-col border-r border-border/70 bg-background">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border/50">
+      <div className="flex items-center justify-between px-4 py-5 border-b border-border/60">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl border border-border bg-background flex items-center justify-center shadow-sm">
             <BookOpen className="h-4 w-4 text-foreground" />
           </div>
-          <h2 className="text-sm font-bold tracking-wide text-foreground">我的书架</h2>
+          <div><h2 className="text-sm font-semibold text-foreground">我的书架</h2><p className="mt-0.5 text-[11px] text-muted-foreground">{novels.length} 部作品 · 让故事生长</p></div>
         </div>
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-xl hover:bg-muted transition-colors"
+          aria-label="创建新书" title="创建新书" className="h-8 w-8 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
           onClick={() => { setIsCreating(true); setNewNovelTitle(''); }}
         >
           <Plus className="h-5 w-5" />
@@ -123,7 +123,7 @@ export function Sidebar({ currentView, onLogout }: SidebarProps) {
       </div>
 
       {/* Novel List */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 space-y-3 scrollbar-thin">
         <input
           ref={fileInputRef}
           type="file"
@@ -135,15 +135,11 @@ export function Sidebar({ currentView, onLogout }: SidebarProps) {
           <div
             key={novel.id}
             onClick={() => handleSelectNovel(novel.id)}
-            className={`group relative p-4 rounded-2xl cursor-pointer transition-all duration-300 card-hover ${
-              currentNovelId === novel.id
-                ? 'bg-card border-2 border-foreground/20 shadow-lg'
-                : 'bg-card/80 border border-border/50 hover:border-foreground/20 hover:bg-card'
-            }`}
+            className={`shelf-book group relative cursor-pointer rounded-xl border p-3 transition-colors ${currentNovelId === novel.id ? 'is-selected border-primary/25 bg-card' : 'border-border/60 bg-card/60 hover:border-primary/25 hover:bg-card'}`}
           >
             {/* 选中指示条 */}
             {currentNovelId === novel.id && (
-              <div className="absolute left-0 top-4 bottom-4 w-1 rounded-full bg-foreground/70" />
+              <div className="absolute left-0 top-4 bottom-4 w-1 rounded-full bg-primary" />
             )}
 
             {editingId === novel.id ? (
@@ -162,35 +158,33 @@ export function Sidebar({ currentView, onLogout }: SidebarProps) {
               />
             ) : (
               <>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="relative shrink-0">
+                <div className="shelf-book-layout">
+                  <div className="shelf-cover relative shrink-0">
                     {novel.cover ? (
                       <img
                         src={novel.cover}
                         alt={`${novel.title}封面`}
-                        className="h-16 w-12 rounded-lg object-cover border border-border shadow-sm"
+                        className="h-20 w-14 rounded-md object-cover border border-border/60 shadow-sm"
                       />
                     ) : (
-                      <div className="h-16 w-12 rounded-lg border border-dashed border-border bg-muted/50 flex items-center justify-center">
-                        <BookOpen className="h-5 w-5 text-muted-foreground" />
-                      </div>
+                      <div className="book-cover-placeholder h-20 w-14 rounded-md flex flex-col items-center justify-between overflow-hidden px-2 py-3 text-primary"><BookOpen className="h-4 w-4 opacity-70" /><span className="line-clamp-2 text-center text-[10px] font-medium leading-relaxed">{novel.title}</span><span className="h-px w-4 bg-primary/30" /></div>
                     )}
                     <button
                       type="button"
                       onClick={(e) => handleCoverButtonClick(e, novel.id)}
-                      className="absolute -right-2 -bottom-2 h-7 w-7 rounded-full border border-border bg-background shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-muted"
+                      className="absolute -right-2 -bottom-2 h-7 w-7 rounded-full border border-border bg-background shadow-sm flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity hover:bg-muted"
                       title={novel.cover ? '更换封面' : '添加封面'}
                     >
                       <ImagePlus className="h-3.5 w-3.5" />
                     </button>
                   </div>
 
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-sm truncate group-hover:text-foreground transition-colors">
+                  <div className="min-w-0">
+                    <h3><button type="button" onClick={() => handleSelectNovel(novel.id)} aria-current={currentNovelId === novel.id ? 'true' : undefined} className="w-full rounded text-left font-semibold text-sm leading-6 line-clamp-2 break-words focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40" title={novel.title}>
                       {novel.title}
-                    </h3>
-                    <div className="flex items-center gap-2 mt-2 flex-wrap">
-                      <span className={`tag-creative ${
+                    </button></h3>
+                    <div className="flex flex-col items-start gap-2 mt-2">
+                      <span className={`book-status ${
                         novel.status === 'draft' ? 'bg-muted text-muted-foreground' :
                         novel.status === 'writing' ? 'bg-muted text-foreground' :
                         'bg-muted text-foreground'
@@ -204,9 +198,7 @@ export function Sidebar({ currentView, onLogout }: SidebarProps) {
                   </div>
 
                   {/* 操作按钮 */}
-                  <div className={`flex items-center gap-1 transition-all duration-200 ${
-                    currentNovelId === novel.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                  }`} onClick={(e) => e.stopPropagation()}>
+                  <div className="shelf-book-actions flex items-center justify-end gap-1 border-t border-border/50 pt-2" onClick={(e) => e.stopPropagation()}>
                     {novel.cover && (
                       <Button
                         variant="ghost"
@@ -222,6 +214,7 @@ export function Sidebar({ currentView, onLogout }: SidebarProps) {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 rounded-lg hover:bg-muted"
+                      aria-label="重命名小说" title="重命名小说"
                       onClick={() => { setEditingId(novel.id); setEditTitle(novel.title); }}
                     >
                       <Pencil className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
@@ -230,6 +223,7 @@ export function Sidebar({ currentView, onLogout }: SidebarProps) {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 rounded-lg hover:bg-destructive/10"
+                      aria-label="删除小说" title="删除小说"
                       onClick={() => confirm('确定删除？') && deleteNovel(novel.id)}
                     >
                       <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
@@ -279,19 +273,19 @@ export function Sidebar({ currentView, onLogout }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <div className="p-3 space-y-1.5 border-t border-border/50 bg-muted/20">
+      <div className="p-3 space-y-1 border-t border-border/60 bg-card/40">
         {navItems.map((item) => (
           <button
             key={item.id}
             onClick={() => handleViewChange(item.id)}
             disabled={!currentNovelId && item.id !== 'settings'}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed ${
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed ${
               currentView === item.id
-                ? 'bg-card shadow-sm border border-border'
+                ? 'bg-primary/10 text-primary'
                 : 'hover:bg-card/50'
             }`}
           >
-            <item.icon className="h-4 w-4 text-muted-foreground" />
+            <item.icon className="h-4 w-4 opacity-70" />
             <span className="font-medium">{item.label}</span>
             {currentView === item.id && (
               <div className="ml-auto w-2 h-2 rounded-full bg-foreground/70" />

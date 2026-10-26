@@ -259,8 +259,8 @@ export function ChapterEditor({ chapterId }: ChapterEditorProps) {
       </div>
 
       {/* Editor Content - 带渐变绿色背景 */}
-      <div className="flex-1 overflow-y-auto editor-background">
-        <div className="max-w-3xl mx-auto px-8 py-8">
+      <div className="min-h-0 flex-1 overflow-y-auto manuscript-background px-4 scrollbar-thin">
+        <div className="manuscript-page">
           {/* Chapter Title - 按回车会跳转到正文 */}
           <input
             type="text"
@@ -268,7 +268,7 @@ export function ChapterEditor({ chapterId }: ChapterEditorProps) {
             onChange={(e) => handleTitleChange(e.target.value)}
             onKeyDown={handleTitleKeyDown}
             placeholder="章节标题"
-            className="w-full text-2xl font-bold bg-transparent border-none outline-none placeholder:text-muted-foreground/60 mb-6 text-green-800 dark:text-green-200"
+            className="w-full text-2xl font-semibold leading-relaxed bg-transparent border-none outline-none placeholder:text-muted-foreground/60 mb-8 text-foreground"
           />
 
           {/* Editor */}

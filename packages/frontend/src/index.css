@@ -228,3 +228,40 @@
 .input-creative::placeholder {
   color: hsl(var(--muted-foreground));
 }
+/* Writing workspace: quiet surfaces and stable layouts at narrow panel widths. */
+.shelf-book-layout {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 12px;
+}
+.shelf-book-actions { grid-column: 1 / -1; }
+.shelf-book.is-selected { box-shadow: 0 2px 8px hsl(var(--primary) / 0.06); }
+.book-cover-placeholder {
+  background: linear-gradient(145deg, hsl(var(--secondary)), hsl(var(--green-soft) / 0.65));
+  border: 1px solid hsl(var(--primary) / 0.12);
+  box-shadow: inset 4px 0 0 hsl(var(--primary) / 0.12), 0 2px 4px hsl(var(--primary) / 0.06);
+}
+.book-status { border-radius: 5px; padding: 2px 7px; font-size: 10px; line-height: 16px; font-weight: 500; }
+.chapter-entry[aria-current], .chapter-entry:has([aria-current="page"])::before {
+  content: ''; position: absolute; left: -1px; top: 15px; bottom: 15px;
+  width: 3px; border-radius: 3px; background: hsl(var(--primary));
+}
+.chapter-actions { opacity: 0; transition: opacity 150ms ease; }
+.chapter-entry:hover .chapter-actions,
+.chapter-entry:focus-within .chapter-actions,
+.chapter-entry:has([aria-current="page"]) .chapter-actions { opacity: 1; }
+.manuscript-background { background: hsl(var(--secondary) / 0.45); }
+.manuscript-page {
+  min-height: calc(100% - 48px); margin: 24px auto; padding: 36px clamp(20px, 4vw, 56px);
+  max-width: 760px; background: hsl(var(--card)); border: 1px solid hsl(var(--border) / 0.75);
+  border-radius: 8px; box-shadow: 0 3px 18px hsl(var(--primary) / 0.035);
+}
+.manuscript-page .ProseMirror { line-height: 1.95; color: hsl(var(--foreground)); overflow-wrap: anywhere; }
+.manuscript-page .ProseMirror p { color: inherit; }
+.manuscript-page .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder); float: left; height: 0; pointer-events: none; color: hsl(var(--muted-foreground) / 0.65);
+}
+@media (hover: none) { .chapter-actions { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .shelf-book, .chapter-entry, .chapter-actions { transition: none; }
+}
