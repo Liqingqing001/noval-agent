@@ -628,9 +628,9 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
   }
 
   return (
-    <div className="flex h-full flex-col border-l bg-muted/40">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden border-l bg-muted/40">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex shrink-0 items-center justify-between p-4 border-b">
         <div className="flex items-center gap-2">
           <Bot className="h-5 w-5 text-primary" />
           <span className="font-semibold">AI助手</span>
@@ -664,7 +664,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
       {/* 简化：不再显示子Agent团队 */}
 
       {/* Quick Actions */}
-      <div className="px-3 py-2 border-b flex flex-wrap gap-2">
+      <div className="px-3 py-2 border-b flex shrink-0 flex-wrap gap-2">
         <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleSend('请帮我生成这本小说的大纲，请先问我一些关键问题')} disabled={!modelConfigured || isLoading}>
           <Sparkles className="h-3 w-3 mr-1" />生成大纲
         </Button>
@@ -676,8 +676,13 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
         </Button>
       </div>
 
+      <div className="shrink-0 border-b px-4 py-2 text-xs text-muted-foreground">
+        {isLoading ? '生成中，可随时停止' : modelConfigured ? '就绪' : '等待完成模型设置'}
+        {' · 结构化内容自动同步 · 长回复自动折叠'}
+      </div>
+
       {/* Chat Area */}
-      <div className="flex-1 overflow-y-auto p-4 scrollbar-thin" ref={scrollRef}>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-thin" ref={scrollRef}>
         {messages.length === 0 && !streamingContent ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-center text-sm text-muted-foreground space-y-4">
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-3xl">
@@ -725,6 +730,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
                       )}
                     </div>
                     {message.syncStatus && <p role="status" className={`text-xs ${message.syncStatus.state === 'success' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>{message.syncStatus.message}</p>}
+                    {!message.syncStatus && syncableMessageIds.has(message.id) && <p className="text-xs text-muted-foreground">历史回复未记录同步结果，可重新同步。</p>}
                     {syncableMessageIds.has(message.id) && (
                       <Button variant="ghost" size="sm" className="self-start h-7 text-xs" disabled={isLoading} onClick={() => retrySync(message)}>重新同步到面板</Button>
                     )}
@@ -815,7 +821,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
       )}
 
       {/* Input */}
-      <div className="p-4 border-t bg-muted/40">
+      <div className="shrink-0 p-4 border-t bg-muted/40">
         <div className="flex gap-2">
           <textarea
             ref={(el) => {

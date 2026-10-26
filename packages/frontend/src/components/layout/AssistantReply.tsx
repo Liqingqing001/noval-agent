@@ -26,16 +26,18 @@ export function AssistantReply({ content, syncStatus, streaming = false, childre
   const setCurrentView = useNovelStore(state => state.setCurrentView);
   const sections = useMemo(() => streaming ? [] : extractContentBlocks(content), [content, streaming]);
   const synced = syncStatus?.state === 'success' && sections.length > 0;
+  const legacy = !syncStatus && !streaming && sections.some(section => section.body.trim());
   const long = content.length > 600 || content.split('\n').length > 12;
-  if (!synced && !long) return <>{children}</>;
+  if (!synced && !long && !legacy) return <>{children}</>;
 
   const links = synced ? destinations.filter(destination => sections.some(section => destination.types.includes(section.type))) : [];
   const preview = content.slice(0, 240).split('\n').slice(0, 6).join('\n');
   return (
     <div className="space-y-2">
       {synced && <p className="text-sm font-medium">内容已同步，完整内容请到对应面板查看。</p>}
+      {legacy && <p className="text-sm font-medium">历史回复已折叠，可展开查看或重新同步到面板。</p>}
       <div id={contentId}>
-        {expanded ? <div className="max-h-96 overflow-y-auto pr-1">{children}</div> : synced ? null : (
+        {expanded ? <div className="max-h-96 overflow-y-auto pr-1">{children}</div> : synced || legacy ? null : (
           <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{preview}…</p>
         )}
       </div>
