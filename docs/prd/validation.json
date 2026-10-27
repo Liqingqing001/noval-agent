@@ -1,22 +1,23 @@
 {
-  "document_version": "1.0",
+  "document_version": "1.1",
   "date": "2026-10-27",
   "scope": "documentation only",
   "source_sections": 19,
-  "acceptance_scenarios": 15,
-  "docx_sha256": "abf7ae1fce40899a90af27118a95d57c848d8178f16cfb1fc3e2ed94a21c5bf0",
+  "acceptance_scenarios": 20,
+  "docx_sha256": "fa8441be4c8c021db724946ba58d8c3c09e32eee69709238ceb6786305122017",
   "checks": {
     "docx_zip_integrity": "passed",
     "explicit_east_asian_fonts_all_text_runs": true,
     "fixed_table_row_heights": 0,
     "render_engine": "LibreOfficeDev 26.8",
-    "rendered_pages": 14,
+    "rendered_pages": 17,
     "out_of_page_text": [],
     "replacement_characters": 0,
-    "contact_sheet_visual_review": "14-page overview inspected; no obvious clipping or overlapping observed",
+    "contact_sheet_visual_review": "17-page overview inspected; no obvious clipping or overlapping observed",
     "microsoft_word_render": "not performed; unavailable in Linux cloud environment",
     "chinese_font_rendering": "Windows font names specified; Linux rendering uses installed CJK substitutes",
-    "application_tests": "not run; no application code changed"
+    "application_tests": "not run; no application code changed",
+    "token_cost_example_arithmetic": "passed; hypothetical rates, not provider pricing"
   },
   "remaining_review": [
     "Product and engineering approval",

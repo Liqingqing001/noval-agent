@@ -7,7 +7,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
 ROOT = Path(__file__).resolve().parent
-TARGET = ROOT / 'NovelAgent参考作品分析与辅助创作PRD_V1.0.docx'
+TARGET = ROOT / 'NovelAgent参考作品分析与辅助创作PRD_V1.1.docx'
 subprocess.run(['pandoc', str(ROOT / 'content-analysis-creation-prd.md'),
                 '--from=gfm', '--to=docx', '-o', str(TARGET)], check=True)
 doc = Document(TARGET)
@@ -69,7 +69,7 @@ for table in doc.tables:
         if ri == 0: trpr.append(OxmlElement('w:tblHeader'))
         trpr.append(OxmlElement('w:cantSplit'))
 header = sec.header.paragraphs[0]
-header.text = 'NovelAgent  /  产品需求文档  /  V1.0 待评审'
+header.text = 'NovelAgent  /  产品需求文档  /  V1.1 待评审'
 footer = sec.footer.paragraphs[0]
 footer.alignment = 2
 footer.add_run('第 ')
