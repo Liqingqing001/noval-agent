@@ -9,6 +9,7 @@ import { GenerationStatus } from './GenerationStatus';
 import { AssistantReply } from './AssistantReply';
 import { extractContentBlocks } from '@/lib/structuredContent';
 import { syncFeedback } from '@/lib/syncFeedback';
+import { hasModificationInstructions } from '@/lib/modificationInstructions';
 import { DeepSeekService } from '@/services/deepseek';
 import { AgentType, AGENT_CONFIGS } from '@/types/agents';
 import type { Message, ViewType } from '@/types';
@@ -161,7 +162,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
   }, [allSessions, currentNovelId, activeAgent]);
 
   const messages = useMemo(() => activeSession?.messages || [], [activeSession?.messages]);
-  const syncableMessageIds = useMemo(() => new Set(messages.filter(message => message.role === 'assistant' && message.syncStatus?.state !== 'partial' && extractContentBlocks(message.content).some(block => block.body.trim())).map(message => message.id)), [messages]);
+  const syncableMessageIds = useMemo(() => new Set(messages.filter(message => message.role === 'assistant' && message.syncStatus?.state !== 'partial' && (extractContentBlocks(message.content).some(block => block.body.trim()) || hasModificationInstructions(message.content))).map(message => message.id)), [messages]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -268,7 +269,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
   const retrySync = useCallback((message: Message) => {
     if (!currentNovelId || !activeSession || isLoading) return;
     let status: NonNullable<Message['syncStatus']>;
-    try { status = syncFeedback(autoSyncContent(message.content, currentNovelId, { contentOnly: true })); }
+    try { status = syncFeedback(autoSyncContent(message.content, currentNovelId, { contentOnly: true, retryModifications: true })); }
     catch { status = { state: 'error', message: '同步未完成，可能有部分内容已写入；请检查面板后重试。' }; }
     const latest = useNovelStore.getState().sessions.find(s => s.id === activeSession.id);
     if (latest) updateSession(latest.id, { messages: latest.messages.map(m => m.id === message.id ? { ...m, syncStatus: status } : m) });
@@ -730,6 +731,14 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
                       )}
                     </div>
                     {message.syncStatus && <p role="status" className={`text-xs ${message.syncStatus.state === 'success' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>{message.syncStatus.message}</p>}
+                    {!!message.syncStatus?.details?.length && (
+                      <details className="text-xs text-muted-foreground max-w-full">
+                        <summary className="cursor-pointer">查看修改结果（{message.syncStatus.details.length} 条）</summary>
+                        <ol className="mt-2 space-y-1 break-words list-decimal pl-4">
+                          {message.syncStatus.details.map((detail, index) => <li key={index}>{detail}</li>)}
+                        </ol>
+                      </details>
+                    )}
                     {!message.syncStatus && syncableMessageIds.has(message.id) && <p className="text-xs text-muted-foreground">历史回复未记录同步结果，可重新同步。</p>}
                     {syncableMessageIds.has(message.id) && (
                       <Button variant="ghost" size="sm" className="self-start h-7 text-xs" disabled={isLoading} onClick={() => retrySync(message)}>重新同步到面板</Button>

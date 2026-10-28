@@ -2,6 +2,7 @@ import { useId, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { extractContentBlocks } from '@/lib/structuredContent';
+import { parseModifyInstructions } from '@/lib/modificationInstructions';
 import { useNovelStore } from '@/stores/novelStore';
 import type { Message, ViewType } from '@/types';
 
@@ -24,7 +25,10 @@ export function AssistantReply({ content, syncStatus, streaming = false, childre
   const [expanded, setExpanded] = useState(false);
   const contentId = useId();
   const setCurrentView = useNovelStore(state => state.setCurrentView);
-  const sections = useMemo(() => streaming ? [] : extractContentBlocks(content), [content, streaming]);
+  const sections = useMemo(() => streaming ? [] : [
+    ...extractContentBlocks(content),
+    ...parseModifyInstructions(content).map(item => ({ type: item.target, body: item.newContent, closed: true })),
+  ], [content, streaming]);
   const synced = syncStatus?.state === 'success' && sections.length > 0;
   const legacy = !syncStatus && !streaming && sections.some(section => section.body.trim());
   const long = content.length > 600 || content.split('\n').length > 12;

@@ -64,6 +64,7 @@ export interface Message {
   syncStatus?: {
     state: 'pending' | 'success' | 'warning' | 'error' | 'partial';
     message: string;
+    details?: string[];
   };
 }
 

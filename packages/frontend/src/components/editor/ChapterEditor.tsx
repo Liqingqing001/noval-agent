@@ -8,6 +8,7 @@ import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Quote, Und
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useNovelStore } from '@/stores/novelStore';
+import { toEditorHtml } from '@/lib/textModification';
 
 interface ChapterEditorProps {
   chapterId: string;
@@ -20,7 +21,7 @@ export function ChapterEditor({ chapterId }: ChapterEditorProps) {
   // 使用 ref 跟踪上次保存的内容，避免循环更新
   const lastSavedContentRef = useRef('');
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isInitializedRef = useRef(false);
+  const loadedChapterRef = useRef<{ id: string; content: string } | null>(null);
 
   const allChapters = useNovelStore((state) => state.chapters);
   const updateChapter = useNovelStore((state) => state.updateChapter);
@@ -46,56 +47,21 @@ export function ChapterEditor({ chapterId }: ChapterEditorProps) {
     immediatelyRender: false,
   });
 
-  // 初始化内容 & 处理外部更新（包括 AI 同步）
+  // External changes invalidate any delayed save of an older editor snapshot.
   useEffect(() => {
     if (!chapter || !editor) return;
-
-    const currentEditorContent = editor.getHTML();
-    const chapterContent = chapter.content;
-
-    // 如果章节内容与编辑器内容不同（外部更新，如 AI 同步）
-    if (chapterContent && chapterContent !== currentEditorContent) {
-      // 处理内容：如果是纯文本（没有HTML标签），将换行符转换为段落
-      let contentToSet = chapterContent;
-      if (!chapterContent.includes('<')) {
-        // 纯文本：将换行符转换为 HTML 段落
-        const paragraphs = chapterContent.split(/\n\n+/).filter(p => p.trim());
-        if (paragraphs.length > 1) {
-          contentToSet = paragraphs.map(p => `<p>${p.trim()}</p>`).join('');
-        } else if (chapterContent.includes('\n')) {
-          const lines = chapterContent.split('\n').filter(l => l.trim());
-          contentToSet = lines.map(l => `<p>${l.trim()}</p>`).join('');
-        }
-      }
-
-      // 只在内容真正不同时更新
-      if (contentToSet !== currentEditorContent) {
-        lastSavedContentRef.current = contentToSet;
-        editor.commands.setContent(contentToSet, { emitUpdate: false });
-        // 同步更新字数（从 store 的 wordCount 或重新计算）
-        setWordCount(chapter.wordCount || contentToSet.replace(/<[^>]*>/g, '').length);
-      }
+    const loaded = loadedChapterRef.current;
+    if (loaded?.id === chapter.id && loaded.content === chapter.content) return;
+    loadedChapterRef.current = { id: chapter.id, content: chapter.content };
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
     }
-
-    // 初始化
-    if (!isInitializedRef.current) {
-      setWordCount(chapter.wordCount);
-      let contentToSet = chapter.content || '';
-
-      if (contentToSet && !contentToSet.includes('<')) {
-        const paragraphs = contentToSet.split(/\n\n+/).filter(p => p.trim());
-        if (paragraphs.length > 1) {
-          contentToSet = paragraphs.map(p => `<p>${p.trim()}</p>`).join('');
-        } else if (contentToSet.includes('\n')) {
-          const lines = contentToSet.split('\n').filter(l => l.trim());
-          contentToSet = lines.map(l => `<p>${l.trim()}</p>`).join('');
-        }
-      }
-
-      lastSavedContentRef.current = contentToSet;
-      editor.commands.setContent(contentToSet, { emitUpdate: false });
-      isInitializedRef.current = true;
-    }
+    setIsSaving(false);
+    const contentToSet = toEditorHtml(chapter.content || '');
+    if (editor.getHTML() !== contentToSet) editor.commands.setContent(contentToSet, { emitUpdate: false });
+    lastSavedContentRef.current = editor.getHTML();
+    setWordCount(chapter.wordCount);
   }, [chapter, editor]);
 
   // 处理标题变化 - 直接同步到 store
@@ -136,6 +102,7 @@ export function ChapterEditor({ chapterId }: ChapterEditorProps) {
 
     // 防抖保存
     saveTimeoutRef.current = setTimeout(() => {
+      saveTimeoutRef.current = null;
       updateChapter(chapterId, {
         content: html,
         wordCount: count,
