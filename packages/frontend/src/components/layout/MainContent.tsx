@@ -3,6 +3,8 @@ import { BookOpen, Pencil, Download, GripVertical, Star, Users, User } from 'luc
 import { useNovelStore } from '@/stores/novelStore';
 import { ChapterList } from '@/components/chapter/ChapterList';
 import { ChapterEditor } from '@/components/editor/ChapterEditor';
+import { ExportDialog } from '@/components/editor/ExportDialog';
+import { flushActiveEditor } from '@/lib/editorEvents';
 import { SettingsView } from '@/components/settings/SettingsView';
 import { OutlineView } from '@/components/outline/OutlineView';
 import { CharacterEditor } from '@/components/characters/CharacterEditor';
@@ -21,67 +23,8 @@ interface MainContentProps {
   currentView: ViewType;
 }
 
-// 导出小说为 txt 文件
-function exportNovelAsTxt(novelId: string) {
-  const store = useNovelStore.getState();
-  const novel = store.novels.find(n => n.id === novelId);
-  const chapters = store.chapters
-    .filter(c => c.novelId === novelId)
-    .sort((a, b) => a.sequence - b.sequence);
-
-  if (!novel || chapters.length === 0) {
-    alert('没有可导出的章节');
-    return;
-  }
-
-  // 构建 txt 内容
-  let content = '';
-
-  // 书名
-  content += `${novel.title}\n`;
-  content += `\n`;
-
-  // 简介（如果有）
-  if (novel.summary) {
-    content += `简介：${novel.summary}\n`;
-    content += `\n`;
-  }
-
-  content += `\n`;
-
-  // 章节内容
-  chapters.forEach((chapter, index) => {
-    // 章节标题格式：适合阅读器识别
-    content += `第${index + 1}章 ${chapter.title}\n`;
-    content += `\n`;
-
-    // 章节内容（去除 HTML 标签）
-    const chapterText = chapter.content
-      .replace(/<[^>]*>/g, '') // 去除 HTML 标签
-      .replace(/&nbsp;/g, ' ') // 替换空格
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&amp;/g, '&')
-      .trim();
-
-    content += chapterText;
-    content += `\n`;
-    content += `\n`; // 章节间空行分隔
-  });
-
-  // 创建并下载文件
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `${novel.title}.txt`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
 export function MainContent({ currentView }: MainContentProps) {
+  const [exportOpen, setExportOpen] = useState(false);
   const [chapterListWidth, setChapterListWidth] = useState(getDefaultChapterListWidth);
   const [isDraggingChapterList, setIsDraggingChapterList] = useState(false);
   const [dragStartX, setDragStartX] = useState(0);
@@ -152,7 +95,7 @@ export function MainContent({ currentView }: MainContentProps) {
         return (
           <div className="flex h-full relative">
             <ChapterList
-              onSelectChapter={setCurrentChapter}
+              onSelectChapter={id => { flushActiveEditor(); setCurrentChapter(id); }}
               selectedChapterId={currentChapter?.id || null}
               width={chapterListWidth}
             />
@@ -168,7 +111,7 @@ export function MainContent({ currentView }: MainContentProps) {
             </div>
             <div className="flex-1 min-w-0">
               {currentChapter ? (
-                <ChapterEditor chapterId={currentChapter.id} />
+                <ChapterEditor key={currentChapter.id} chapterId={currentChapter.id} />
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   请选择一个章节开始编辑
@@ -190,6 +133,7 @@ export function MainContent({ currentView }: MainContentProps) {
 
   return (
     <div className="flex flex-col h-full">
+      {currentNovelId && <ExportDialog novelId={currentNovelId} open={exportOpen} onOpenChange={setExportOpen} />}
       {/* Top Bar */}
       {currentNovelId && currentView !== 'settings' && (
         <div className="border-b border-border/50 bg-card/80 backdrop-blur-sm">
@@ -212,9 +156,9 @@ export function MainContent({ currentView }: MainContentProps) {
               )}
             </div>
             <button
-              onClick={() => exportNovelAsTxt(currentNovelId)}
+              onClick={() => { flushActiveEditor(); setExportOpen(true); }}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-sm font-medium transition-colors"
-              title="导出为TXT文件"
+              title="导出整本或当前章节"
             >
               <Download className="h-4 w-4" />
               导出

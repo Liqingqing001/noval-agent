@@ -7,6 +7,7 @@
     "packages/*"
   ],
   "scripts": {
+    "test:editor": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/editorExport.test.mjs",
     "test:sync": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/structuredContent.test.mjs packages/frontend/tests/autoSync.test.mjs packages/frontend/tests/modificationInstructions.test.mjs",
     "test:models": "node --import tsx --test packages/frontend/tests/modelService.test.mjs",
     "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\"",

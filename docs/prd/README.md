@@ -1,4 +1,11 @@
-# 参考作品分析与辅助创作产品需求
+# 产品需求文档
+
+## 小说编辑与导出 V1.0
+
+- [需求与交付说明](editor-export-v1.0/README.md)：段落排版、编辑连续性与三种导出格式，已同步实施。
+- [Windows Word 版](editor-export-v1.0/NovelAgent小说编辑与导出PRD_V1.0.docx)：已使用本机 Microsoft Word 渲染并逐页检查。
+
+## 参考作品分析与辅助创作 V1.1
 
 - [产品需求正文](content-analysis-creation-prd.md)：内容维护源，共 19 个章节，状态为待评审。
 - [Word 评审文档](NovelAgent参考作品分析与辅助创作PRD_V1.1.docx)：对应同版正文，中文字体按 Windows Word 设置。

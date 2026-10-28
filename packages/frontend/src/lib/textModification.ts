@@ -12,7 +12,8 @@ const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '
 
 export function toEditorHtml(content: string): string {
   if (isRichTextContent(content)) return content;
-  return content.replace(/\r\n?/g, '\n').split('\n').map(line => `<p>${escapeHtml(line)}</p>`).join('');
+  const lines = content.replace(/\r\n?/g, '\n').split('\n').filter(line => line.trim());
+  return lines.length ? lines.map(line => `<p>${escapeHtml(line)}</p>`).join('') : '<p></p>';
 }
 
 interface TextPoint { node: Text; offset: number }

@@ -1,0 +1,42 @@
+.manuscript-page .novel-editor .ProseMirror {
+  outline: none;
+  min-height: 400px;
+  font-size: var(--manuscript-font-size, 16px);
+  line-height: var(--manuscript-line-height, 1.6);
+  color: hsl(var(--foreground));
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.manuscript-page .novel-editor .ProseMirror p {
+  margin: 0 0 var(--manuscript-paragraph-gap, 0px);
+  color: inherit;
+}
+.novel-editor[data-indent="true"] .ProseMirror > p:not(.is-editor-empty) { text-indent: 2em; }
+.manuscript-page .novel-editor .ProseMirror ul,
+.manuscript-page .novel-editor .ProseMirror ol { margin: .5em 0; padding-left: 1.75em; }
+.novel-editor .ProseMirror ul { list-style: disc; }
+.novel-editor .ProseMirror ol { list-style: decimal; }
+.novel-editor .ProseMirror li p { text-indent: 0; }
+.manuscript-page .novel-editor .ProseMirror blockquote {
+  margin: .5em 0; padding-left: 1em; border-left: 3px solid hsl(var(--primary) / .4);
+  color: hsl(var(--muted-foreground));
+}
+.novel-editor .ProseMirror blockquote p { text-indent: 0; }
+.novel-editor .ProseMirror h1 { font-size: 1.4em; }
+.novel-editor .ProseMirror h2 { font-size: 1.2em; }
+.novel-editor .ProseMirror h3 { font-size: 1.1em; }
+.novel-editor .ProseMirror :is(h1, h2, h3) { margin: 1em 0 .5em; font-weight: 600; line-height: 1.4; }
+.novel-editor .ProseMirror pre { white-space: pre-wrap; }
+.editor-toolbar { position: relative; z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.editor-preferences { position: relative; }
+.editor-preferences > summary { list-style: none; }
+.editor-preferences > summary::-webkit-details-marker { display: none; }
+.editor-preferences[open] { z-index: 20; }
+.editor-preferences-panel {
+  position: absolute; right: 0; top: calc(100% + 8px); width: 260px;
+  padding: 16px; border: 1px solid hsl(var(--border)); border-radius: 12px;
+  background: hsl(var(--popover)); color: hsl(var(--popover-foreground)); box-shadow: 0 8px 24px #0002;
+}
+.editor-preferences-panel label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; font-size: 12px; }
+.editor-preferences-panel select { padding: 4px 8px; border: 1px solid hsl(var(--border)); border-radius: 6px; background: hsl(var(--background)); }
+@media (max-width: 900px) { .editor-preferences-panel { right: -40px; } }

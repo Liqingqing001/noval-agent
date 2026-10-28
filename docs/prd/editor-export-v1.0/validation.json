@@ -1,0 +1,62 @@
+{
+  "date": "2026-10-28",
+  "version": "1.0",
+  "prd": {
+    "sha256": "4c6416c93cb86040b93b69c2d144c9dee5aeb45ddf4225e754dcebc239681569",
+    "pages": 4,
+    "zip_integrity": "passed",
+    "missing_explicit_fonts": 0,
+    "east_asian_fonts": [
+      "宋体",
+      "黑体"
+    ],
+    "theme_font_references": 0,
+    "fixed_table_row_heights": 0,
+    "replacement_characters": 0,
+    "out_of_page_text": [],
+    "pdf_font_names": [
+      "ArialMT",
+      "BCDEEE+SimSun",
+      "BCDFEE+SimHei",
+      "BCDGEE+SimSun",
+      "SymbolMT",
+      "TimesNewRomanPS-BoldMT",
+      "TimesNewRomanPSMT"
+    ],
+    "render_engine": "Microsoft Word",
+    "page_images": "document skill render_docx.py with native Word PDF backend",
+    "visual_review": "each page reviewed; no missing glyphs, clipping, overlapping text or misplaced footer observed"
+  },
+  "product_word_export": {
+    "sha256": "edcb2c64de3ae7ba2fced747b8a4765fee348b84be1dd062a86e42d3347d40bd",
+    "pages": 2,
+    "zip_integrity": "passed",
+    "missing_explicit_fonts": 0,
+    "east_asian_fonts": [
+      "宋体",
+      "黑体"
+    ],
+    "theme_font_references": 0,
+    "fixed_table_row_heights": 0,
+    "replacement_characters": 0,
+    "out_of_page_text": [],
+    "pdf_font_names": [
+      "BCDEEE+SimHei",
+      "BCDFEE+SimSun",
+      "TimesNewRomanPS-BoldMT",
+      "TimesNewRomanPSMT"
+    ],
+    "render_engine": "Microsoft Word",
+    "page_images": "document skill render_docx.py with native Word PDF backend",
+    "visual_review": "each page reviewed; no missing glyphs, clipping, overlapping text or misplaced footer observed"
+  },
+  "tests": {
+    "editor_export": 12,
+    "sync": 31,
+    "models": 24,
+    "browser": 19,
+    "build": "backend and frontend passed",
+    "changed_code_lint": "passed",
+    "known_build_warning": "existing frontend main bundle exceeds 500 kB"
+  }
+}
