@@ -44,6 +44,9 @@ function App() {
   const [showMigration, setShowMigration] = useState(false);
 
   const currentView = useNovelStore((state) => state.currentView);
+  const currentNovelId = useNovelStore(state => state.currentNovelId);
+  const reconcileOutlineProgress = useNovelStore(state => state.reconcileOutlineProgress);
+  useEffect(() => { if (currentNovelId) reconcileOutlineProgress(currentNovelId); }, [currentNovelId, currentView, reconcileOutlineProgress]);
   const { isAuthenticated, fetchMe, logout } = useAuthStore();
   const configured = useSettingsStore(isModelConfigured);
 

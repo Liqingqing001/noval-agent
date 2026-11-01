@@ -1,0 +1,1 @@
+ALTER TABLE "PlotCard" ADD COLUMN "statusMode" TEXT NOT NULL DEFAULT 'auto';

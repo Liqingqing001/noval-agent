@@ -9,6 +9,7 @@ import { charactersApi } from '@/api/characters';
 import { worldSettingsApi } from '@/api/worldSettings';
 import { plotCardsApi } from '@/api/plotCards';
 import { foreshadowingsApi } from '@/api/foreshadowings';
+import { outlineProgressUpdates } from '@/lib/outlineProgress';
 
 interface NovelState {
   // Current selection
@@ -70,6 +71,7 @@ interface NovelState {
   updatePlotCard: (id: string, updates: Partial<PlotCard>) => void;
   deletePlotCard: (id: string) => void;
   reorderPlotCards: (novelId: string, orderedIds: string[]) => void;
+  reconcileOutlineProgress: (novelId?: string, deletedChapterIds?: string[]) => number;
 
   // Foreshadowing actions
   addForeshadowing: (foreshadowing: Omit<Foreshadowing, 'id' | 'createdAt' | 'updatedAt'>) => Foreshadowing;
@@ -89,6 +91,18 @@ interface NovelState {
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
 const isCloudEnabled = () => !!getToken();
+const pendingChapterCreates = new Set<string>();
+const pendingPlotCreates = new Set<string>();
+const plotUpdatePayload = (updates: Partial<PlotCard>) => {
+  const { createdAt: _createdAt, updatedAt: _updatedAt, ...payload } = updates;
+  const data: Record<string, unknown> = { ...payload };
+  if (Object.hasOwn(updates, 'chapterId')) {
+    if (updates.chapterId && pendingChapterCreates.has(updates.chapterId)) delete data.chapterId;
+    else data.chapterId = updates.chapterId ?? null;
+  }
+  if (Object.hasOwn(updates, 'volumeId')) data.volumeId = updates.volumeId ?? null;
+  return data;
+};
 const toTimestamp = (value: string | number | Date | undefined) => {
   if (!value) return Date.now();
   if (typeof value === 'number') return value;
@@ -208,6 +222,7 @@ export const useNovelStore = create<NovelState>()(
           createdAt: Date.now(),
           updatedAt: Date.now(),
         };
+        if (isCloudEnabled()) pendingChapterCreates.add(newChapter.id);
         set((state) => {
           const newChapters = [...state.chapters, newChapter];
           const novelWordCount = newChapters
@@ -218,18 +233,29 @@ export const useNovelStore = create<NovelState>()(
           );
           return { chapters: newChapters, novels: updatedNovels };
         });
+        get().reconcileOutlineProgress(chapter.novelId);
         if (isCloudEnabled() && !chapter.novelId.startsWith('temp-')) {
           chaptersApi.create(chapter.novelId, chapter as any).then(({ chapter: saved }) => {
+            pendingChapterCreates.delete(newChapter.id);
+            const latest = get().chapters.find(chapter => chapter.id === newChapter.id);
+            if (!latest) { chaptersApi.remove(saved.id).catch(err => console.error('云端清理已删除章节失败:', err)); return; }
             const mapped: Chapter = {
               ...saved,
+              ...latest,
+              id: saved.id,
               createdAt: toTimestamp(saved.createdAt),
               updatedAt: toTimestamp(saved.updatedAt),
             };
+            const linkedCards = get().plotCards.filter(card => card.chapterId === newChapter.id);
             set((state) => ({
               chapters: state.chapters.map((c) => c.id === newChapter.id ? mapped : c),
+              plotCards: state.plotCards.map(card => card.chapterId === newChapter.id ? { ...card, chapterId: mapped.id } : card),
               currentChapterId: state.currentChapterId === newChapter.id ? mapped.id : state.currentChapterId,
             }));
-          }).catch((err) => console.error('云端创建章节失败:', err));
+            linkedCards.forEach(card => get().updatePlotCard(card.id, { chapterId: mapped.id }));
+            get().updateChapter(mapped.id, { title: mapped.title, content: mapped.content, wordCount: mapped.wordCount, sequence: mapped.sequence });
+            get().reconcileOutlineProgress(chapter.novelId);
+          }).catch((err) => { pendingChapterCreates.delete(newChapter.id); console.error('云端创建章节失败:', err); });
         }
         return newChapter;
       },
@@ -252,12 +278,14 @@ export const useNovelStore = create<NovelState>()(
           }
           return { chapters: newChapters };
         });
-        if (isCloudEnabled() && !id.startsWith('temp-')) {
+        get().reconcileOutlineProgress(get().chapters.find(chapter => chapter.id === id)?.novelId);
+        if (isCloudEnabled() && !id.startsWith('temp-') && !pendingChapterCreates.has(id)) {
           const { updatedAt: _ua, createdAt: _ca, ...cleanUpdates } = updates as any;
           chaptersApi.update(id, cleanUpdates).catch((err) => console.error('云端更新章节失败:', err));
         }
       },
       deleteChapter: (id) => {
+        const novelId = get().chapters.find(chapter => chapter.id === id)?.novelId;
         set((state) => {
           const chapter = state.chapters.find(c => c.id === id);
           const newChapters = state.chapters.filter((c) => c.id !== id);
@@ -276,7 +304,8 @@ export const useNovelStore = create<NovelState>()(
           }
           return { chapters: newChapters };
         });
-        if (isCloudEnabled() && !id.startsWith('temp-')) {
+        get().reconcileOutlineProgress(novelId, [id]);
+        if (isCloudEnabled() && !id.startsWith('temp-') && !pendingChapterCreates.has(id)) {
           chaptersApi.remove(id).catch((err) => console.error('云端删除章节失败:', err));
         }
       },
@@ -373,24 +402,34 @@ export const useNovelStore = create<NovelState>()(
       addPlotCard: (plotCard) => {
         const newPlotCard: PlotCard = {
           ...plotCard,
+          statusMode: plotCard.statusMode || 'auto',
           id: generateId(),
           createdAt: Date.now(),
           updatedAt: Date.now(),
         };
+        if (isCloudEnabled()) pendingPlotCreates.add(newPlotCard.id);
         set((state) => ({ plotCards: [...state.plotCards, newPlotCard] }));
+        get().reconcileOutlineProgress(plotCard.novelId);
         if (isCloudEnabled() && !plotCard.novelId.startsWith('temp-')) {
-          plotCardsApi.create(plotCard.novelId, plotCard as any).then(({ plotCard: saved }) => {
+          plotCardsApi.create(plotCard.novelId, plotUpdatePayload(get().plotCards.find(card => card.id === newPlotCard.id)!) as any).then(({ plotCard: saved }) => {
+            pendingPlotCreates.delete(newPlotCard.id);
+            const latest = get().plotCards.find(card => card.id === newPlotCard.id);
+            if (!latest) { plotCardsApi.remove(saved.id).catch(err => console.error('云端清理已删除大纲失败:', err)); return; }
             const mapped: PlotCard = {
               ...saved,
-              type: saved.type as PlotCard['type'],
-              status: saved.status as PlotCard['status'],
-              volumeId: saved.volumeId || undefined,
-              chapterId: saved.chapterId || undefined,
+              ...latest,
+              id: saved.id,
+              volumeId: latest.volumeId || undefined,
+              chapterId: latest.chapterId || undefined,
               createdAt: toTimestamp(saved.createdAt),
               updatedAt: toTimestamp(saved.updatedAt),
             };
-            set((state) => ({ plotCards: state.plotCards.map((p) => p.id === newPlotCard.id ? mapped : p) }));
-          }).catch((err) => console.error('云端创建大纲失败:', err));
+            set((state) => ({ plotCards: state.plotCards.map((p) => p.id === newPlotCard.id ? mapped : p.volumeId === newPlotCard.id ? { ...p, volumeId: mapped.id } : p) }));
+            const { id: _id, ...current } = mapped;
+            get().updatePlotCard(mapped.id, current);
+            get().plotCards.filter(card => card.volumeId === mapped.id).forEach(card => get().updatePlotCard(card.id, { volumeId: mapped.id }));
+            get().reconcileOutlineProgress(plotCard.novelId);
+          }).catch((err) => { pendingPlotCreates.delete(newPlotCard.id); console.error('云端创建大纲失败:', err); });
         }
         return newPlotCard;
       },
@@ -398,13 +437,29 @@ export const useNovelStore = create<NovelState>()(
         set((state) => ({
           plotCards: state.plotCards.map((p) => p.id === id ? { ...p, ...updates, updatedAt: Date.now() } : p),
         }));
-        if (isCloudEnabled() && !id.startsWith('temp-')) {
-          plotCardsApi.update(id, updates as any).catch((err) => console.error('云端更新大纲失败:', err));
+        const novelId = get().plotCards.find(card => card.id === id)?.novelId;
+        get().reconcileOutlineProgress(novelId);
+        const latest = get().plotCards.find(card => card.id === id);
+        if (latest && isCloudEnabled() && !id.startsWith('temp-') && !pendingPlotCreates.has(id)) {
+          const data = plotUpdatePayload({ ...updates, status: latest.status, statusMode: latest.statusMode || 'auto', chapterId: latest.chapterId });
+          plotCardsApi.update(id, data as any).catch((err) => console.error('云端更新大纲失败:', err));
         }
+      },
+      reconcileOutlineProgress: (novelId, deletedIds = []) => {
+        const state = get();
+        const cards = novelId ? state.plotCards.filter(card => card.novelId === novelId) : state.plotCards;
+        const patches = outlineProgressUpdates(cards, state.chapters, deletedIds);
+        if (!patches.length) return 0;
+        const byId = new Map(patches.map(patch => [patch.id, patch.updates]));
+        set(state => ({ plotCards: state.plotCards.map(card => byId.has(card.id) ? { ...card, ...byId.get(card.id), updatedAt: Date.now() } : card) }));
+        if (isCloudEnabled()) for (const patch of patches) {
+          if (!pendingPlotCreates.has(patch.id)) plotCardsApi.update(patch.id, plotUpdatePayload(patch.updates) as any).catch(err => console.error('云端更新大纲状态失败:', err));
+        }
+        return patches.length;
       },
       deletePlotCard: (id) => {
         set((state) => ({ plotCards: state.plotCards.filter((p) => p.id !== id) }));
-        if (isCloudEnabled() && !id.startsWith('temp-')) {
+        if (isCloudEnabled() && !id.startsWith('temp-') && !pendingPlotCreates.has(id)) {
           plotCardsApi.remove(id).catch((err) => console.error('云端删除大纲失败:', err));
         }
       },

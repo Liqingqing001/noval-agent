@@ -124,6 +124,7 @@ model PlotCard {
   volumeId  String?  // 章节大纲所属的卷ID
   chapterId String?  // 关联的已写章节
   status    String   @default("pending") // pending | completed
+  statusMode String  @default("auto") // auto | manual
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

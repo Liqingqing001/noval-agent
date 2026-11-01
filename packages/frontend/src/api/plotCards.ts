@@ -11,6 +11,7 @@ export interface PlotCard {
   volumeId: string | null;
   chapterId: string | null;
   status: 'pending' | 'completed';
+  statusMode?: 'auto' | 'manual';
   createdAt: string;
   updatedAt: string;
 }

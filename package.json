@@ -7,6 +7,7 @@
     "packages/*"
   ],
   "scripts": {
+    "test:progress": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/outlineProgress.test.mjs",
     "test:writing": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/writingContext.test.mjs",
     "test:demo": "node --test packages/frontend/tests/demo.test.mjs",
     "test:editor": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/editorExport.test.mjs",

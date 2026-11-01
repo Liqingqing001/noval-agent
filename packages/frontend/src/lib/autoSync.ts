@@ -682,8 +682,8 @@ export function parseChapterListStatus(content: string, novelId: string): number
       const candidates = store.plotCards.filter(card => card.novelId === novelId && card.type === 'chapter' && normalizeModificationTitle(card.title) === title);
       if (candidates.length !== 1) continue; // Never guess between repeated titles in different volumes.
       const status = match[2] === '已完成' ? 'completed' : 'pending';
-      if (candidates[0].status === status) continue;
-      store.updatePlotCard(candidates[0].id, { status });
+      if (candidates[0].status === status && candidates[0].statusMode === 'manual') continue;
+      store.updatePlotCard(candidates[0].id, { status, statusMode: 'manual' });
       updatedCount++;
     }
   }
@@ -986,81 +986,20 @@ export function autoSyncContent(content: string, novelId: string, options: { con
     });
   }
 
-  // 同步章节 - 检查是否已存在同标题章节，存在则更新内容
+  // All chapter writes share the store's outline-status reconciliation, including manual edits.
   const chapters = parseChapterContent(creationContent);
-  if (chapters.length > 0) {
-    const existingChapters = store.chapters.filter(c => c.novelId === novelId);
-    console.log(`📚 当前小说 ${novelId} 已有 ${existingChapters.length} 个章节`);
-    console.log(`📚 已有章节列表:`, existingChapters.map(c => c.title));
-
-    chapters.forEach((chap) => {
-      // 标准化标题进行匹配（去掉章节编号差异）
-      const normalizeTitle = (title: string) => {
-        return title.replace(/第?[零一二三四五六七八九十百千万\d]+章?[\s:：]*/g, '').trim();
-      };
-
-      const existingChapter = existingChapters.find(
-        c => c.title.trim() === chap.title.trim() ||
-             normalizeTitle(c.title) === normalizeTitle(chap.title)
-      );
-
-      if (existingChapter) {
-        // 更新已有章节的内容（不是追加，是替换）
-        const newContent = chap.content || '';
-        store.updateChapter(existingChapter.id, {
-          content: newContent,
-          wordCount: newContent.length,
-          updatedAt: Date.now(),
-        });
-        console.log(`更新章节: ${chap.title}，内容长度: ${newContent.length}字`);
-
-        // 如果内容有更新，自动选中该章节
-        if (newContent.length > 100 && store.currentChapterId !== existingChapter.id) {
-          store.setCurrentChapter(existingChapter.id);
-          console.log(`自动选中章节: ${chap.title}`);
-        }
-
-        // 更新对应的章节大纲状态为已完成
-        const chapterOutline = store.plotCards.find(
-          p => p.novelId === novelId && p.type === 'chapter' &&
-               (p.title.trim() === chap.title.trim() || normalizeTitle(p.title) === normalizeTitle(chap.title))
-        );
-        if (chapterOutline && chapterOutline.status !== 'completed') {
-          store.updatePlotCard(chapterOutline.id, {
-            status: 'completed',
-            chapterId: existingChapter.id,
-            updatedAt: Date.now(),
-          });
-          console.log(`更新大纲状态为已完成: ${chapterOutline.title}`);
-        }
-      } else {
-        // 添加新章节
-        const processedContent = chap.content || '';
-        const newChapter = store.addChapter({
-          novelId,
-          title: chap.title,
-          content: processedContent,
-          wordCount: processedContent.length,
-          sequence: existingChapters.length + result.chapterCount,
-        });
-        console.log(`新增章节: ${chap.title}`);
-
-        // 更新对应的章节大纲状态为已完成
-        const chapterOutline = store.plotCards.find(
-          p => p.novelId === novelId && p.type === 'chapter' &&
-               (p.title.trim() === chap.title.trim() || normalizeTitle(p.title) === normalizeTitle(chap.title))
-        );
-        if (chapterOutline) {
-          store.updatePlotCard(chapterOutline.id, {
-            status: 'completed',
-            chapterId: newChapter.id,
-            updatedAt: Date.now(),
-          });
-          console.log(`更新大纲状态为已完成: ${chapterOutline.title}`);
-        }
-      }
-      result.chapterCount++;
-    });
+  for (const chapter of chapters) {
+    const candidates = useNovelStore.getState().chapters.filter(item => item.novelId === novelId && normalizeModificationTitle(item.title) === normalizeModificationTitle(chapter.title));
+    if (candidates.length > 1) continue;
+    const saved = candidates[0];
+    if (saved) store.updateChapter(saved.id, { content: chapter.content, wordCount: chapter.content.length });
+    else {
+      const existing = useNovelStore.getState().chapters.filter(item => item.novelId === novelId);
+      const created = store.addChapter({ novelId, title: chapter.title, content: chapter.content, wordCount: chapter.content.length, sequence: existing.length });
+      store.setCurrentChapter(created.id);
+    }
+    if (saved && chapter.content.length > 100) store.setCurrentChapter(saved.id);
+    result.chapterCount++;
   }
 
   // 解析章节列表状态标记（如 "第1章: xxx ✅ 已完成"）

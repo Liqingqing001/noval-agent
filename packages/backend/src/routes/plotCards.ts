@@ -34,7 +34,8 @@ router.post('/novels/:novelId/plot-cards', async (req, res, next) => {
     if (!(await assertOwnership(req.params.novelId, req.userId!))) {
       return res.status(404).json({ error: '小说不存在' });
     }
-    const { type, title, summary, sequence, volumeId, chapterId, status } = req.body;
+    const { type, title, summary, sequence, volumeId, chapterId, status, statusMode } = req.body;
+    if (statusMode !== undefined && statusMode !== 'auto' && statusMode !== 'manual') return res.status(400).json({ error: '无效的状态模式' });
     if (!title) return res.status(400).json({ error: '大纲标题必填' });
     let seq = sequence;
     if (seq === undefined) {
@@ -55,6 +56,7 @@ router.post('/novels/:novelId/plot-cards', async (req, res, next) => {
         volumeId,
         chapterId,
         status: status || 'pending',
+        statusMode: statusMode || 'auto',
       },
     });
     res.status(201).json({ plotCard: item });
@@ -74,6 +76,7 @@ router.put('/plot-cards/:id', async (req, res, next) => {
     }
     // 过滤掉 createdAt 和 updatedAt（Prisma 自动管理）
     const { createdAt, updatedAt, ...data } = req.body;
+    if (data.statusMode !== undefined && data.statusMode !== 'auto' && data.statusMode !== 'manual') return res.status(400).json({ error: '无效的状态模式' });
     const item = await prisma.plotCard.update({
       where: { id: req.params.id },
       data,

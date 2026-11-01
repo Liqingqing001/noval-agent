@@ -91,6 +91,7 @@ const key = name => isDemo ? `${name}-demo-v1` : name;
         await page.getByRole('dialog').waitFor({ state: 'hidden' });
         const state = await page.evaluate(key => JSON.parse(localStorage.getItem(key)).state, key('novel-agent-storage'));
         assert.equal(state.plotCards.find(card => card.id === fixture.plotCards.find(card => card.type === 'chapter').id).status, 'pending');
+        assert.equal(state.plotCards.find(card => card.id === fixture.plotCards.find(card => card.type === 'chapter').id).statusMode, 'manual');
         if (width >= 1280) {
           while (await page.getByRole('button', { name: /^收起卷：/ }).count()) await page.getByRole('button', { name: /^收起卷：/ }).first().click();
           const volumes = page.locator('[data-volume-id]');
@@ -102,6 +103,31 @@ const key = name => isDemo ? `${name}-demo-v1` : name;
         }
         if (width < 1280) await nav.getByRole('button', { name: '书架', exact: true }).click();
         await page.getByRole('button', { name: '章节', exact: true }).click();
+        const outlineId = fixture.plotCards.find(card => card.type === 'chapter').id;
+        const chapterId = fixture.chapters[0].id;
+        await page.locator('.tiptap').fill('手写正文，手动状态应继续保留。');
+        await page.keyboard.press('Control+s');
+        const readStatus = () => page.evaluate(({ key, id }) => JSON.parse(localStorage.getItem(key)).state.plotCards.find(card => card.id === id).status, { key: key('novel-agent-storage'), id: outlineId });
+        assert.equal(await readStatus(), 'pending');
+        if (width < 1280) await nav.getByRole('button', { name: '书架', exact: true }).click();
+        await page.getByRole('button', { name: '大纲', exact: true }).click();
+        // Sorting may have moved this volume, so select the exact outline instead of its position.
+        await page.getByRole('button', { name: `编辑章节大纲：${fixture.plotCards.find(card => card.id === outlineId).title}`, exact: true }).click();
+        await page.getByRole('button', { name: '按正文自动识别', exact: true }).click();
+        await page.getByRole('button', { name: '保存', exact: true }).click();
+        await page.getByRole('dialog').waitFor({ state: 'hidden' });
+        assert.equal(await readStatus(), 'completed');
+        if (width < 1280) await nav.getByRole('button', { name: '书架', exact: true }).click();
+        await page.getByRole('button', { name: '章节', exact: true }).click();
+        await page.locator('.tiptap').fill(''); await page.keyboard.press('Control+s');
+        assert.equal(await readStatus(), 'pending');
+        await page.locator('.tiptap').fill('已保存的手写正文。'); await page.keyboard.press('Control+s');
+        assert.equal(await readStatus(), 'completed');
+        await page.reload(); await page.locator('.tiptap').waitFor();
+        await page.waitForFunction(({ key, id, chapterId }) => {
+          const state = JSON.parse(localStorage.getItem(key)).state;
+          return state.plotCards.find(card => card.id === id)?.status === 'completed' && state.chapters.find(chapter => chapter.id === chapterId)?.content.includes('已保存的手写正文');
+        }, { key: key('novel-agent-storage'), id: outlineId, chapterId });
         await page.getByRole('button', { name: '导出', exact: true }).click();
         await page.getByLabel('文件格式', { exact: true }).selectOption('docx');
         const download = page.waitForEvent('download');
@@ -116,7 +142,7 @@ const key = name => isDemo ? `${name}-demo-v1` : name;
           if (width < 1280) await nav.getByRole('button', { name: 'AI 助手', exact: true }).click();
           await page.screenshot({ path: resolve(process.env.SCREENSHOT_DIR, `parity-${mode}-${width}.png`) });
         }
-        results.push(`${width}px: six actions, five-chapter review, GFM, outline status, volume sorting, Word export`);
+        results.push(`${width}px: six actions, chapter review, GFM, auto/manual status lifecycle, reload, volume sorting, Word export`);
       } finally { await context.close(); }
     }
     console.log(JSON.stringify({ mode, url: base, results }));

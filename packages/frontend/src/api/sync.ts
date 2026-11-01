@@ -124,6 +124,7 @@ export async function fetchAllFromBackend(options: { preserveLocalIfRemoteEmpty?
   if (setWorldSettings && worldSettingsOk) setWorldSettings(allWorldSettings);
   if (setPlotCards && plotCardsOk) setPlotCards(frontendPlotCards);
   if (setForeshadowings && foreshadowingsOk) setForeshadowings(frontendForeshadowings);
+  if (chaptersOk && plotCardsOk) useNovelStore.getState().reconcileOutlineProgress();
 }
 
 /**

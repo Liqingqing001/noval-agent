@@ -114,6 +114,7 @@ router.post('/import', async (req, res, next) => {
             volumeId: p.volumeId,
             chapterId: p.chapterId,
             status: p.status || 'pending',
+            statusMode: p.statusMode === 'manual' ? 'manual' : 'auto',
           },
         });
         counts.plotCards++;

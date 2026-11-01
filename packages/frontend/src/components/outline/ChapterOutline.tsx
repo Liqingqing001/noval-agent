@@ -20,6 +20,7 @@ type StatusFilter = 'all' | 'pending' | 'completed';
 
 export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEditVolume }: ChapterOutlineProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [progressNotice, setProgressNotice] = useState('');
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [deleteVolume, setDeleteVolume] = useState<PlotCardType | null>(null);
@@ -32,6 +33,7 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
   const allPlotCards = useNovelStore((state) => state.plotCards);
   const allChapters = useNovelStore((state) => state.chapters);
   const updatePlotCard = useNovelStore((state) => state.updatePlotCard);
+  const reconcileOutlineProgress = useNovelStore(state => state.reconcileOutlineProgress);
   const deletePlotCard = useNovelStore((state) => state.deletePlotCard);
   const setCurrentChapter = useNovelStore((state) => state.setCurrentChapter);
 
@@ -199,7 +201,8 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
     <div className="h-full overflow-y-auto p-4">
       <div className="max-w-4xl mx-auto">
         {/* 操作按钮区 */}
-        <div className="flex items-center justify-end mb-4 gap-2">
+        <div className="flex flex-wrap items-center justify-end mb-4 gap-2">
+          <button type="button" className="px-3 py-2 border rounded-md text-sm hover:bg-muted" disabled={!currentNovelId} onClick={() => { const count = reconcileOutlineProgress(currentNovelId || undefined); setProgressNotice(count ? `已更新 ${count} 条正文关联或写作状态。` : '已检查，无需更新；手动状态会保留，重名或标题不一致时请编辑大纲关联正文。'); }}>重新识别正文状态</button>
           {onCreateVolume && (
             <button
               onClick={onCreateVolume}
@@ -218,6 +221,8 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
           </button>
         </div>
 
+        <p className="mb-3 text-xs leading-relaxed text-muted-foreground">自动状态按已保存正文识别；手动状态优先保留。「已完成」不代表达到目标字数或校稿完成。</p>
+        {progressNotice && <p role="status" className="mb-3 text-xs text-primary">{progressNotice}</p>}
         {/* 状态筛选 */}
         <div className="grid grid-cols-3 gap-3 mb-6">
           <button

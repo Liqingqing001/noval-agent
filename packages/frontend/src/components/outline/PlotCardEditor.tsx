@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useNovelStore } from '@/stores/novelStore';
 import type { PlotCard } from '@/types';
+import { hasChapterBody } from '@/lib/outlineProgress';
 
 interface PlotCardEditorProps {
   card: PlotCard | null;
@@ -60,6 +61,7 @@ export function PlotCardEditor({
   const [volumeId, setVolumeId] = useState<string>('');
   const [chapterId, setChapterId] = useState<string>('');
   const [status, setStatus] = useState<'pending' | 'completed'>('pending');
+  const [statusMode, setStatusMode] = useState<'auto' | 'manual'>('auto');
 
   useEffect(() => {
     if (card) {
@@ -69,6 +71,7 @@ export function PlotCardEditor({
       setVolumeId(card.volumeId || '');
       setChapterId(card.chapterId || '');
       setStatus(card.status || 'pending');
+      setStatusMode(card.statusMode || 'auto');
     } else {
       setType(defaultType);
       setTitle('');
@@ -76,15 +79,14 @@ export function PlotCardEditor({
       setVolumeId(defaultVolumeId || '');
       setChapterId('');
       setStatus('pending');
+      setStatusMode('auto');
     }
   }, [card, open, defaultType, defaultVolumeId]);
 
   // 当选择了已关联章节时，自动更新状态为已完成
   const handleChapterIdChange = (newChapterId: string) => {
     setChapterId(newChapterId);
-    if (newChapterId && status === 'pending') {
-      setStatus('completed');
-    }
+    if (statusMode === 'auto') setStatus(hasChapterBody(chapters.find(chapter => chapter.id === newChapterId)?.content || '') ? 'completed' : 'pending');
   };
 
   const handleSave = () => {
@@ -113,6 +115,7 @@ export function PlotCardEditor({
       volumeId: type === 'chapter' ? (volumeId || undefined) : undefined,
       chapterId: type === 'chapter' ? (chapterId || undefined) : undefined,
       status: type === 'chapter' ? status : card?.status || 'pending',
+      statusMode: type === 'chapter' ? statusMode : 'auto',
     };
 
     if (card?.id) {
@@ -126,7 +129,7 @@ export function PlotCardEditor({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={type === 'volume' ? 'sm:max-w-xl' : 'sm:max-w-lg'}>
+      <DialogContent className={`max-h-[90dvh] overflow-y-auto ${type === 'volume' ? 'sm:max-w-xl' : 'sm:max-w-lg'}`}>
         <DialogHeader>
           <DialogTitle>
             {card?.id ? (type === 'volume' ? '编辑卷' : '编辑章节大纲') : type === 'volume' ? '新建卷' : '新建章节大纲'}
@@ -222,7 +225,7 @@ export function PlotCardEditor({
                     key={opt.value}
                     type="button"
                     aria-pressed={status === opt.value}
-                    onClick={() => setStatus(opt.value as 'pending' | 'completed')}
+                    onClick={() => { setStatus(opt.value as 'pending' | 'completed'); setStatusMode('manual'); }}
                     className={`flex-1 px-3 py-2 text-sm rounded-md border transition-colors ${
                       status === opt.value
                         ? 'bg-primary text-primary-foreground border-primary'
@@ -233,6 +236,8 @@ export function PlotCardEditor({
                   </button>
                 ))}
               </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">{statusMode === 'manual' ? '当前为手动状态，会保留你的选择。' : '当前按已保存正文自动识别：有正文为已完成，空正文为待写作。'}「已完成」不代表达到目标字数或完成校稿。</p>
+              <Button type="button" variant="outline" size="sm" aria-pressed={statusMode === 'auto'} onClick={() => setStatusMode('auto')}>按正文自动识别</Button>
             </div>
           )}
 

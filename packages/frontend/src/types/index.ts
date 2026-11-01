@@ -79,6 +79,7 @@ export interface PlotCard {
   volumeId?: string;           // 章节大纲所属的卷ID（type='chapter'时）
   chapterId?: string;          // 关联的已写章节（type='chapter'时）
   status: 'pending' | 'completed';  // pending=大纲已写但章节未写, completed=章节已完成
+  statusMode?: 'auto' | 'manual'; // 自动依据已保存正文；手动状态优先
   createdAt: number;
   updatedAt: number;
 }
