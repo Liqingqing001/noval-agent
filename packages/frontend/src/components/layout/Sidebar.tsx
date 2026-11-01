@@ -3,6 +3,7 @@ import { Plus, BookOpen, FileText, Users, Globe, Settings, Trash2, Pencil, Spark
 import { Button } from '@/components/ui/button';
 import { useNovelStore } from '@/stores/novelStore';
 import { useAuthStore } from '@/stores/authStore';
+import { IS_DEMO } from '@/lib/runtime';
 import type { ViewType } from '@/types';
 
 interface SidebarProps {
@@ -295,7 +296,8 @@ export function Sidebar({ currentView, onLogout }: SidebarProps) {
       </div>
 
       {/* User Info & Logout */}
-      {user && (
+      {IS_DEMO && <div className="border-t px-4 py-3 text-xs text-muted-foreground">公开演示 · 本机保存，无云端账号</div>}
+      {user && !IS_DEMO && (
         <div className="p-3 border-t border-border/50 bg-card/50">
           <div className="flex items-center gap-2 px-2 py-1.5 mb-1">
             <div className="w-7 h-7 rounded-full border border-border bg-background flex items-center justify-center shrink-0">

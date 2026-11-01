@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { storageKey } from '@/lib/runtime';
 import type { Novel, Chapter, Character, WorldSetting, Session, ViewType, PlotCard, Foreshadowing } from '@/types';
 import { getToken } from '@/api/client';
 import { novelsApi } from '@/api/novels';
@@ -497,7 +498,7 @@ export const useNovelStore = create<NovelState>()(
       },
     }),
     {
-      name: 'novel-agent-storage',
+      name: storageKey('novel-agent-storage'),
       partialize: (state) => ({
         novels: state.novels,
         chapters: state.chapters,

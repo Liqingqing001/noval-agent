@@ -1,4 +1,5 @@
 // API 客户端基础封装
+import { IS_DEMO, storageKey } from '@/lib/runtime';
 const BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001/api';
 
 export class ApiError extends Error {
@@ -10,9 +11,10 @@ export class ApiError extends Error {
   }
 }
 
-export const TOKEN_KEY = 'novel-agent-auth-token';
+export const TOKEN_KEY = storageKey('novel-agent-auth-token');
 
 export function getToken(): string | null {
+  if (IS_DEMO) return null;
   return localStorage.getItem(TOKEN_KEY);
 }
 
@@ -28,6 +30,7 @@ export const api = async <T = any>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> => {
+  if (IS_DEMO) throw new ApiError('公开演示只在当前浏览器保存数据，不提供云端账号服务。', 503);
   const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

@@ -1,6 +1,7 @@
 // 鉴权状态管理
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { storageKey } from '@/lib/runtime';
 import { authApi, type User } from '@/api/auth';
 import { getToken } from '@/api/client';
 
@@ -66,7 +67,7 @@ export const useAuthStore = create<AuthState>()(
       clearError: () => set({ error: null }),
     }),
     {
-      name: 'novel-agent-auth',
+      name: storageKey('novel-agent-auth'),
       partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
     }
   )

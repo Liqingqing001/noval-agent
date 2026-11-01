@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { storageKey } from '@/lib/runtime';
 import { createDefaultConfig, migrateSettings, normalizeConfig, validateConfig } from '@/lib/modelConfig';
 import type { APIProvider, ModelConfig } from '@/lib/modelConfig';
 
@@ -23,7 +24,7 @@ export const useSettingsStore = create<SettingsState>()(
       },
     }),
     {
-      name: 'novel-agent-settings', version: 1,
+      name: storageKey('novel-agent-settings'), version: 1,
       migrate: (state) => migrateSettings(state),
     }
   )

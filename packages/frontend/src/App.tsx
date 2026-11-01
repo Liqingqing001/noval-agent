@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { lazy, Suspense, useState, useCallback, useEffect } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MainContent } from '@/components/layout/MainContent';
 import { AgentPanel } from '@/components/layout/AgentPanel';
@@ -7,6 +7,12 @@ import { MigrationWizard } from '@/components/auth/MigrationWizard';
 import { useNovelStore } from '@/stores/novelStore';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchAllFromBackend, hasLocalData } from '@/api/sync';
+import { IS_DEMO } from '@/lib/runtime';
+import { DemoBanner } from '@/demo/DemoBanner';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { isModelConfigured } from '@/lib/modelConfig';
+
+const DemoAssistant = lazy(() => import('@/demo/DemoAssistant').then(module => ({ default: module.DemoAssistant })));
 
 // localStorage key
 const STORAGE_KEY_SIDEBAR = 'novel-agent-sidebar-width';
@@ -35,10 +41,11 @@ function App() {
 
   const currentView = useNovelStore((state) => state.currentView);
   const { isAuthenticated, fetchMe, logout } = useAuthStore();
+  const configured = useSettingsStore(isModelConfigured);
 
   // 首次加载：尝试获取当前用户
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !IS_DEMO) {
       fetchMe().then(() => {
         const hasMigrated = localStorage.getItem('novel-agent-migrated');
         const shouldMigrate = !hasMigrated && hasLocalData();
@@ -106,12 +113,14 @@ function App() {
   }, [isDraggingSidebar, isDraggingAgent]);
 
   // 未登录：显示登录页
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !IS_DEMO) {
     return <LoginPage />;
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen flex-col bg-background">
+      {IS_DEMO && <DemoBanner />}
+      <div className="flex min-h-0 flex-1 overflow-x-auto">
       {/* Left Sidebar - Bookshelf */}
       <div style={{ width: sidebarWidth }} className="flex-shrink-0">
         <Sidebar currentView={currentView} onLogout={logout} />
@@ -136,7 +145,7 @@ function App() {
       />
 
       <div style={{ width: agentPanelWidth }} className="flex-shrink-0">
-        <AgentPanel currentView={currentView} />
+        {IS_DEMO && !configured ? <Suspense fallback={<p className="p-4 text-sm">正在载入演示…</p>}><DemoAssistant /></Suspense> : <AgentPanel currentView={currentView} />}
       </div>
 
       {/* 首次登录迁移向导 */}
@@ -148,6 +157,7 @@ function App() {
           }}
         />
       )}
+      </div>
     </div>
   );
 }
