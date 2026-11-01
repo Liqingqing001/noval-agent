@@ -63,9 +63,11 @@ router.put('/foreshadowings/:id', async (req, res, next) => {
     if (!existing || existing.novel.userId !== req.userId) {
       return res.status(404).json({ error: '伏笔不存在' });
     }
+    // 过滤掉 createdAt 和 updatedAt（Prisma 自动管理）
+    const { createdAt, updatedAt, ...data } = req.body;
     const item = await prisma.foreshadowing.update({
       where: { id: req.params.id },
-      data: req.body,
+      data,
     });
     res.json({ foreshadowing: item });
   } catch (err) {

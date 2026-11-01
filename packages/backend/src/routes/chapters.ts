@@ -76,9 +76,11 @@ router.put('/chapters/:id', async (req, res, next) => {
     if (!chapter || chapter.novel.userId !== req.userId) {
       return res.status(404).json({ error: '章节不存在' });
     }
+    // 过滤掉 createdAt 和 updatedAt（Prisma 自动管理）
+    const { createdAt, updatedAt, ...data } = req.body;
     const updated = await prisma.chapter.update({
       where: { id: req.params.id },
-      data: req.body,
+      data,
     });
     // 字数可能变了
     if (req.body.content !== undefined || req.body.wordCount !== undefined) {

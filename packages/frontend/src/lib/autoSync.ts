@@ -6,7 +6,7 @@ import { extractContentBlocks, normalizeCreationSections, parseBasicInfo, parseC
 export { parseBasicInfo, parseCharacterContent, parseWorldContent, parseChapterContent } from './structuredContent';
 
 export { parseModifyInstructions } from './modificationInstructions';
-import { applyModificationInstructions, hasModificationInstructions, withoutModificationBlocks } from './modificationInstructions';
+import { applyModificationInstructions, hasModificationInstructions, normalizeModificationTitle, withoutModificationBlocks } from './modificationInstructions';
 import type { ModificationResult } from './modificationInstructions';
 
 /**
@@ -585,22 +585,35 @@ export function parseChapterOutlineContent(content: string): Array<{ volumeTitle
 
   while ((match = regex.exec(content)) !== null) {
     const block = match[1];
-    const volumeMatch = block.match(/卷[：:]\s*(.+?)(?:\n|第|$)/);
-    const volumeTitle = volumeMatch ? volumeMatch[1].trim() : undefined;
+
+    // 提取卷名 - 匹配"卷：xxx"到换行符为止（不再遇到"第"就停止）
+    // 支持格式：卷：第一卷 觉醒
+    let volumeTitle: string | undefined;
+    const volumeMatch = block.match(/卷[：:]\s*([^\n]+)/);
+    if (volumeMatch) {
+      volumeTitle = volumeMatch[1].trim();
+    }
 
     const chapters: Array<{ title: string; summary: string }> = [];
-    // 匹配章节格式：第X章 标题 - 摘要
-    const chapterRegex = /第[零一二三四五六七八九十百千万\d]+章[\s]*(.+?)[\s]*[-—－][\s]*(.+)/g;
+    // 匹配章节格式：第X章 标题 - 摘要（支持多种分隔符：- — －）
+    // 格式示例：第1章：全家福 - 在父母宽敞的家中...
+    // 格式示例：第1章 全家福 - 在父母宽敞的家中...
+    // 格式示例：第一章 全家福 — 在父母宽敞的家中...
+    const chapterRegex = /^\s*第[零一二三四五六七八九十百千万\d]+章[ \t:：]*(.+?)[ \t]*[-—－][ \t]*(.+)$/gm;
     let chapterMatch;
 
     while ((chapterMatch = chapterRegex.exec(block)) !== null) {
       chapters.push({
-        title: chapterMatch[1].trim(),
+        title: chapterMatch[1].trim().replace(/^[：:]/, ''), // 去掉可能残留的前导冒号
         summary: chapterMatch[2].trim(),
       });
     }
 
-    if (chapters.length > 0 || volumeTitle) {
+    console.log(`📚 解析章节大纲块: 卷="${volumeTitle || '无'}", 章节数=${chapters.length}`);
+    chapters.forEach((ch, i) => console.log(`  第${i+1}章: "${ch.title}" - "${ch.summary.substring(0, 30)}..."`));
+
+    // 只有有实际章节内容时才添加分组（避免空卷）
+    if (chapters.length > 0) {
       results.push({ volumeTitle, chapters });
     }
   }
@@ -654,6 +667,30 @@ export function parseOutlineContent(content: string): Array<{ title: string; sum
 }
 
 /**
+ * 解析章节列表状态标记
+ * 格式：【章节列表】 第1章: xxx (字数) ✅ 已完成
+ */
+export function parseChapterListStatus(content: string, novelId: string): number {
+  let updatedCount = 0;
+  // Status changes require a closed block; quoted examples and incomplete streams are not commands.
+  for (const block of extractContentBlocks(content).filter(block => block.type === '章节列表' && block.closed)) {
+    for (const line of block.body.split('\n')) {
+      const match = line.match(/^\s*第[零一二两三四五六七八九十百千万\d]+章\s*[:：]?\s*(.+?)\s*[（(][\d,，]+\s*字?[）)]\s*(?:✅\s*)?(已完成|(?:⏳\s*)?待写作)\s*$/);
+      if (!match) continue;
+      const store = useNovelStore.getState();
+      const title = normalizeModificationTitle(match[1]);
+      const candidates = store.plotCards.filter(card => card.novelId === novelId && card.type === 'chapter' && normalizeModificationTitle(card.title) === title);
+      if (candidates.length !== 1) continue; // Never guess between repeated titles in different volumes.
+      const status = match[2] === '已完成' ? 'completed' : 'pending';
+      if (candidates[0].status === status) continue;
+      store.updatePlotCard(candidates[0].id, { status });
+      updatedCount++;
+    }
+  }
+  return updatedCount;
+}
+
+/**
  * 自动同步 AI 响应中的所有内容到 store
  * 如果已存在同名/同标题的内容，则更新而不是追加
  * 支持精准修改指令、插入、替换、合并、拆分、调整顺序
@@ -661,6 +698,7 @@ export function parseOutlineContent(content: string): Array<{ title: string; sum
 export function autoSyncContent(content: string, novelId: string, options: { contentOnly?: boolean; retryModifications?: boolean } = {}): {
   basicInfo: boolean;
   outlineCount: number;
+  statusCount: number;
   characterCount: number;
   worldCount: number;
   chapterCount: number;
@@ -677,6 +715,7 @@ export function autoSyncContent(content: string, novelId: string, options: { con
   const result = {
     basicInfo: false,
     outlineCount: 0,
+    statusCount: 0,
     characterCount: 0,
     worldCount: 0,
     chapterCount: 0,
@@ -759,8 +798,8 @@ export function autoSyncContent(content: string, novelId: string, options: { con
   // 同步卷大纲
   const volumes = parseVolumeContent(creationContent);
   if (volumes.length > 0) {
-    const existingVolumes = store.plotCards.filter(c => c.novelId === novelId && c.type === 'volume');
     volumes.forEach((vol) => {
+      const existingVolumes = useNovelStore.getState().plotCards.filter(c => c.novelId === novelId && c.type === 'volume');
       const existingVol = existingVolumes.find(v => v.title.trim() === vol.title.trim());
       if (existingVol) {
         store.updatePlotCard(existingVol.id, {
@@ -787,22 +826,41 @@ export function autoSyncContent(content: string, novelId: string, options: { con
   const chapterOutlines = parseChapterOutlineContent(creationContent);
   if (chapterOutlines.length > 0) {
     chapterOutlines.forEach(({ volumeTitle, chapters }) => {
-      // 查找对应的卷ID
+      // 查找对应的卷ID - 使用更宽松的匹配，如果没有则自动创建
       let volumeId: string | undefined;
       if (volumeTitle) {
-        const volume = store.plotCards.find(
-          c => c.novelId === novelId && c.type === 'volume' && c.title.includes(volumeTitle)
+        const existingVolumes = useNovelStore.getState().plotCards.filter(c => c.novelId === novelId && c.type === 'volume');
+        const key = (title: string) => title.replace(/[\s:：]/g, '');
+        let volume = existingVolumes.find(
+          c => key(c.title) === key(volumeTitle)
         );
+        if (!volume) {
+          const candidates = existingVolumes.filter(c => key(c.title).includes(key(volumeTitle)) || key(volumeTitle).includes(key(c.title)));
+          if (candidates.length === 1) volume = candidates[0];
+        }
+
+        // 如果找不到卷，自动创建
+        if (!volume) {
+          const newVolume = store.addPlotCard({
+            novelId,
+            type: 'volume',
+            title: volumeTitle,
+            summary: '',
+            sequence: existingVolumes.length,
+            status: 'pending',
+          });
+          volume = newVolume;
+          result.outlineCount++;
+          console.log(`自动创建卷: ${volumeTitle}`);
+        }
+
         volumeId = volume?.id;
       }
 
-      const existingChapters = store.plotCards.filter(
-        c => c.novelId === novelId && c.type === 'chapter' && c.volumeId === volumeId
-      );
-
       chapters.forEach((ch) => {
+        const existingChapters = useNovelStore.getState().plotCards.filter(c => c.novelId === novelId && c.type === 'chapter' && c.volumeId === volumeId);
         const existingChapter = existingChapters.find(
-          c => c.title.trim() === ch.title.trim() || c.title.includes(ch.title) || ch.title.includes(c.title)
+          c => normalizeModificationTitle(c.title) === normalizeModificationTitle(ch.title)
         );
 
         if (existingChapter) {
@@ -817,11 +875,11 @@ export function autoSyncContent(content: string, novelId: string, options: { con
             type: 'chapter',
             title: ch.title,
             summary: ch.summary,
-            sequence: existingChapters.length + result.outlineCount,
+            sequence: existingChapters.length,
             volumeId,
             status: 'pending',
           });
-          console.log(`新增章节大纲: ${ch.title}`);
+          console.log(`新增章节大纲: ${ch.title} (卷: ${volumeTitle || '未分卷'}, volumeId: ${volumeId || 'none'})`);
         }
         result.outlineCount++;
       });
@@ -1003,6 +1061,13 @@ export function autoSyncContent(content: string, novelId: string, options: { con
       }
       result.chapterCount++;
     });
+  }
+
+  // 解析章节列表状态标记（如 "第1章: xxx ✅ 已完成"）
+  const statusUpdated = parseChapterListStatus(creationContent, novelId);
+  result.statusCount = statusUpdated;
+  if (statusUpdated > 0) {
+    console.log(`从章节列表更新了 ${statusUpdated} 个大纲状态`);
   }
 
   if (!options.contentOnly || options.retryModifications) {

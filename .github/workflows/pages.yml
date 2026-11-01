@@ -40,12 +40,35 @@ jobs:
           npm run test:models
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:sync
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:writing
           exit $LASTEXITCODE
+      - name: Install browser for shared-feature regression
+        run: npx playwright install --with-deps chromium
+      - name: Build and verify full application
+        run: |
+          npm run db:generate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node packages/frontend/tests/featureParity.browser.cjs
+          exit $LASTEXITCODE
+        env:
+          DATABASE_URL: file:./ci-unused.db
+          VITE_DEMO_MODE: 'false'
+          VITE_BASE_PATH: /
+          PARITY_MODE: full
       - name: Build public demo
         run: npm run build:frontend
         env:
           VITE_DEMO_MODE: 'true'
           VITE_BASE_PATH: /noval-agent/
+      - name: Verify same creative features in public demo
+        run: |
+          node packages/frontend/tests/featureParity.browser.cjs
+          exit $LASTEXITCODE
+        env:
+          PARITY_MODE: demo
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
         with:

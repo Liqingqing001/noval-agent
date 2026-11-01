@@ -1,6 +1,6 @@
 // Only creation sections are recovered. Editing/deleting commands keep their strict parser.
 const aliases: Record<string, string> = { 人物: '角色', 人物设定: '角色', 角色设定: '角色', 世界观设定: '世界观' };
-const creationTypes = new Set(['基本信息', '角色', '世界观', '卷', '大纲', '章节大纲', '章节']);
+const creationTypes = new Set(['基本信息', '角色', '世界观', '卷', '大纲', '章节大纲', '章节', '章节列表']);
 export interface ContentBlock { type: string; body: string; closed: boolean }
 
 function headingType(line: string): string | null {

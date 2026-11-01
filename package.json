@@ -7,6 +7,7 @@
     "packages/*"
   ],
   "scripts": {
+    "test:writing": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/writingContext.test.mjs",
     "test:demo": "node --test packages/frontend/tests/demo.test.mjs",
     "test:editor": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/editorExport.test.mjs",
     "test:sync": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/structuredContent.test.mjs packages/frontend/tests/autoSync.test.mjs packages/frontend/tests/modificationInstructions.test.mjs",
@@ -23,6 +24,7 @@
     "db:reset": "npm run prisma:reset --workspace=backend"
   },
   "devDependencies": {
+    "playwright": "1.62.1",
     "concurrently": "^9.0.1"
   }
 }

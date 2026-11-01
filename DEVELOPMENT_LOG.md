@@ -1,14 +1,16 @@
 # NovelAgent 开发日志
 
+> 2026-11-01：本地与 GitHub 功能取并集统一。六项快捷操作、GFM 表格、时间线、字数范围、分卷排序、写作状态和后端时间戳处理已合并，并保留手机适配、设置教程与完整回放。详细验证见 docs/updates/2026-11-01-local-online-union.md；下方旧代码片段仅记录历史处理过程。
+
 > 记录开发过程、问题解决方案和迭代计划
 
 ---
 
 ## 📋 项目概述
 
-**产品**: NovelAgent - AI驱动的小说创作助手  
-**启动日期**: 2026-06-10  
-**当前阶段**: v0.2 MVP迭代版  
+**产品**: NovelAgent - AI驱动的小说创作助手
+**启动日期**: 2026-06-10
+**当前阶段**: v0.2 MVP迭代版
 
 ---
 
@@ -556,7 +558,7 @@ const messages: ChatMessage[] = options.messages;  // 直接用传入的
    - ❌ "已同步到左侧面板"
    - ❌ "请复制到左侧"
    - ❌ "请您逐一复制"
-   
+
 2. **输出结构化内容后直接结束**
 
 3. **严格遵守用户自定义要求**
@@ -1042,7 +1044,118 @@ AI 可以通过以下格式操作卷：
 
 ---
 
-*最后更新: 2026-06-30*
+## 2026-07-28: 大纲分卷同步修复
+
+### 问题描述
+
+**用户反馈**：在大纲分卷时，AI 会把章节大纲放到"未分卷"里面，同时生成其他空的章节分卷。
+
+### 原因分析
+
+在 `autoSync.ts` 中发现两个问题：
+
+1. **卷名匹配正则问题**（第789行）：
+   ```javascript
+   const volumeMatch = block.match(/卷[：:]\s*(.+?)(?:\n|第|$)/);
+   ```
+   正则在遇到"第"字时停止匹配，如果卷名是"第一卷 觉醒"，只能匹配到"一"就停止！
+
+2. **卷查找匹配不够宽松**（第1251-1253行）：
+   ```javascript
+   c.title.includes(volumeTitle)
+   ```
+   只做了单向包含检查，没有处理空格差异等情况。
+
+3. **空卷问题**：条件 `if (chapters.length > 0 || volumeTitle)` 会在没有章节时仍然添加空卷分组。
+
+### 解决方案
+
+**文件**: `packages/frontend/src/lib/autoSync.ts`
+
+1. **修复卷名匹配**：改用 `/卷[：:]\s*([^\n]+)/` 匹配整行卷名
+2. **放宽卷查找匹配**：增加多方向匹配和去空格匹配
+3. **修复空卷问题**：改为 `if (chapters.length > 0)` 只添加有章节的卷
+
+```typescript
+// 修复前
+const volumeMatch = block.match(/卷[：:]\s*(.+?)(?:\n|第|$)/);
+if (chapters.length > 0 || volumeTitle) {
+  results.push({ volumeTitle, chapters });
+}
+
+// 修复后
+const volumeMatch = block.match(/卷[：:]\s*([^\n]+)/);
+if (chapters.length > 0) {
+  results.push({ volumeTitle, chapters });
+}
+```
+
+```typescript
+// 修复前 - 查找卷
+const volume = store.plotCards.find(
+  c => c.novelId === novelId && c.type === 'volume' && c.title.includes(volumeTitle)
+);
+
+// 修复后 - 更宽松的匹配
+const volume = store.plotCards.find(
+  c => c.novelId === novelId && c.type === 'volume' &&
+       (c.title.includes(volumeTitle) || volumeTitle.includes(c.title) ||
+        c.title.replace(/\s+/g, '').includes(volumeTitle.replace(/\s+/g, '')) ||
+        volumeTitle.replace(/\s+/g, '').includes(c.title.replace(/\s+/g, '')))
+);
+```
+
+### 后续修复
+
+**问题反馈**：
+1. 分卷没了 - 卷没有被创建
+2. 章节名字前面解析出来了一个冒号 `:全家福`
+3. 章节内容（摘要）解析出来是空白的
+
+**原因分析**：
+1. **卷没创建**：`parseVolumeContent` 只解析 `【卷】` 标签，但AI返回的卷名在 `【章节大纲】` 块内，如 `卷：第一卷：冰与火之歌`
+2. **章节标题多冒号**：正则 `[\s:：]*` 匹配冒号后，`(.+?)` 又匹配到了冒号后的内容
+3. **卷不存在导致章节去未分卷**：章节大纲指定的卷不存在时，找不到 `volumeId`，章节被放到未分卷
+
+**解决方案**：
+
+1. **自动创建卷** 当章节大纲指定的卷不存在时，自动创建该卷：
+```typescript
+// 如果找不到卷，自动创建
+if (!volume && volumeTitle) {
+  const newVolume = store.addPlotCard({
+    novelId,
+    type: 'volume',
+    title: volumeTitle,
+    summary: '',
+    sequence: existingVolumes.length,
+    status: 'pending',
+  });
+  volume = store.plotCards.find(c => c.id === newVolume.id);
+  console.log(`自动创建卷: ${volumeTitle}`);
+}
+```
+
+2. **修复章节标题正则** 改进正则匹配，去掉可能残留的前导冒号：
+```typescript
+// 修复前
+const chapterRegex = /第[零一二三四五六七八九十百千万\d]+章[\s:：]*(.+?)[\s]*[-—－：:][\s]*(.+)/g;
+
+// 修复后
+const chapterRegex = /第[零一二三四五六七八九十百千万\d]+章(?:[\s:：]+)([^-—－\n]+?)[\s]*[-—－][\s]*(.+)/g;
+
+// 清理标题中的前导冒号
+title: chapterMatch[1].trim().replace(/^[：:]/, '')
+```
+
+3. **添加调试日志** 添加解析日志方便调试：
+```typescript
+console.log(`📚 解析章节大纲块: 卷="${volumeTitle || '无'}", 章节数=${chapters.length}`);
+```
+
+---
+
+*最后更新: 2026-07-28*
 
 ## 2026-10-25：模型设置与多协议兼容升级
 

@@ -24,6 +24,9 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [deleteVolume, setDeleteVolume] = useState<PlotCardType | null>(null);
   const [collapsedVolumes, setCollapsedVolumes] = useState<Set<string>>(new Set());
+  // 卷拖拽状态
+  const [draggedVolumeIndex, setDraggedVolumeIndex] = useState<number | null>(null);
+  const [dragOverVolumeIndex, setDragOverVolumeIndex] = useState<number | null>(null);
 
   const currentNovelId = useNovelStore((state) => state.currentNovelId);
   const allPlotCards = useNovelStore((state) => state.plotCards);
@@ -62,6 +65,7 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
 
   // 拖拽处理
   const handleDragStart = (e: React.DragEvent, index: number) => {
+    e.stopPropagation();
     e.dataTransfer.effectAllowed = 'move';
     setDraggedIndex(index);
   };
@@ -78,6 +82,7 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
   };
 
   const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.stopPropagation();
     e.preventDefault();
 
     if (draggedIndex === null || draggedIndex === dropIndex || statusFilter !== 'all') {
@@ -132,6 +137,50 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
       }
       return newSet;
     });
+  };
+
+  // 卷拖拽处理
+  const handleVolumeDragStart = (e: React.DragEvent, index: number) => {
+    e.stopPropagation();
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('application/x-novel-volume', volumes[index].id);
+    setDraggedVolumeIndex(index);
+  };
+
+  const handleVolumeDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverVolumeIndex(index);
+  };
+
+  const handleVolumeDragEnd = () => {
+    setDraggedVolumeIndex(null);
+    setDragOverVolumeIndex(null);
+  };
+
+  const handleVolumeDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (draggedVolumeIndex === null || draggedVolumeIndex === dropIndex || !volumes[draggedVolumeIndex]) {
+      setDraggedVolumeIndex(null);
+      setDragOverVolumeIndex(null);
+      return;
+    }
+
+    // 更新卷的 sequence
+    const newVolumes = [...volumes];
+    const [draggedVolume] = newVolumes.splice(draggedVolumeIndex, 1);
+    newVolumes.splice(dropIndex, 0, draggedVolume);
+
+    newVolumes.forEach((vol, index) => {
+      if (vol.sequence !== index) {
+        updatePlotCard(vol.id, { sequence: index });
+      }
+    });
+
+    setDraggedVolumeIndex(null);
+    setDragOverVolumeIndex(null);
   };
 
   const handleJumpToChapter = (chapterId: string) => {
@@ -224,11 +273,24 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
         {volumes.length > 0 && statusFilter === 'all' ? (
           // 按卷分组显示
           <div className="space-y-4">
-            {volumes.map((vol) => {
+            {volumes.map((vol, volIndex) => {
               const volChapters = chapterOutlines.filter(c => c.volumeId === vol.id);
               const isCollapsed = collapsedVolumes.has(vol.id);
               return (
-                <div key={vol.id} className="border rounded-lg overflow-hidden">
+                <div
+                  key={vol.id}
+                  data-volume-id={vol.id}
+                  draggable
+                  onDragStart={(e) => handleVolumeDragStart(e, volIndex)}
+                  onDragOver={(e) => handleVolumeDragOver(e, volIndex)}
+                  onDragEnd={handleVolumeDragEnd}
+                  onDrop={(e) => handleVolumeDrop(e, volIndex)}
+                  className={cn(
+                    'border rounded-lg overflow-hidden transition-all',
+                    draggedVolumeIndex === volIndex && 'opacity-50 scale-[0.98]',
+                    dragOverVolumeIndex === volIndex && draggedVolumeIndex !== volIndex && 'border-primary border-2'
+                  )}
+                >
                   {/* 卷标题 - 可点击收缩 */}
                   <div
                     className="bg-muted/30 p-3 border-b group/vol cursor-pointer select-none"
@@ -236,11 +298,13 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
                   >
                     <div className="flex items-center gap-3">
                       {/* 收缩图标 */}
+                      <button type="button" aria-expanded={!isCollapsed} aria-label={`${isCollapsed ? '展开卷' : '收起卷'}：${vol.title}`} onClick={event => { event.stopPropagation(); toggleVolumeCollapse(vol.id); }}>
                       {isCollapsed ? (
                         <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
                       ) : (
                         <ChevronDown className="h-5 w-5 text-muted-foreground shrink-0" />
                       )}
+                      </button>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-medium">{vol.title}</h3>
                         {vol.summary && !isCollapsed && (
@@ -250,7 +314,7 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
                       </div>
                       <div className="flex gap-1 opacity-0 group-hover/vol:opacity-100 shrink-0" onClick={(e) => e.stopPropagation()}>
                         {onEditVolume && (
-                          <button onClick={() => onEditVolume(vol)} className="p-1 hover:bg-muted rounded">
+                          <button aria-label={`编辑卷：${vol.title}`} onClick={() => onEditVolume(vol)} className="p-1 hover:bg-muted rounded">
                             <Pencil className="h-4 w-4 text-muted-foreground" />
                           </button>
                         )}
@@ -288,7 +352,7 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
                               )}
                             </div>
                             <div className="flex gap-1 opacity-0 group-hover:opacity-100">
-                              <button onClick={() => onEditCard(card)} className="p-1 hover:bg-muted rounded">
+                              <button aria-label={`编辑章节大纲：${card.title}`} onClick={() => onEditCard(card)} className="p-1 hover:bg-muted rounded">
                                 <Pencil className="h-4 w-4 text-muted-foreground" />
                               </button>
                               <button onClick={() => handleDeleteCard(card.id)} className="p-1 hover:bg-muted rounded">
@@ -340,7 +404,7 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
                             )}
                           </div>
                           <div className="flex gap-1 opacity-0 group-hover:opacity-100">
-                            <button onClick={() => onEditCard(card)} className="p-1 hover:bg-muted rounded">
+                            <button aria-label={`编辑章节大纲：${card.title}`} onClick={() => onEditCard(card)} className="p-1 hover:bg-muted rounded">
                               <Pencil className="h-4 w-4 text-muted-foreground" />
                             </button>
                             <button onClick={() => handleDeleteCard(card.id)} className="p-1 hover:bg-muted rounded">
@@ -406,7 +470,7 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
                       )}
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                      <button onClick={() => onEditCard(card)} className="p-2 hover:bg-muted rounded-md">
+                      <button aria-label={`编辑章节大纲：${card.title}`} onClick={() => onEditCard(card)} className="p-2 hover:bg-muted rounded-md">
                         <Pencil className="h-4 w-4 text-muted-foreground" />
                       </button>
                       <button onClick={() => handleDeleteCard(card.id)} className="p-2 hover:bg-muted rounded-md">

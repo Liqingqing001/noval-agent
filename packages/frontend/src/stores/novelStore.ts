@@ -178,7 +178,8 @@ export const useNovelStore = create<NovelState>()(
           ),
         }));
         if (isCloudEnabled() && !id.startsWith('temp-')) {
-          novelsApi.update(id, updates as any).catch((err) => console.error('云端更新小说失败:', err));
+          const { updatedAt: _ua, createdAt: _ca, ...cleanUpdates } = updates as any;
+          novelsApi.update(id, cleanUpdates).catch((err) => console.error('云端更新小说失败:', err));
         }
       },
       deleteNovel: (id) => {
@@ -252,7 +253,8 @@ export const useNovelStore = create<NovelState>()(
           return { chapters: newChapters };
         });
         if (isCloudEnabled() && !id.startsWith('temp-')) {
-          chaptersApi.update(id, updates as any).catch((err) => console.error('云端更新章节失败:', err));
+          const { updatedAt: _ua, createdAt: _ca, ...cleanUpdates } = updates as any;
+          chaptersApi.update(id, cleanUpdates).catch((err) => console.error('云端更新章节失败:', err));
         }
       },
       deleteChapter: (id) => {
@@ -306,7 +308,8 @@ export const useNovelStore = create<NovelState>()(
           characters: state.characters.map((c) => c.id === id ? { ...c, ...updates } : c),
         }));
         if (isCloudEnabled() && !id.startsWith('temp-')) {
-          charactersApi.update(id, updates as any).catch((err) => console.error('云端更新角色失败:', err));
+          const { updatedAt: _ua, createdAt: _ca, ...cleanUpdates } = updates as any;
+          charactersApi.update(id, cleanUpdates).catch((err) => console.error('云端更新角色失败:', err));
         }
       },
       deleteCharacter: (id) => {

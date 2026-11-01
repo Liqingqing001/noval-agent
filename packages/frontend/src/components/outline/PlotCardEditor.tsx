@@ -20,6 +20,11 @@ interface PlotCardEditorProps {
   onSave: (data: Omit<PlotCard, 'id' | 'createdAt' | 'updatedAt'>) => void;
 }
 
+const STATUS_OPTIONS = [
+  { value: 'pending', label: '⏳ 待写作' },
+  { value: 'completed', label: '✅ 已完成' },
+];
+
 export function PlotCardEditor({
   card,
   defaultType = 'chapter',
@@ -54,6 +59,7 @@ export function PlotCardEditor({
   const [summary, setSummary] = useState('');
   const [volumeId, setVolumeId] = useState<string>('');
   const [chapterId, setChapterId] = useState<string>('');
+  const [status, setStatus] = useState<'pending' | 'completed'>('pending');
 
   useEffect(() => {
     if (card) {
@@ -62,14 +68,24 @@ export function PlotCardEditor({
       setSummary(card.summary);
       setVolumeId(card.volumeId || '');
       setChapterId(card.chapterId || '');
+      setStatus(card.status || 'pending');
     } else {
       setType(defaultType);
       setTitle('');
       setSummary('');
       setVolumeId(defaultVolumeId || '');
       setChapterId('');
+      setStatus('pending');
     }
   }, [card, open, defaultType, defaultVolumeId]);
+
+  // 当选择了已关联章节时，自动更新状态为已完成
+  const handleChapterIdChange = (newChapterId: string) => {
+    setChapterId(newChapterId);
+    if (newChapterId && status === 'pending') {
+      setStatus('completed');
+    }
+  };
 
   const handleSave = () => {
     if (!title.trim()) {
@@ -83,7 +99,7 @@ export function PlotCardEditor({
       if (type === 'volume') {
         sequence = volumes.length;
       } else {
-        const volumeChapters = plotCards.filter(c => c.type === 'chapter' && c.volumeId === (volumeId || null));
+        const volumeChapters = plotCards.filter(c => c.type === 'chapter' && (c.volumeId || '') === volumeId);
         sequence = volumeChapters.length;
       }
     }
@@ -96,7 +112,7 @@ export function PlotCardEditor({
       sequence,
       volumeId: type === 'chapter' ? (volumeId || undefined) : undefined,
       chapterId: type === 'chapter' ? (chapterId || undefined) : undefined,
-      status: card?.status || 'pending',
+      status: type === 'chapter' ? status : card?.status || 'pending',
     };
 
     if (card?.id) {
@@ -196,13 +212,37 @@ export function PlotCardEditor({
             />
           </div>
 
+          {/* Status Selection (only for chapters) */}
+          {type === 'chapter' && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">写作状态</label>
+              <div className="flex gap-2">
+                {STATUS_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    aria-pressed={status === opt.value}
+                    onClick={() => setStatus(opt.value as 'pending' | 'completed')}
+                    className={`flex-1 px-3 py-2 text-sm rounded-md border transition-colors ${
+                      status === opt.value
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-background hover:bg-muted'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Link to Chapter (only for chapters) */}
           {type === 'chapter' && (
             <div className="space-y-2">
               <label className="text-sm font-medium">关联已写章节</label>
               <select
                 value={chapterId}
-                onChange={(e) => setChapterId(e.target.value)}
+                onChange={(e) => handleChapterIdChange(e.target.value)}
                 className="w-full px-3 py-2 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="">暂不关联</option>

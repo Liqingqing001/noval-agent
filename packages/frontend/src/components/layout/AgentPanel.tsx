@@ -7,13 +7,13 @@ import { API_PRESETS, isModelConfigured } from '@/lib/modelConfig';
 import type { GenerationPhase } from '@/services/modelService';
 import { GenerationStatus } from './GenerationStatus';
 import { AssistantReply } from './AssistantReply';
-import { extractContentBlocks } from '@/lib/structuredContent';
 import { syncFeedback } from '@/lib/syncFeedback';
-import { hasModificationInstructions } from '@/lib/modificationInstructions';
 import { DeepSeekService } from '@/services/deepseek';
 import { AgentType, AGENT_CONFIGS } from '@/types/agents';
 import type { Message, ViewType } from '@/types';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { timelineContext, writingRequirement } from '@/lib/writingContext';
 import { autoSyncContent, hasSyncableContent } from '@/lib/autoSync';
 
 // Markdown options are static at each call site; history text does not change on stream updates.
@@ -162,7 +162,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
   }, [allSessions, currentNovelId, activeAgent]);
 
   const messages = useMemo(() => activeSession?.messages || [], [activeSession?.messages]);
-  const syncableMessageIds = useMemo(() => new Set(messages.filter(message => message.role === 'assistant' && message.syncStatus?.state !== 'partial' && (extractContentBlocks(message.content).some(block => block.body.trim()) || hasModificationInstructions(message.content))).map(message => message.id)), [messages]);
+  const syncableMessageIds = useMemo(() => new Set(messages.filter(message => message.role === 'assistant' && message.syncStatus?.state !== 'partial' && hasSyncableContent(message.content)).map(message => message.id)), [messages]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -451,7 +451,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
     return true;
   }, [activeSession, messages, apiProvider, model, temperature, maxTokens, apiKey, currentNovel, updateSession, getTrimmedMessages]);
 
-  const handleSend = useCallback(async (content?: string) => {
+  const handleSend = useCallback(async (content?: string, reviewCount?: number) => {
     const sendContent = content || input.trim();
     if (!sendContent || !currentNovelId || isLoading) return;
 
@@ -487,7 +487,8 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
     enhancedContent += getCharactersContext();    // 人物设定
     enhancedContent += getWorldContext();         // 世界观设定
     enhancedContent += getChaptersContext();      // 章节列表
-    enhancedContent += getPreviousChaptersContent(3); // 前3章完整内容
+    enhancedContent += getPreviousChaptersContent(reviewCount ?? 3);
+    enhancedContent += timelineContext(chapters);
     if (currentChapter) {
       enhancedContent += `\n\n【当前编辑章节】\n${currentChapter.title}\n字数: ${currentChapter.wordCount}`;
     }
@@ -499,6 +500,8 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
     enhancedContent += `\n\n【大纲完整性要求】必须建立完整的卷和章节大纲结构，每个章节都要有情节概要（summary），才能开始写作章节内容。如果创作阶段显示"大纲缺失"或"大纲不完整"，你必须拒绝写章节请求并引导用户先完成大纲。`;
 
     enhancedContent += `\n\n【用户的问题】\n${sendContent}`;
+
+    enhancedContent += writingRequirement(sendContent, currentNovel?.agentPrompt);
 
     // 在用户消息末尾再次强调自定义要求
     if (currentNovel?.agentPrompt) {
@@ -616,7 +619,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
       streamingContentRef.current = '';
       generationRef.current = null;
     }
-  }, [input, currentNovelId, isLoading, modelConfigured, currentChapter, activeAgent, activeSession, messages, addSession, updateSession, getOutlineContext, getCharactersContext, getWorldContext, getTrimmedMessages, getChaptersContext, getPreviousChaptersContent, getCreationStage, currentNovel, handleSlashCommand]);
+  }, [input, currentNovelId, isLoading, modelConfigured, currentChapter, activeAgent, activeSession, messages, addSession, updateSession, getOutlineContext, getCharactersContext, getWorldContext, getTrimmedMessages, getChaptersContext, getPreviousChaptersContent, chapters, getCreationStage, currentNovel, handleSlashCommand]);
 
   if (!currentNovelId) {
     return (
@@ -666,14 +669,26 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
 
       {/* Quick Actions */}
       <div className="px-3 py-2 border-b flex shrink-0 flex-wrap gap-2">
-        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleSend('请帮我生成这本小说的大纲，请先问我一些关键问题')} disabled={!modelConfigured || isLoading}>
-          <Sparkles className="h-3 w-3 mr-1" />生成大纲
+        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleSend('请帮我生成这本小说的大纲，请先问我一些关键问题')} disabled={!modelConfigured || isLoading}>生成大纲</Button>
+        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleSend('请帮我优化当前大纲')} disabled={!modelConfigured || isLoading || plotCards.length === 0}>优化大纲</Button>
+        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleSend('请帮我续写当前章节')} disabled={!modelConfigured || isLoading || !currentChapter}>续写章节</Button>
+        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleSend('请按照大纲顺序，续写一章。按照大纲中下一章待写作的情节概要来写，字数3000-4000字。')} disabled={!modelConfigured || isLoading}>
+          <Sparkles className="h-3 w-3 mr-1" />续写一章
         </Button>
-        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleSend('请帮我优化当前大纲')} disabled={!modelConfigured || isLoading || plotCards.length === 0}>
-          优化大纲
+        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleSend('请按照大纲顺序，续写三章。按照大纲中待写作的章节情节概要，连续写三章内容，每章3000-4000字。')} disabled={!modelConfigured || isLoading}>
+          <Sparkles className="h-3 w-3 mr-1" />续写三章
         </Button>
-        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleSend('请帮我续写当前章节')} disabled={!modelConfigured || isLoading || !currentChapter}>
-          续写章节
+        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => {
+          // 智能检查策略：避免发送过多章节浪费token
+          if (chapters.length <= 5) {
+            handleSend(`请检查目前所有已写章节（共${chapters.length}章）的通顺性，是否有逻辑错误、前后矛盾、人物行为不一致等问题。逐一指出问题并给出修改建议。`, chapters.length);
+          } else {
+            // 只检查最近5章，节省token
+            const recentCount = Math.min(5, chapters.length);
+            handleSend(`请检查最近${recentCount}章（第${chapters.length - recentCount + 1}章至第${chapters.length}章）的通顺性，是否有逻辑错误、前后矛盾、人物行为不一致等问题。逐一指出问题并给出修改建议。如需检查更多章节，请告诉我具体章节编号。`, recentCount);
+          }
+        }} disabled={!modelConfigured || isLoading || chapters.length === 0}>
+          <AlertCircle className="h-3 w-3 mr-1" />检查章节
         </Button>
       </div>
 
@@ -707,8 +722,8 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
                   <div className="max-w-[85%] rounded-lg px-4 py-3 text-sm bg-muted/50 border border-border/50">
                     <div className="flex items-start gap-2">
                       <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                      <div className="prose prose-sm max-w-none dark:prose-invert text-muted-foreground [&_p]:mb-2 [&_p:last-child]:mb-0 [&_strong]:font-bold [&_ul]:mb-2 [&_ol]:mb-2 [&_li]:mb-0.5">
-                        <MemoMarkdown>{message.content}</MemoMarkdown>
+                      <div className="prose prose-sm max-w-none dark:prose-invert text-muted-foreground break-words [&_p]:mb-2 [&_p:last-child]:mb-0 [&_strong]:font-bold [&_ul]:mb-2 [&_ol]:mb-2 [&_li]:mb-0.5 [&_table]:w-full [&_table]:border-collapse [&_table]:my-2 [&_th]:border [&_th]:border-border [&_th]:p-2 [&_th]:bg-muted/50 [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:p-2 [&_tr]:border-b [&_tr:last-child]:border-b-0">
+                        <MemoMarkdown remarkPlugins={[remarkGfm]}>{message.content}</MemoMarkdown>
                       </div>
                     </div>
                   </div>
@@ -722,8 +737,8 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
                     <div className={`rounded-lg px-3 py-2 text-sm ${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
                       {message.role === 'assistant' ? (
                         <AssistantReply content={message.content} syncStatus={message.syncStatus}>
-                          <div className="prose prose-sm max-w-none dark:prose-invert [&_p]:mb-2 [&_p:last-child]:mb-0 [&_strong]:font-bold [&_ul]:mb-2 [&_ol]:mb-2 [&_li]:mb-0.5">
-                            <MemoMarkdown>{formatAIResponse(message.content)}</MemoMarkdown>
+                          <div className="prose prose-sm max-w-none dark:prose-invert break-words [&_p]:mb-2 [&_p:last-child]:mb-0 [&_strong]:font-bold [&_ul]:mb-2 [&_ol]:mb-2 [&_li]:mb-0.5 [&_table]:w-full [&_table]:border-collapse [&_table]:my-2 [&_th]:border [&_th]:border-border [&_th]:p-2 [&_th]:bg-muted/50 [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:p-2 [&_tr]:border-b [&_tr:last-child]:border-b-0">
+                            <MemoMarkdown remarkPlugins={[remarkGfm]}>{formatAIResponse(message.content)}</MemoMarkdown>
                           </div>
                         </AssistantReply>
                       ) : (

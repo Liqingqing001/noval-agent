@@ -59,9 +59,11 @@ router.put('/world-settings/:id', async (req, res, next) => {
     if (!existing || existing.novel.userId !== req.userId) {
       return res.status(404).json({ error: '世界观不存在' });
     }
+    // 过滤掉 createdAt 和 updatedAt（Prisma 自动管理）
+    const { createdAt, updatedAt, ...data } = req.body;
     const item = await prisma.worldSetting.update({
       where: { id: req.params.id },
-      data: req.body,
+      data,
     });
     res.json({ worldSetting: item });
   } catch (err) {

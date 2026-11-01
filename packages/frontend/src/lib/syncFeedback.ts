@@ -1,7 +1,7 @@
 import type { Message } from '../types';
 import type { ModificationResult } from './modificationInstructions';
 
-const labels = { outlineCount: '条大纲', characterCount: '个人物', worldCount: '条世界观', chapterCount: '章正文', modifyCount: '项修改', deleteCount: '项删除', insertCount: '项插入', replaceCount: '项替换', mergeCount: '项合并', splitCount: '项拆分', reorderCount: '项排序' };
+const labels = { outlineCount: '条大纲', statusCount: '项写作状态', characterCount: '个人物', worldCount: '条世界观', chapterCount: '章正文', modifyCount: '项修改', deleteCount: '项删除', insertCount: '项插入', replaceCount: '项替换', mergeCount: '项合并', splitCount: '项拆分', reorderCount: '项排序' };
 type FeedbackResult = Partial<Record<keyof typeof labels, number>> & { basicInfo?: boolean; modificationResults?: ModificationResult[] };
 
 export function syncFeedback(result: FeedbackResult): NonNullable<Message['syncStatus']> {

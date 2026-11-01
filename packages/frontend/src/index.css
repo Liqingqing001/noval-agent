@@ -265,3 +265,48 @@
 @media (prefers-reduced-motion: reduce) {
   .shelf-book, .chapter-entry, .chapter-actions { transition: none; }
 }
+
+/* Markdown 表格样式 */
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.875em;
+}
+
+.prose { overflow-wrap: anywhere; }
+.prose table { display: block; max-width: 100%; overflow-x: auto; }
+
+.prose thead {
+  background: hsl(var(--muted));
+}
+
+.prose th {
+  border: 1px solid hsl(var(--border));
+  padding: 0.5em 0.75em;
+  text-align: left;
+  font-weight: 600;
+}
+
+.prose td {
+  border: 1px solid hsl(var(--border));
+  padding: 0.5em 0.75em;
+}
+
+.prose tr:nth-child(even) {
+  background: hsl(var(--muted) / 0.3);
+}
+
+.prose tr:hover {
+  background: hsl(var(--muted) / 0.5);
+}
+
+/* 暗色模式表格 */
+.dark .prose thead {
+  background: hsl(var(--muted) / 0.5);
+}
+
+.dark .prose th,
+.dark .prose td {
+  border-color: hsl(var(--border));
+}

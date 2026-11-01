@@ -86,9 +86,11 @@ router.put('/:id', async (req, res, next) => {
     if (!existing) {
       return res.status(404).json({ error: '小说不存在' });
     }
+    // 过滤掉 createdAt 和 updatedAt（Prisma 自动管理）
+    const { createdAt, updatedAt, ...data } = req.body;
     const novel = await prisma.novel.update({
       where: { id: req.params.id },
-      data: req.body,
+      data,
     });
     res.json({ novel });
   } catch (err) {
