@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { lazy, Suspense, useState, useMemo, useCallback, useEffect } from 'react';
 import { BookOpen, Pencil, Download, GripVertical, Star, Users, User, List, ChevronLeft } from 'lucide-react';
 import { useNovelStore } from '@/stores/novelStore';
 import { ChapterList } from '@/components/chapter/ChapterList';
@@ -12,6 +12,7 @@ import { WorldSettingEditor } from '@/components/world/WorldSettingEditor';
 import type { ViewType, Character, WorldSetting } from '@/types';
 
 const STORAGE_KEY_CHAPTER_LIST = 'novel-agent-chapter-list-width';
+const ReferenceWorkbench = lazy(() => import('@/components/reference/ReferenceWorkbench').then(module => ({ default: module.ReferenceWorkbench })));
 
 const getDefaultChapterListWidth = () => {
   const saved = localStorage.getItem(STORAGE_KEY_CHAPTER_LIST);
@@ -75,7 +76,7 @@ export function MainContent({ currentView }: MainContentProps) {
     };
   }, [isDraggingChapterList, dragStartX, dragStartWidth]);
 
-  if (!currentNovelId && currentView !== 'settings') {
+  if (!currentNovelId && currentView !== 'settings' && currentView !== 'reference') {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-muted/20">
         <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-4">
@@ -92,6 +93,8 @@ export function MainContent({ currentView }: MainContentProps) {
   // Render different views based on currentView
   const renderContent = () => {
     switch (currentView) {
+      case 'reference':
+        return <Suspense fallback={<p className="p-4 text-sm">正在载入参考创作…</p>}><ReferenceWorkbench /></Suspense>;
       case 'outline':
         return <OutlineView />;
       case 'chapters':
@@ -145,7 +148,7 @@ export function MainContent({ currentView }: MainContentProps) {
     <div className="main-content flex min-h-0 flex-col h-full">
       {currentNovelId && <ExportDialog novelId={currentNovelId} open={exportOpen} onOpenChange={setExportOpen} />}
       {/* Top Bar */}
-      {currentNovelId && currentView !== 'settings' && (
+      {currentNovelId && currentView !== 'settings' && currentView !== 'reference' && (
         <div className="manuscript-header shrink-0 border-b border-border/50 bg-card/80 backdrop-blur-sm">
           <div className="manuscript-heading flex items-center justify-between gap-2 px-6 py-4">
             <div className="manuscript-title flex min-w-0 flex-wrap items-center gap-4">

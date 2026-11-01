@@ -137,7 +137,7 @@ function App() {
   return (
     <div className="workspace-app flex flex-col bg-background">
       {IS_DEMO && <DemoBanner />}
-      <div className="workspace-layout flex min-h-0 flex-1" data-mobile-panel={mobilePanel}>
+      <div className={`workspace-layout flex min-h-0 flex-1 ${currentView === 'reference' ? 'workspace-reference' : ''}`} data-mobile-panel={mobilePanel}>
       {/* Left Sidebar - Bookshelf */}
       <div id="workspace-bookshelf" style={{ width: sidebarWidth }} className="workspace-panel workspace-sidebar flex-shrink-0">
         <Sidebar currentView={currentView} onLogout={logout} onNavigate={showContent} />
@@ -156,7 +156,7 @@ function App() {
 
       <div
         onMouseDown={handleMouseDownAgent}
-        className={`workspace-divider w-1 flex-shrink-0 cursor-col-resize hover:bg-primary/30 transition-colors ${
+        className={`workspace-agent-divider workspace-divider w-1 flex-shrink-0 cursor-col-resize hover:bg-primary/30 transition-colors ${
           isDraggingAgent ? 'bg-primary/50' : 'bg-border'
         }`}
       />
@@ -170,9 +170,9 @@ function App() {
           ['bookshelf', '书架', Library],
           ['content', '作品', BookOpen],
           ['assistant', 'AI 助手', Bot],
-        ] as const).map(([panel, label, Icon]) => (
+        ] as const).filter(([panel]) => currentView !== 'reference' || panel !== 'assistant').map(([panel, label, Icon]) => (
           <button key={panel} type="button" aria-controls={`workspace-${panel}`} aria-current={mobilePanel === panel ? 'page' : undefined} onClick={() => switchPanel(panel)}>
-            <Icon className="h-5 w-5" aria-hidden="true" /><span>{label}</span>
+            <Icon className="h-5 w-5" aria-hidden="true" /><span>{panel === 'content' && currentView === 'reference' ? '参考创作' : label}</span>
           </button>
         ))}
       </nav>

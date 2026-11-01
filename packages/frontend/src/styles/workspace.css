@@ -60,3 +60,5 @@
   .workspace-content .manuscript-page { padding-top: 12px; }
   .workspace-content .manuscript-page > input { font-size: 20px; margin-bottom: 8px; }
 }
+.workspace-layout.workspace-reference > .workspace-assistant,
+.workspace-layout.workspace-reference > .workspace-agent-divider { display: none !important; }

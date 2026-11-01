@@ -99,4 +99,4 @@ export interface Foreshadowing {
   updatedAt: number;
 }
 
-export type ViewType = 'outline' | 'chapters' | 'characters' | 'world' | 'settings';
+export type ViewType = 'outline' | 'chapters' | 'characters' | 'world' | 'settings' | 'reference';

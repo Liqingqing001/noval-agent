@@ -119,7 +119,14 @@ const key = name => isDemo ? `${name}-demo-v1` : name;
         assert.equal(await readStatus(), 'completed');
         if (width < 1280) await nav.getByRole('button', { name: '书架', exact: true }).click();
         await page.getByRole('button', { name: '章节', exact: true }).click();
-        await page.locator('.tiptap').fill(''); await page.keyboard.press('Control+s');
+        // Wait for the newly mounted editor to load the saved body before clearing it.
+        await page.waitForFunction(() => document.querySelector('.tiptap')?.textContent.includes('手写正文，手动状态应继续保留。'));
+        await page.locator('.tiptap').click();
+        await page.keyboard.press('ControlOrMeta+a');
+        await page.keyboard.press('Backspace');
+        await page.keyboard.press('Control+s');
+        // Verify the persisted status rather than assuming UI effects have already run.
+        await page.waitForFunction(({ key, id }) => JSON.parse(localStorage.getItem(key)).state.plotCards.find(card => card.id === id)?.status === 'pending', { key: key('novel-agent-storage'), id: outlineId });
         assert.equal(await readStatus(), 'pending');
         await page.locator('.tiptap').fill('已保存的手写正文。'); await page.keyboard.press('Control+s');
         assert.equal(await readStatus(), 'completed');

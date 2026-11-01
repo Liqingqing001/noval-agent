@@ -106,6 +106,7 @@ export function Sidebar({ currentView, onLogout, onNavigate }: SidebarProps) {
     { id: 'chapters', icon: BookOpen, label: '章节' },
     { id: 'characters', icon: Users, label: '人物' },
     { id: 'world', icon: Globe, label: '世界观' },
+    { id: 'reference', icon: FileText, label: '参考创作' },
     { id: 'settings', icon: Settings, label: '设置' },
   ];
 
@@ -285,7 +286,7 @@ export function Sidebar({ currentView, onLogout, onNavigate }: SidebarProps) {
           <button
             key={item.id}
             onClick={() => handleViewChange(item.id)}
-            disabled={!currentNovelId && item.id !== 'settings'}
+            disabled={!currentNovelId && item.id !== 'settings' && item.id !== 'reference'}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed ${
               currentView === item.id
                 ? 'bg-primary/10 text-primary'
