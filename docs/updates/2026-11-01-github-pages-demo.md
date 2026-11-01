@@ -23,6 +23,8 @@ Pages 构建设置 `VITE_DEMO_MODE=true`、`VITE_BASE_PATH=/noval-agent/`；默�
 
 GitHub 仓库设置中的 Pages 发布来源使用 GitHub Actions。所有工作流 action 固定到官方示例中的提交版本。工作流仅拥有读取代码、写入 Pages 和签发部署身份的权限，不注入任何模型密钥。
 
+首次云端安装发现旧 lockfile 仍将前端 workspace 标记为 novel-agent，而 package.json 已命名 frontend。本次只修复该 workspace 名称及链接，使 npm ci 可在干净环境解析前端，不混入本地其他依赖变动。
+
 ## 验证
 
 演示数据测试验证书名、17 章正文、作品归属、字段脱敏及 ID 重映射。生产构建浏览器验证无需登录、真实示例、导航、示例回放、本机保存与刷新、TXT 下载、恢复示例、可选模型设置、普通存储隔离及无后端请求。编辑器、模型和同步回归测试继续执行。
