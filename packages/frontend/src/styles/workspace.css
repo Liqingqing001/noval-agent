@@ -1,0 +1,62 @@
+/* Desktop keeps the resizable workspace; smaller screens show one mounted panel at a time. */
+.workspace-app { height: 100vh; height: 100dvh; min-width: 0; overflow: hidden; }
+.workspace-layout, .workspace-panel { min-height: 0; }
+.workspace-layout { overflow: hidden; }
+.workspace-sidebar { max-width: 22vw; }
+.workspace-assistant { max-width: 30vw; }
+.workspace-mobile-nav, .chapter-directory-toggle { display: none; }
+.chapter-directory-panel { flex-shrink: 0; height: 100%; }
+
+@media (max-width: 1279px) {
+  .workspace-layout > .workspace-panel { display: none; width: 100% !important; max-width: none; min-width: 0; }
+  .workspace-layout[data-mobile-panel="bookshelf"] > .workspace-sidebar,
+  .workspace-layout[data-mobile-panel="content"] > .workspace-content,
+  .workspace-layout[data-mobile-panel="assistant"] > .workspace-assistant { display: flex; flex: 1 1 0%; flex-direction: column; }
+  .workspace-divider { display: none; }
+  .workspace-sidebar > *, .workspace-assistant > * { flex: 1; min-height: 0; }
+  .workspace-mobile-nav {
+    display: flex; flex-shrink: 0; border-top: 1px solid hsl(var(--border));
+    background: hsl(var(--background)); padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .workspace-mobile-nav button {
+    display: flex; flex: 1; min-height: 56px; align-items: center; justify-content: center;
+    flex-direction: column; gap: 3px; font-size: 12px; color: hsl(var(--muted-foreground));
+  }
+  .workspace-mobile-nav button[aria-current="page"] { color: hsl(var(--primary)); background: hsl(var(--primary) / 0.08); }
+  .workspace-mobile-nav button:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -3px; }
+}
+
+@media (max-width: 767px), (max-width: 1279px) and (max-height: 500px) {
+  .demo-banner { gap: 4px; padding: 8px 12px; font-size: 11px; }
+  .demo-banner p { min-width: 0; }
+  .demo-banner-description { display: block; margin: 2px 0 0; }
+  .demo-banner > div { gap: 16px; }
+  .chapter-workspace { flex-direction: column; }
+  .chapter-directory-toggle {
+    display: flex; flex-shrink: 0; align-items: center; gap: 8px; width: 100%; min-height: 44px;
+    padding: 8px 16px; border-bottom: 1px solid hsl(var(--border)); font-size: 14px; text-align: left;
+  }
+  .chapter-directory-toggle > span:last-child { min-width: 0; }
+  .chapter-directory-panel, .chapter-directory-divider { display: none; }
+  .chapter-workspace[data-directory-open="true"] > .chapter-directory-panel { display: flex; flex: 1; height: auto; }
+  .chapter-workspace[data-directory-open="true"] > .chapter-editor-panel { display: none; }
+  .chapter-directory-panel > .chapter-directory { width: 100% !important; flex: 1; }
+  .manuscript-heading { padding: 10px 12px; }
+  .manuscript-title { gap: 4px 8px; }
+  .manuscript-title h1 { font-size: 17px; overflow-wrap: anywhere; }
+  .manuscript-title .tag-creative { padding: 2px 6px; }
+  .manuscript-summary { display: none; }
+  .workspace-content .manuscript-page { margin: 8px; padding: 20px 16px; min-height: calc(100% - 16px); }
+  .workspace-content .manuscript-background { padding-left: 0; padding-right: 0; }
+  .workspace-content .editor-toolbar { flex-wrap: wrap; }
+  .outline-overview { max-height: 40%; overflow-y: auto; }
+}
+
+@media (max-width: 1279px) and (max-height: 500px) {
+  .demo-banner-description { display: none; }
+  .manuscript-heading { padding-top: 4px; padding-bottom: 4px; }
+  .workspace-mobile-nav button { min-height: 44px; flex-direction: row; gap: 6px; }
+  .workspace-content .editor-toolbar { padding-top: 4px; padding-bottom: 4px; }
+  .workspace-content .manuscript-page { padding-top: 12px; }
+  .workspace-content .manuscript-page > input { font-size: 20px; margin-bottom: 8px; }
+}

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { BookOpen, Pencil, Download, GripVertical, Star, Users, User } from 'lucide-react';
+import { BookOpen, Pencil, Download, GripVertical, Star, Users, User, List, ChevronLeft } from 'lucide-react';
 import { useNovelStore } from '@/stores/novelStore';
 import { ChapterList } from '@/components/chapter/ChapterList';
 import { ChapterEditor } from '@/components/editor/ChapterEditor';
@@ -25,6 +25,7 @@ interface MainContentProps {
 
 export function MainContent({ currentView }: MainContentProps) {
   const [exportOpen, setExportOpen] = useState(false);
+  const [directoryOpen, setDirectoryOpen] = useState(false);
   const [chapterListWidth, setChapterListWidth] = useState(getDefaultChapterListWidth);
   const [isDraggingChapterList, setIsDraggingChapterList] = useState(false);
   const [dragStartX, setDragStartX] = useState(0);
@@ -36,6 +37,8 @@ export function MainContent({ currentView }: MainContentProps) {
   const getCurrentNovel = useNovelStore((state) => state.getCurrentNovel);
 
   const novel = getCurrentNovel();
+
+  useEffect(() => { setDirectoryOpen(false); }, [currentNovelId, currentView]);
 
   const handleMouseDownChapterList = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -93,15 +96,22 @@ export function MainContent({ currentView }: MainContentProps) {
         return <OutlineView />;
       case 'chapters':
         return (
-          <div className="flex h-full relative">
+          <div className="chapter-workspace flex h-full min-h-0 relative" data-directory-open={directoryOpen}>
+            <button type="button" className="chapter-directory-toggle" aria-expanded={directoryOpen} aria-controls="chapter-directory-panel" onClick={() => { flushActiveEditor(); setDirectoryOpen(open => !open); }}>
+              {directoryOpen ? <ChevronLeft className="h-4 w-4" /> : <List className="h-4 w-4" />}
+              <span>{directoryOpen ? '返回正文' : '章节目录'}</span>
+              <span className="ml-auto truncate text-xs text-muted-foreground">{currentChapter?.title || '选择章节'}</span>
+            </button>
+            <div id="chapter-directory-panel" className="chapter-directory-panel min-h-0">
             <ChapterList
-              onSelectChapter={id => { flushActiveEditor(); setCurrentChapter(id); }}
+              onSelectChapter={id => { flushActiveEditor(); setCurrentChapter(id); setDirectoryOpen(false); }}
               selectedChapterId={currentChapter?.id || null}
               width={chapterListWidth}
             />
+            </div>
             <div
               onMouseDown={handleMouseDownChapterList}
-              className={`absolute top-0 bottom-0 w-3 cursor-col-resize transition-colors z-10 ${
+              className={`chapter-directory-divider absolute top-0 bottom-0 w-3 cursor-col-resize transition-colors z-10 ${
                 isDraggingChapterList ? 'bg-foreground/30' : 'bg-transparent hover:bg-muted/50'
               }`}
               style={{ left: chapterListWidth }}
@@ -109,7 +119,7 @@ export function MainContent({ currentView }: MainContentProps) {
             >
               <div className="h-full w-1 mx-auto bg-border rounded-full" />
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="chapter-editor-panel flex-1 min-h-0 min-w-0">
               {currentChapter ? (
                 <ChapterEditor key={currentChapter.id} chapterId={currentChapter.id} />
               ) : (
@@ -132,13 +142,13 @@ export function MainContent({ currentView }: MainContentProps) {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="main-content flex min-h-0 flex-col h-full">
       {currentNovelId && <ExportDialog novelId={currentNovelId} open={exportOpen} onOpenChange={setExportOpen} />}
       {/* Top Bar */}
       {currentNovelId && currentView !== 'settings' && (
-        <div className="border-b border-border/50 bg-card/80 backdrop-blur-sm">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center gap-4">
+        <div className="manuscript-header shrink-0 border-b border-border/50 bg-card/80 backdrop-blur-sm">
+          <div className="manuscript-heading flex items-center justify-between gap-2 px-6 py-4">
+            <div className="manuscript-title flex min-w-0 flex-wrap items-center gap-4">
               <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
                 {novel?.title}
               </h1>
@@ -157,7 +167,7 @@ export function MainContent({ currentView }: MainContentProps) {
             </div>
             <button
               onClick={() => { flushActiveEditor(); setExportOpen(true); }}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-sm font-medium transition-colors"
+              className="flex shrink-0 items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-sm font-medium transition-colors"
               title="导出整本或当前章节"
             >
               <Download className="h-4 w-4" />
@@ -166,7 +176,7 @@ export function MainContent({ currentView }: MainContentProps) {
           </div>
           {/* 简介：只在 outline 视图不显示（因为 OutlineView 自己会显示） */}
           {novel?.summary && currentView !== 'outline' && (
-            <div className="px-6 pb-3">
+            <div className="manuscript-summary px-6 pb-3">
               <p className="text-sm text-muted-foreground line-clamp-2 italic">
                 "{novel.summary}"
               </p>
@@ -176,7 +186,7 @@ export function MainContent({ currentView }: MainContentProps) {
       )}
 
       {/* Content Area */}
-      <div className="flex-1 overflow-hidden">{renderContent()}</div>
+      <div className="min-h-0 flex-1 overflow-hidden">{renderContent()}</div>
     </div>
   );
 }

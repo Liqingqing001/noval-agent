@@ -11,6 +11,9 @@ import { IS_DEMO } from '@/lib/runtime';
 import { DemoBanner } from '@/demo/DemoBanner';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { isModelConfigured } from '@/lib/modelConfig';
+import { BookOpen, Library, Bot } from 'lucide-react';
+import { flushActiveEditor } from '@/lib/editorEvents';
+import '@/styles/workspace.css';
 
 const DemoAssistant = lazy(() => import('@/demo/DemoAssistant').then(module => ({ default: module.DemoAssistant })));
 
@@ -31,6 +34,7 @@ const getDefaultSidebarWidth = () => {
 };
 
 function App() {
+  const [mobilePanel, setMobilePanel] = useState<'bookshelf' | 'content' | 'assistant'>('content');
   const [sidebarWidth, setSidebarWidth] = useState(getDefaultSidebarWidth);
   const [agentPanelWidth, setAgentPanelWidth] = useState(getDefaultAgentWidth);
 
@@ -42,6 +46,16 @@ function App() {
   const currentView = useNovelStore((state) => state.currentView);
   const { isAuthenticated, fetchMe, logout } = useAuthStore();
   const configured = useSettingsStore(isModelConfigured);
+
+  const showContent = useCallback(() => setMobilePanel('content'), []);
+
+  // Navigation from the assistant or sidebar should reveal the requested work on narrow screens.
+  useEffect(() => { showContent(); }, [currentView, showContent]);
+
+  const switchPanel = (panel: typeof mobilePanel) => {
+    flushActiveEditor();
+    setMobilePanel(panel);
+  };
 
   // 首次加载：尝试获取当前用户
   useEffect(() => {
@@ -118,35 +132,47 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div className="workspace-app flex flex-col bg-background">
       {IS_DEMO && <DemoBanner />}
-      <div className="flex min-h-0 flex-1 overflow-x-auto">
+      <div className="workspace-layout flex min-h-0 flex-1" data-mobile-panel={mobilePanel}>
       {/* Left Sidebar - Bookshelf */}
-      <div style={{ width: sidebarWidth }} className="flex-shrink-0">
-        <Sidebar currentView={currentView} onLogout={logout} />
+      <div id="workspace-bookshelf" style={{ width: sidebarWidth }} className="workspace-panel workspace-sidebar flex-shrink-0">
+        <Sidebar currentView={currentView} onLogout={logout} onNavigate={showContent} />
       </div>
 
       <div
         onMouseDown={handleMouseDownSidebar}
-        className={`w-1 flex-shrink-0 cursor-col-resize hover:bg-primary/30 transition-colors ${
+        className={`workspace-divider w-1 flex-shrink-0 cursor-col-resize hover:bg-primary/30 transition-colors ${
           isDraggingSidebar ? 'bg-primary/50' : 'bg-border'
         }`}
       />
 
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <main id="workspace-content" className="workspace-panel workspace-content flex-1 flex flex-col min-w-0 overflow-hidden">
         <MainContent currentView={currentView} />
-      </div>
+      </main>
 
       <div
         onMouseDown={handleMouseDownAgent}
-        className={`w-1 flex-shrink-0 cursor-col-resize hover:bg-primary/30 transition-colors ${
+        className={`workspace-divider w-1 flex-shrink-0 cursor-col-resize hover:bg-primary/30 transition-colors ${
           isDraggingAgent ? 'bg-primary/50' : 'bg-border'
         }`}
       />
 
-      <div style={{ width: agentPanelWidth }} className="flex-shrink-0">
-        {IS_DEMO && !configured ? <Suspense fallback={<p className="p-4 text-sm">正在载入演示…</p>}><DemoAssistant /></Suspense> : <AgentPanel currentView={currentView} />}
+      <div id="workspace-assistant" style={{ width: agentPanelWidth }} className="workspace-panel workspace-assistant flex-shrink-0">
+        {IS_DEMO && !configured ? <Suspense fallback={<p className="p-4 text-sm">正在载入演示…</p>}><DemoAssistant onNavigate={showContent} /></Suspense> : <AgentPanel currentView={currentView} />}
       </div>
+      </div>
+      <nav className="workspace-mobile-nav" aria-label="工作区切换">
+        {([
+          ['bookshelf', '书架', Library],
+          ['content', '作品', BookOpen],
+          ['assistant', 'AI 助手', Bot],
+        ] as const).map(([panel, label, Icon]) => (
+          <button key={panel} type="button" aria-controls={`workspace-${panel}`} aria-current={mobilePanel === panel ? 'page' : undefined} onClick={() => switchPanel(panel)}>
+            <Icon className="h-5 w-5" aria-hidden="true" /><span>{label}</span>
+          </button>
+        ))}
+      </nav>
 
       {/* 首次登录迁移向导 */}
       {showMigration && (
@@ -157,7 +183,6 @@ function App() {
           }}
         />
       )}
-      </div>
     </div>
   );
 }

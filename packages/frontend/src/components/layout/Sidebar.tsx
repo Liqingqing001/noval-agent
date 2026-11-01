@@ -5,13 +5,15 @@ import { useNovelStore } from '@/stores/novelStore';
 import { useAuthStore } from '@/stores/authStore';
 import { IS_DEMO } from '@/lib/runtime';
 import type { ViewType } from '@/types';
+import { flushActiveEditor } from '@/lib/editorEvents';
 
 interface SidebarProps {
   currentView: ViewType;
   onLogout?: () => void;
+  onNavigate?: () => void;
 }
 
-export function Sidebar({ currentView, onLogout }: SidebarProps) {
+export function Sidebar({ currentView, onLogout, onNavigate }: SidebarProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [newNovelTitle, setNewNovelTitle] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -50,12 +52,16 @@ export function Sidebar({ currentView, onLogout }: SidebarProps) {
   };
 
   const handleSelectNovel = (id: string) => {
+    flushActiveEditor();
     setCurrentNovel(id);
     setCurrentView('chapters');
+    onNavigate?.();
   };
 
   const handleViewChange = (view: ViewType) => {
+    flushActiveEditor();
     setCurrentView(view);
+    onNavigate?.();
   };
 
   const handleCoverUpload = (novelId: string, file: File) => {

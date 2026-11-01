@@ -5,10 +5,11 @@ import { useNovelStore } from '@/stores/novelStore';
 import { readManuscript, paragraphText } from '@/lib/manuscript';
 import sample from './lingShiOrigin.json';
 
-export function DemoAssistant() {
+export function DemoAssistant({ onNavigate }: { onNavigate?: () => void }) {
   const [length, setLength] = useState(0);
   const [playing, setPlaying] = useState(false);
   const setView = useNovelStore(state => state.setCurrentView);
+  const navigate = (view: Parameters<typeof setView>[0]) => { setView(view); onNavigate?.(); };
   const text = readManuscript(sample.chapters[0]?.content || '').map(paragraphText).join('\n\n').slice(0, 1200);
   useEffect(() => {
     if (!playing) return;
@@ -25,8 +26,8 @@ export function DemoAssistant() {
       </div>
       <Button className="w-full" onClick={() => { setLength(0); setPlaying(true); }} disabled={playing && !finished}><Play className="h-4 w-4" />{playing && !finished ? '示例回放中…' : '演示正文生成效果'}</Button>
       {playing && <div className="rounded-xl border bg-card p-4"><p className="mb-3 text-xs font-medium text-primary">{finished ? '示例回放完成' : '示例回放中'} · 已有文字，非实时 AI 生成</p><p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{text.slice(0, length)}</p></div>}
-      <div className="grid grid-cols-2 gap-2">{([['outline', '查看大纲'], ['characters', '查看人物'], ['world', '查看世界观'], ['chapters', '返回章节']] as const).map(([view, label]) => <Button key={view} variant="outline" size="sm" onClick={() => setView(view)}>{label}</Button>)}</div>
+      <div className="grid grid-cols-2 gap-2">{([['outline', '查看大纲'], ['characters', '查看人物'], ['world', '查看世界观'], ['chapters', '返回章节']] as const).map(([view, label]) => <Button key={view} variant="outline" size="sm" onClick={() => navigate(view)}>{label}</Button>)}</div>
     </div>
-    <div className="border-t p-4"><Button variant="outline" className="w-full" onClick={() => setView('settings')}><Settings2 className="h-4 w-4" />配置自己的 API</Button><p className="mt-2 text-xs leading-relaxed text-muted-foreground">真实调用由你的模型账户计费。Key 仅保存在此浏览器的独立演示设置中，直连接口需支持 CORS。</p></div>
+    <div className="border-t p-4"><Button variant="outline" className="w-full" onClick={() => navigate('settings')}><Settings2 className="h-4 w-4" />配置自己的 API</Button><p className="mt-2 text-xs leading-relaxed text-muted-foreground">真实调用由你的模型账户计费。Key 仅保存在此浏览器的独立演示设置中，直连接口需支持 CORS。</p></div>
   </aside>;
 }

@@ -95,9 +95,9 @@ export function OutlineView() {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="outline-workspace flex min-h-0 flex-col h-full">
       {/* 小说信息区 - 可编辑 */}
-      <div className="px-4 py-3 border-b bg-muted/20">
+      <div className="outline-overview shrink-0 px-4 py-3 border-b bg-muted/20">
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <h2 className="font-semibold text-lg">{currentNovel?.title || '未命名小说'}</h2>
@@ -169,7 +169,7 @@ export function OutlineView() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center px-4 py-2 border-b bg-muted/30">
+      <div className="flex shrink-0 items-center px-4 py-2 border-b bg-muted/30">
         <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)} className="w-auto">
           <TabsList className="h-8">
             <TabsTrigger value="chapters" className="px-3 text-xs">
@@ -185,7 +185,7 @@ export function OutlineView() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
         {viewMode === 'chapters' && (
           <ChapterOutline
             onEditCard={setEditingCard}
