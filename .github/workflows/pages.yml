@@ -48,6 +48,8 @@ jobs:
           npm run test:reference
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:board
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:selection
           exit $LASTEXITCODE
       - name: Install browser for shared-feature regression
         run: npx playwright install --with-deps chromium

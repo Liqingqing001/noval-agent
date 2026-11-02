@@ -9,6 +9,7 @@ import { charactersApi } from '@/api/characters';
 import { worldSettingsApi } from '@/api/worldSettings';
 import { plotCardsApi } from '@/api/plotCards';
 import { foreshadowingsApi } from '@/api/foreshadowings';
+import { resolveChapter } from '@/lib/chapterSelection';
 import { outlineProgressUpdates } from '@/lib/outlineProgress';
 import { remapCharacterBoards, removeCharacterFromBoards } from '@/stores/characterBoardStore';
 
@@ -16,6 +17,7 @@ interface NovelState {
   // Current selection
   currentNovelId: string | null;
   currentChapterId: string | null;
+  lastReadChapterIds: Record<string, string>;
   currentView: ViewType;
 
   // Data
@@ -116,6 +118,7 @@ export const useNovelStore = create<NovelState>()(
       // Initial state
       currentNovelId: null,
       currentChapterId: null,
+      lastReadChapterIds: {},
       currentView: 'chapters',
       novels: [],
       chapters: [],
@@ -126,13 +129,21 @@ export const useNovelStore = create<NovelState>()(
       foreshadowings: [],
 
       // Selection actions
-      setCurrentNovel: (id) => set({ currentNovelId: id, currentChapterId: null }),
-      setCurrentChapter: (id) => set({ currentChapterId: id }),
+      setCurrentNovel: (id) => set(state => {
+        const memory = { ...state.lastReadChapterIds };
+        if (state.currentNovelId && state.chapters.some(c => c.id === state.currentChapterId && c.novelId === state.currentNovelId)) memory[state.currentNovelId] = state.currentChapterId!;
+        return { lastReadChapterIds: memory, currentNovelId: id, currentChapterId: resolveChapter(state.chapters, id, id ? memory[id] : null, state.novels.find(n => n.id === id)?.lastOpenedChapterId) };
+      }),
+      setCurrentChapter: (id) => set(state => {
+        const chapter = state.chapters.find(c => c.id === id && c.novelId === state.currentNovelId);
+        if (id && !chapter) return {};
+        return { currentChapterId: id, lastReadChapterIds: chapter ? { ...state.lastReadChapterIds, [chapter.novelId]: chapter.id } : state.lastReadChapterIds };
+      }),
       setCurrentView: (view) => set({ currentView: view }),
 
       // 批量替换（用于从后端拉取数据后填充）
       setNovels: (novels) => set({ novels }),
-      setChapters: (chapters) => set({ chapters }),
+      setChapters: (chapters) => set(state => ({ chapters, currentChapterId: resolveChapter(chapters, state.currentNovelId, state.currentNovelId ? state.lastReadChapterIds[state.currentNovelId] : null, state.currentChapterId, state.novels.find(n => n.id === state.currentNovelId)?.lastOpenedChapterId) })),
       setCharacters: (characters) => set({ characters }),
       setWorldSettings: (worldSettings) => set({ worldSettings }),
       setPlotCards: (plotCards) => set({ plotCards }),
@@ -151,6 +162,7 @@ export const useNovelStore = create<NovelState>()(
           sessions: [],
           currentNovelId: null,
           currentChapterId: null,
+          lastReadChapterIds: {},
         }),
 
       // Novel actions
@@ -180,6 +192,7 @@ export const useNovelStore = create<NovelState>()(
             set((state) => ({
               novels: state.novels.map((n) => (n.id === newNovel.id ? mapped : n)),
               currentNovelId: state.currentNovelId === newNovel.id ? mapped.id : state.currentNovelId,
+              lastReadChapterIds: Object.fromEntries(Object.entries(state.lastReadChapterIds).map(([id, chapterId]) => [id === newNovel.id ? mapped.id : id, chapterId])),
             }));
           }).catch((err) => console.error('云端创建小说失败:', err));
         }
@@ -200,6 +213,7 @@ export const useNovelStore = create<NovelState>()(
       deleteNovel: (id) => {
         set((state) => ({
           novels: state.novels.filter((n) => n.id !== id),
+          lastReadChapterIds: Object.fromEntries(Object.entries(state.lastReadChapterIds).filter(([novelId]) => novelId !== id)),
           chapters: state.chapters.filter((c) => c.novelId !== id),
           characters: state.characters.filter((c) => c.novelId !== id),
           worldSettings: state.worldSettings.filter((w) => w.novelId !== id),
@@ -232,7 +246,7 @@ export const useNovelStore = create<NovelState>()(
           const updatedNovels = state.novels.map(n =>
             n.id === chapter.novelId ? { ...n, wordCount: novelWordCount } : n
           );
-          return { chapters: newChapters, novels: updatedNovels };
+          return { chapters: newChapters, novels: updatedNovels, currentChapterId: state.currentNovelId === chapter.novelId && !state.currentChapterId ? resolveChapter(newChapters, chapter.novelId, state.lastReadChapterIds[chapter.novelId]) : state.currentChapterId };
         });
         get().reconcileOutlineProgress(chapter.novelId);
         if (isCloudEnabled() && !chapter.novelId.startsWith('temp-')) {
@@ -252,6 +266,7 @@ export const useNovelStore = create<NovelState>()(
               chapters: state.chapters.map((c) => c.id === newChapter.id ? mapped : c),
               plotCards: state.plotCards.map(card => card.chapterId === newChapter.id ? { ...card, chapterId: mapped.id } : card),
               currentChapterId: state.currentChapterId === newChapter.id ? mapped.id : state.currentChapterId,
+              lastReadChapterIds: Object.fromEntries(Object.entries(state.lastReadChapterIds).map(([novelId, id]) => [novelId, id === newChapter.id ? mapped.id : id])),
             }));
             linkedCards.forEach(card => get().updatePlotCard(card.id, { chapterId: mapped.id }));
             get().updateChapter(mapped.id, { title: mapped.title, content: mapped.content, wordCount: mapped.wordCount, sequence: mapped.sequence });
@@ -300,7 +315,8 @@ export const useNovelStore = create<NovelState>()(
             return {
               chapters: newChapters,
               novels: updatedNovels,
-              currentChapterId: state.currentChapterId === id ? null : state.currentChapterId
+              lastReadChapterIds: Object.fromEntries(Object.entries(state.lastReadChapterIds).filter(([, chapterId]) => chapterId !== id)),
+              currentChapterId: state.currentChapterId === id ? resolveChapter(newChapters, state.currentNovelId) : state.currentChapterId
             };
           }
           return { chapters: newChapters };
@@ -571,8 +587,16 @@ export const useNovelStore = create<NovelState>()(
         foreshadowings: state.foreshadowings,
         currentNovelId: state.currentNovelId,
         currentChapterId: state.currentChapterId,
+        lastReadChapterIds: state.lastReadChapterIds,
         currentView: state.currentView,
       }),
+      merge: (persistedState, currentState) => {
+        const state = { ...currentState, ...(persistedState as Partial<NovelState>) };
+        const memory = Object.fromEntries(Object.entries(state.lastReadChapterIds || {}).filter(([, id]) => typeof id === 'string'));
+        const currentChapterId = resolveChapter(state.chapters, state.currentNovelId, state.currentChapterId, state.currentNovelId ? memory[state.currentNovelId] : null, state.novels.find(n => n.id === state.currentNovelId)?.lastOpenedChapterId);
+        if (state.currentNovelId && currentChapterId) memory[state.currentNovelId] = currentChapterId;
+        return { ...state, lastReadChapterIds: memory, currentChapterId };
+      },
       migrate: (persistedState: any) => {
         const state = persistedState as Partial<NovelState>;
         return {

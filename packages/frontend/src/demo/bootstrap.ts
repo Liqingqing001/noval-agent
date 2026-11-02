@@ -12,6 +12,7 @@ export async function initializeDemo(reset = false): Promise<void> {
     novels: data.novels as Novel[], chapters: data.chapters as Chapter[],
     characters: data.characters as Character[], worldSettings: data.worldSettings as WorldSetting[],
     plotCards: data.plotCards as PlotCard[], foreshadowings: data.foreshadowings as Foreshadowing[], sessions: [],
+    lastReadChapterIds: {},
     currentNovelId: data.novels[0].id, currentChapterId: data.chapters[0]?.id || null, currentView: 'chapters',
   });
   localStorage.setItem(seedKey, 'true');

@@ -24,7 +24,8 @@
     "db:generate": "npm run prisma:generate --workspace=backend",
     "db:migrate": "npm run prisma:migrate --workspace=backend",
     "db:studio": "npm run prisma:studio --workspace=backend",
-    "db:reset": "npm run prisma:reset --workspace=backend"
+    "db:reset": "npm run prisma:reset --workspace=backend",
+    "test:selection": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/chapterSelection.test.mjs"
   },
   "devDependencies": {
     "playwright": "1.62.1",
