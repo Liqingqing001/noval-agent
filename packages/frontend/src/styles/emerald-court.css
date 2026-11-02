@@ -1,0 +1,109 @@
+/* Emerald Court: CSS lace and botanical ornament; no remote fonts or image requests. */
+:root {
+  --background: 48 38% 96%;
+  --foreground: 151 30% 19%;
+  --card: 48 65% 99%;
+  --card-foreground: 151 30% 19%;
+  --primary: 151 39% 28%;
+  --secondary: 139 24% 92%;
+  --secondary-foreground: 151 30% 27%;
+  --muted: 140 19% 90%;
+  --muted-foreground: 151 17% 39%;
+  --border: 139 20% 80%;
+  --input: 139 20% 80%;
+  --ring: 151 39% 28%;
+  --gold: 39 40% 51%;
+  --court-paper: 48 65% 99%;
+  --court-ink: 151 39% 28%;
+  --lace: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='22' viewBox='0 0 48 22'%3E%3Cpath d='M0 1h48M0 4Q12 27 24 4Q36 27 48 4M0 7Q12 30 24 7Q36 30 48 7' fill='none' stroke='%23b7c8ac' stroke-width='.8'/%3E%3Cpath d='M12 8v8m-4-4h8M36 8v8m-4-4h8' stroke='%23b7c8ac' stroke-width='.7'/%3E%3Ccircle cx='0' cy='5' r='1.6' fill='%23b19865'/%3E%3Ccircle cx='24' cy='5' r='1.6' fill='%23b19865'/%3E%3C/svg%3E");
+}
+.dark {
+  --background: 151 26% 9%; --foreground: 48 28% 91%;
+  --card: 151 23% 13%; --card-foreground: 48 28% 91%;
+  --primary: 139 31% 65%; --secondary: 151 20% 17%;
+  --secondary-foreground: 139 25% 82%; --muted: 151 18% 18%;
+  --muted-foreground: 139 16% 69%; --border: 145 17% 29%;
+  --input: 145 17% 29%; --ring: 139 31% 65%;
+  --court-paper: 151 23% 13%; --court-ink: 139 31% 65%;
+}
+.workspace-app {
+  font-family: 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
+  background-image: radial-gradient(ellipse at 10% 0%, hsl(var(--primary) / .12), transparent 50%);
+}
+.workspace-app :is(h1, h2), .court-brand {
+  font-family: 'Palatino Linotype', 'Songti SC', 'SimSun', serif;
+  letter-spacing: .055em;
+}
+.bookshelf, .chapter-directory, .workspace-assistant > div {
+  background-color: hsl(var(--background));
+  background-image: radial-gradient(hsl(var(--gold) / .1) .7px, transparent .8px);
+  background-size: 12px 12px;
+}
+.bookshelf > :first-child {
+  position: relative; isolation: isolate; padding-top: 26px; padding-bottom: 29px;
+  color: #fff9e8;
+  background: linear-gradient(145deg, #325e49, #193e30);
+  border-bottom: 3px double #b9a16c;
+  box-shadow: inset 0 5px 0 #234a37, inset 0 6px 0 #b9a16c;
+}
+.bookshelf > :first-child :is(h2, p, svg) { color: inherit; }
+.bookshelf > :first-child > div > div:first-child { background: #fff9e8; color: #315740; border: 3px double #b9a16c; border-radius: 50% 50% 35% 35%; }
+.court-brand { display: block; margin-bottom: 5px; color: #ddc68f; font-size: 8px; letter-spacing: .19em; }
+.bookshelf > :first-child > button { background: #fff9e8; color: #315740; border: 1px solid #b9a16c; }
+.bookshelf > :first-child::after, .manuscript-header::after, .workspace-assistant > div > .border-b:first-child::after {
+  content: ''; display: block; height: 22px; background: var(--lace) repeat-x left top;
+  pointer-events: none;
+}
+.bookshelf > :first-child::after { position: absolute; bottom: -22px; left: 0; right: 0; z-index: -1; }
+.bookshelf > .overflow-y-auto { padding-top: 30px; }
+.shelf-book {
+  border: 1px solid hsl(var(--gold) / .45); border-radius: 18px 18px 7px 7px;
+  background: hsl(var(--court-paper));
+  box-shadow: inset 0 0 0 3px hsl(var(--court-paper)), inset 0 0 0 4px hsl(var(--gold) / .2), 0 4px 12px hsl(var(--primary) / .06);
+}
+.shelf-book.is-selected { border-color: hsl(var(--primary) / .55); background: linear-gradient(135deg, hsl(var(--court-paper)), hsl(var(--secondary))); box-shadow: inset 0 0 0 3px hsl(var(--court-paper)), inset 0 0 0 4px hsl(var(--gold) / .4), 0 5px 14px hsl(var(--primary) / .1); }
+.book-cover-placeholder { border: 3px double hsl(var(--gold) / .7); border-radius: 24px 24px 5px 5px; }
+.bookshelf nav, .bookshelf > .border-t { background: hsl(var(--court-paper) / .8); border-top: 3px double hsl(var(--gold) / .4); }
+.workspace-divider { background: hsl(var(--gold) / .3); }
+.manuscript-header { background: hsl(var(--court-paper)); border-bottom: none; }
+.manuscript-heading { padding-top: 20px; padding-bottom: 12px; }
+.manuscript-title h1 { color: hsl(var(--court-ink)); background: none; -webkit-text-fill-color: currentColor; }
+.manuscript-header::after { margin-top: 4px; }
+.tag-creative { border: 1px solid hsl(var(--gold) / .35); border-radius: 5px 14px 5px 14px; letter-spacing: .04em; }
+.chapter-directory > :first-child { border-bottom: 3px double hsl(var(--gold) / .45); }
+.chapter-entry { border-radius: 12px 3px 12px 3px; }
+.chapter-entry:has([aria-current="page"]) { background: hsl(var(--primary) / .09); border-color: hsl(var(--gold) / .45); }
+.manuscript-background {
+  background-color: hsl(var(--secondary));
+  background-image: repeating-linear-gradient(90deg, transparent 0 22px, hsl(var(--primary) / .025) 22px 23px);
+}
+.workspace-content .manuscript-page {
+  position: relative; border: 1px solid hsl(var(--gold) / .45); border-radius: 32px 32px 8px 8px;
+  background: hsl(var(--court-paper));
+  box-shadow: 0 8px 28px hsl(var(--primary) / .06), inset 0 0 0 5px hsl(var(--court-paper)), inset 0 0 0 6px hsl(var(--gold) / .24);
+  padding-top: 54px;
+}
+.manuscript-page::before {
+  content: '❧'; position: absolute; top: 10px; left: 0; right: 0; text-align: center;
+  color: hsl(var(--gold)); font: 27px Georgia, serif; pointer-events: none;
+}
+.manuscript-page > input { color: hsl(var(--court-ink)); font-family: 'SimSun', serif; letter-spacing: .05em; }
+.editor-toolbar { background: hsl(var(--court-paper)) !important; border-bottom: 3px double hsl(var(--gold) / .3); }
+.workspace-assistant > div > .border-b:first-child { flex-wrap: wrap; background: hsl(var(--court-paper)); gap: 8px; }
+.workspace-assistant > div > .border-b:first-child::after { flex-basis: 100%; margin-bottom: -16px; }
+.workspace-app :is(button, input, textarea, select):focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+.workspace-app button.bg-primary { background-image: linear-gradient(145deg, hsl(var(--primary)), hsl(151 39% 22%)); border: 1px solid hsl(var(--gold) / .55); box-shadow: inset 0 1px 0 #ffffff28, 0 2px 5px #173c2720; }
+.dark .workspace-app button.bg-primary { background-image: none; }
+.workspace-app :is(input:not([type="checkbox"]):not([type="file"]), textarea, select) { border-color: hsl(var(--gold) / .4); }
+.workspace-content :is(section.rounded-xl, details.rounded-lg) { border: 1px solid hsl(var(--gold) / .4); background-color: hsl(var(--court-paper)); box-shadow: 0 3px 12px hsl(var(--primary) / .04); }
+.demo-banner { background: hsl(var(--secondary)); border-bottom: 1px solid hsl(var(--gold) / .4); }
+.workspace-mobile-nav { border-top: 3px double hsl(var(--gold) / .5); background: hsl(var(--court-paper)); }
+.workspace-mobile-nav button[aria-current="page"] { box-shadow: inset 0 3px 0 hsl(var(--gold) / .65); }
+@media (max-width: 767px) {
+  .manuscript-heading { padding-top: 12px; padding-bottom: 8px; }
+  .workspace-content .manuscript-page { border-radius: 22px 22px 6px 6px; padding-top: 42px; }
+  .manuscript-header::after { height: 17px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-app *, .workspace-app *::before, .workspace-app *::after { animation: none !important; transition: none !important; }
+}

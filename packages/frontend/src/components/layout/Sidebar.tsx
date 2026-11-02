@@ -118,7 +118,7 @@ export function Sidebar({ currentView, onLogout, onNavigate }: SidebarProps) {
           <div className="w-8 h-8 rounded-xl border border-border bg-background flex items-center justify-center shadow-sm">
             <BookOpen className="h-4 w-4 text-foreground" />
           </div>
-          <div><h2 className="text-sm font-semibold text-foreground">我的书架</h2><p className="mt-0.5 text-[11px] text-muted-foreground">{novels.length} 部作品 · 让故事生长</p></div>
+          <div><span className="court-brand" aria-hidden="true">EMERALD ATELIER</span><h2 className="text-sm font-semibold text-foreground">我的书架</h2><p className="mt-0.5 text-[11px] text-muted-foreground">{novels.length} 部作品 · 让故事生长</p></div>
         </div>
         <Button
           variant="ghost"

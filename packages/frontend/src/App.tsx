@@ -14,6 +14,7 @@ import { isModelConfigured } from '@/lib/modelConfig';
 import { BookOpen, Library, Bot } from 'lucide-react';
 import { flushActiveEditor } from '@/lib/editorEvents';
 import '@/styles/workspace.css';
+import '@/styles/emerald-court.css';
 
 const DemoAssistant = lazy(() => import('@/demo/DemoAssistant').then(module => ({ default: module.DemoAssistant })));
 
