@@ -7,6 +7,7 @@
     "packages/*"
   ],
   "scripts": {
+    "test:board": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/characterBoard.test.mjs",
     "test:reference": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/referenceCreation.test.mjs",
     "test:progress": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/outlineProgress.test.mjs",
     "test:writing": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/writingContext.test.mjs",

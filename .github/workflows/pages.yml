@@ -46,6 +46,8 @@ jobs:
           npm run test:progress
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:reference
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:board
           exit $LASTEXITCODE
       - name: Install browser for shared-feature regression
         run: npx playwright install --with-deps chromium
@@ -60,6 +62,8 @@ jobs:
           node packages/frontend/tests/featureParity.browser.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node packages/frontend/tests/referenceCreation.browser.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node packages/frontend/tests/characterBoard.browser.cjs
           exit $LASTEXITCODE
         env:
           DATABASE_URL: file:./ci-unused.db
@@ -76,6 +80,8 @@ jobs:
           node packages/frontend/tests/featureParity.browser.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node packages/frontend/tests/referenceCreation.browser.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node packages/frontend/tests/characterBoard.browser.cjs
           exit $LASTEXITCODE
         env:
           PARITY_MODE: demo

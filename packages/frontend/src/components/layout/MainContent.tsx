@@ -13,6 +13,7 @@ import type { ViewType, Character, WorldSetting } from '@/types';
 
 const STORAGE_KEY_CHAPTER_LIST = 'novel-agent-chapter-list-width';
 const ReferenceWorkbench = lazy(() => import('@/components/reference/ReferenceWorkbench').then(module => ({ default: module.ReferenceWorkbench })));
+const CharacterBoard = lazy(() => import('@/components/characters/CharacterBoard').then(module => ({ default: module.CharacterBoard })));
 
 const getDefaultChapterListWidth = () => {
   const saved = localStorage.getItem(STORAGE_KEY_CHAPTER_LIST);
@@ -203,6 +204,12 @@ const ROLE_CONFIG: Record<string, { label: string; color: string; icon: typeof S
 
 // 人物管理视图
 function CharactersView() {
+  const [mode, setMode] = useState<'board' | 'list'>('board');
+  const novelId = useNovelStore(state => state.currentNovelId);
+  return <div className="flex h-full min-h-0 flex-col"><div className="flex shrink-0 gap-2 border-b bg-card/70 px-4 py-2"><button className={`rounded-lg px-3 py-2 text-sm ${mode === 'board' ? 'bg-primary/10 text-primary' : ''}`} aria-pressed={mode === 'board'} onClick={() => { flushActiveEditor(); setMode('board'); }}>关系画布</button><button className={`rounded-lg px-3 py-2 text-sm ${mode === 'list' ? 'bg-primary/10 text-primary' : ''}`} aria-pressed={mode === 'list'} onClick={() => { flushActiveEditor(); setMode('list'); }}>人物列表</button></div><div className="min-h-0 flex-1">{mode === 'board' && novelId ? <Suspense fallback={<p className="p-4">正在载入人物画布…</p>}><CharacterBoard key={novelId} novelId={novelId} /></Suspense> : <CharacterListView />}</div></div>;
+}
+
+function CharacterListView() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);

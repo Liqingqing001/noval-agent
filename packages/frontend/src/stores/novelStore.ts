@@ -10,6 +10,7 @@ import { worldSettingsApi } from '@/api/worldSettings';
 import { plotCardsApi } from '@/api/plotCards';
 import { foreshadowingsApi } from '@/api/foreshadowings';
 import { outlineProgressUpdates } from '@/lib/outlineProgress';
+import { remapCharacterBoards, removeCharacterFromBoards } from '@/stores/characterBoardStore';
 
 interface NovelState {
   // Current selection
@@ -328,6 +329,7 @@ export const useNovelStore = create<NovelState>()(
               sequence: saved.sequence || 0,
             };
             set((state) => ({ characters: state.characters.map((c) => c.id === newCharacter.id ? mapped : c) }));
+            remapCharacterBoards(character.novelId, newCharacter.id, mapped.id);
           }).catch((err) => console.error('云端创建角色失败:', err));
         }
         return newCharacter;
@@ -342,7 +344,9 @@ export const useNovelStore = create<NovelState>()(
         }
       },
       deleteCharacter: (id) => {
+        const novelId = get().characters.find(character => character.id === id)?.novelId;
         set((state) => ({ characters: state.characters.filter((c) => c.id !== id) }));
+        if (novelId) removeCharacterFromBoards(novelId, id);
         if (isCloudEnabled() && !id.startsWith('temp-')) {
           charactersApi.remove(id).catch((err) => console.error('云端删除角色失败:', err));
         }
