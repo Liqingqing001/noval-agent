@@ -27,9 +27,11 @@
   --court-paper: 151 23% 13%; --court-ink: 139 31% 65%;
 }
 .workspace-app {
+  color: hsl(var(--foreground));
   font-family: 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
   background-image: radial-gradient(ellipse at 10% 0%, hsl(var(--primary) / .12), transparent 50%);
 }
+.dark .workspace-app { color-scheme: dark; }
 .workspace-app :is(h1, h2), .court-brand {
   font-family: 'Palatino Linotype', 'Songti SC', 'SimSun', serif;
   letter-spacing: .055em;
