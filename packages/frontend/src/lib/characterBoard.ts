@@ -10,14 +10,17 @@ export interface CharacterBoardData { version: 1; nodes: Record<string, Characte
 export const emptySnapshot = (): CharacterSnapshot => ({ life: 'unknown', location: '', condition: '', goal: '', inventory: '', notes: '', asOfChapterId: '' });
 export const emptyBoard = (): CharacterBoardData => ({ version: 1, nodes: {}, edges: [] });
 export const defaultPosition = (index: number, count = 16): BoardPoint => { const columns = Math.min(40, Math.max(4, Math.ceil(Math.sqrt(count)))); return { x: 100 + index % columns * 210, y: 90 + Math.floor(index / columns) * 190 }; };
-export const boundedPosition = (point: BoardPoint): BoardPoint => ({ x: Math.max(0, Math.min(20000, point.x)), y: Math.max(0, Math.min(20000, point.y)) });
+export const canvasPosition = (point: BoardPoint): BoardPoint => {
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) throw new Error('人物位置必须是有限坐标。');
+  return { x: point.x, y: point.y };
+};
 
 export function validateCharacterBoard(raw: unknown): CharacterBoardData {
   const data = raw as CharacterBoardData;
   if (!data || data.version !== 1 || !data.nodes || Array.isArray(data.nodes) || typeof data.nodes !== 'object' || !Array.isArray(data.edges) || data.edges.length > 5000 || Object.keys(data.nodes).length > 2000 || JSON.stringify(data).length > 8000000) throw new Error('人物画布数据无法识别，原记录未覆盖。');
   for (const node of Object.values(data.nodes)) {
     if (!node || typeof node !== 'object') throw new Error('人物节点格式错误。');
-    if (node.position && (!Number.isFinite(node.position.x) || !Number.isFinite(node.position.y) || node.position.x < 0 || node.position.x > 20000 || node.position.y < 0 || node.position.y > 20000)) throw new Error('人物位置超出画布范围。');
+    if (node.position) canvasPosition(node.position);
     if (node.avatar && (typeof node.avatar !== 'string' || !/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(node.avatar) || node.avatar.length > 100000)) throw new Error('头像格式或大小不支持。');
     if (node.state) {
       if (!['unknown', 'alive', 'dead', 'missing'].includes(node.state.life)) throw new Error('人物状态格式错误。');

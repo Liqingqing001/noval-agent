@@ -1,10 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { boundedPosition, defaultPosition, edgeGeometry, emptyBoard, emptySnapshot, remapBoardCharacter, validateCharacterBoard } from '../src/lib/characterBoard.ts';
+import { canvasPosition, defaultPosition, edgeGeometry, emptyBoard, emptySnapshot, remapBoardCharacter, validateCharacterBoard } from '../src/lib/characterBoard.ts';
 
-test('board positions are deterministic and constrained to the navigable world', () => {
+test('board positions retain negative and distant coordinates without a world boundary', () => {
   assert.deepEqual(defaultPosition(4), { x: 100, y: 280 });
-  assert.deepEqual(boundedPosition({ x: -500, y: 90000 }), { x: 0, y: 20000 });
+  assert.deepEqual(canvasPosition({ x: -500, y: 90000 }), { x: -500, y: 90000 });
+  for (const value of [NaN, Infinity, -Infinity]) assert.throws(() => canvasPosition({ x: value, y: 1 }), /坐标/);
+  const data = { ...emptyBoard(), nodes: { a: { position: { x: -95000, y: -120000 } } } };
+  assert.equal(validateCharacterBoard(data), data);
+  assert.ok(!edgeGeometry(data.nodes.a.position, { x: 30000, y: -2000 }).path.includes('NaN'));
 });
 test('empty and valid boards retain manual state, direction, notes and Unicode labels', () => {
   const data = emptyBoard();

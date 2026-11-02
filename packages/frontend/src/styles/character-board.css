@@ -14,3 +14,6 @@
 .character-board-expanded { position: fixed; inset: 0; z-index: 40; background: hsl(var(--background)); }
 .character-graph-node { z-index: 1; }
 .character-edge-label { z-index: 2; }
+
+.character-graph-node.is-link-source .character-avatar { outline: 3px dashed hsl(var(--primary)); outline-offset: 5px; }
+.character-link-hint { height: 2.5rem; overflow-y: auto; line-height: 1.25rem; }

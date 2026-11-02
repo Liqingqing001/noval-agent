@@ -7,7 +7,7 @@ import { CharacterEditor } from './CharacterEditor';
 import { useNovelStore } from '@/stores/novelStore';
 import { useAuthStore } from '@/stores/authStore';
 import { characterBoardStore } from '@/stores/characterBoardStore';
-import { boundedPosition, characterAvatar, defaultPosition, characterEdgePaths, emptySnapshot } from '@/lib/characterBoard';
+import { canvasPosition, characterAvatar, defaultPosition, edgeGeometry, characterEdgePaths, emptySnapshot } from '@/lib/characterBoard';
 import type { BoardPoint, CharacterEdge, CharacterSnapshot } from '@/lib/characterBoard';
 import type { Character } from '@/types';
 import { IS_DEMO } from '@/lib/runtime';
@@ -45,7 +45,14 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
   const viewport = useRef<HTMLDivElement>(null);
   const viewRef = useRef(view); viewRef.current = view;
   const positionsRef = useRef<Record<string, BoardPoint>>({});
-  const didDrag = useRef(false);
+  const [linkSource, setLinkSource] = useState<string | null>(null);
+  const [linkPoint, setLinkPoint] = useState<BoardPoint | null>(null);
+  const linkSourceRef = useRef<string | null>(null);
+  const pendingTap = useRef<{ id: string; at: number; x: number; y: number; timer: number } | null>(null);
+  const singleTapRef = useRef<(id: string) => void>(() => {});
+  const clearTap = () => { if (pendingTap.current) window.clearTimeout(pendingTap.current.timer); pendingTap.current = null; };
+  const cancelLink = () => { clearTap(); linkSourceRef.current = null; setLinkSource(null); setLinkPoint(null); };
+  useEffect(() => () => clearTap(), []);
   const pointer = useRef<{ pointerId: number; id?: string; x: number; y: number; origin: BoardPoint; moved: boolean; position?: BoardPoint } | null>(null);
   const touched = useRef(false);
   const current = characters.find(character => character.id === (selected && remaps[selected] || selected));
@@ -83,8 +90,11 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
   useEffect(() => { if (ready && !touched.current) fit(); }, [ready, characters.length, query]);
   useEffect(() => { if (selected && remaps[selected]) setSelected(remaps[selected]); else if (selected && !current) { setSelected(null); setDirty(false); } }, [selected, current, remaps]);
   useEffect(() => {
-    if (!expanded) return;
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !event.defaultPrevented && !edgeOpen && !profileOpen) { touched.current = false; setExpanded(false); } };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented || edgeOpen || profileOpen) return;
+      if (pendingTap.current || linkSourceRef.current) { event.preventDefault(); cancelLink(); }
+      else if (expanded) { touched.current = false; setExpanded(false); }
+    };
     window.addEventListener('keydown', escape);
     return () => window.removeEventListener('keydown', escape);
   }, [expanded, edgeOpen, profileOpen]);
@@ -92,12 +102,36 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
   const openCharacter = (id: string | null) => {
     if (dirty && !confirm('当前人物状态还没有保存，放弃本次编辑？')) return;
     setSelected(id); setState(id ? data.nodes[id]?.state || emptySnapshot() : emptySnapshot()); setDirty(false);
-    if (id && viewport.current) {
-      const point = positions[id];
-      const available = Math.max(160, viewport.current.clientWidth - (viewport.current.clientWidth > 700 ? 340 : 0));
-      setView(old => ({ ...old, x: available / 2 - (point.x + 60) * old.scale, y: viewport.current!.clientHeight / 2 - (point.y + 40) * old.scale }));
+    touched.current = true;
+    cancelLink();
+  };
+  const resolveId = (id: string) => store.getState().remaps[id] || id;
+  singleTapRef.current = id => {
+    id = resolveId(id);
+    if (!byId.has(id)) return;
+    const source = linkSourceRef.current && resolveId(linkSourceRef.current);
+    if (source && source !== id && byId.has(source)) {
+      cancelLink(); setEdge({ ...newEdge(), source, target: id }); setEdgeOpen(true);
+    } else if (source === id) cancelLink();
+    else {
+      linkSourceRef.current = id; setLinkSource(id);
+      setLinkPoint({ x: positions[id].x + 240, y: positions[id].y + 40 });
     }
   };
+  const tapCharacter = (id: string, x: number, y: number) => {
+    const previous = pendingTap.current;
+    if (previous && resolveId(previous.id) === resolveId(id) && performance.now() - previous.at < 340 && Math.hypot(x - previous.x, y - previous.y) < 24) {
+      clearTap(); openCharacter(resolveId(id)); return;
+    }
+    if (previous) { clearTap(); singleTapRef.current(previous.id); }
+    pendingTap.current = { id, x, y, at: performance.now(), timer: window.setTimeout(() => {
+      const tap = pendingTap.current; pendingTap.current = null;
+      if (tap) singleTapRef.current(tap.id);
+    }, 340) };
+  };
+  const sourceId = linkSource && resolveId(linkSource);
+  const preview = sourceId && positions[sourceId] && linkPoint ? edgeGeometry(positions[sourceId], { x: linkPoint.x - 60, y: linkPoint.y - 40 }) : null;
+  useEffect(() => { if (linkSourceRef.current && !byId.has(resolveId(linkSourceRef.current))) cancelLink(); }, [characters, remaps]);
   const saveState = async () => {
     if (!current) return;
     try { store.getState().editNode(current.id, { state }); await store.getState().flush(); setDirty(false); setNotice('人物状态已保存在当前浏览器，没有改写正文。'); }
@@ -134,9 +168,10 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
 
   return <div className={`character-board flex h-full min-h-0 flex-col ${expanded ? 'character-board-expanded' : ''}`}>
     <header className="shrink-0 border-b bg-card/80 px-4 py-3 space-y-2">
-      <div className="flex flex-wrap items-center gap-2"><h2 className="mr-auto font-semibold">人物关系画布</h2><Button size="sm" onClick={() => { setProfile(null); setProfileOpen(true); }}><Plus />添加人物</Button><Button size="sm" variant="outline" disabled={!ready || characters.length < 2} onClick={() => { const source = current?.id || characters[0]?.id || ''; setEdge({ ...newEdge(), source, target: characters.find(character => character.id !== source)?.id || '' }); setEdgeOpen(true); }}><Network />添加关系</Button></div>
+      <div className="flex flex-wrap items-center gap-2"><h2 className="mr-auto font-semibold">人物关系画布</h2><Button size="sm" onClick={() => { cancelLink(); setProfile(null); setProfileOpen(true); }}><Plus />添加人物</Button><Button size="sm" variant="outline" disabled={!ready || characters.length < 2} onClick={() => { cancelLink(); const source = current?.id || characters[0]?.id || ''; setEdge({ ...newEdge(), source, target: characters.find(character => character.id !== source)?.id || '' }); setEdgeOpen(true); }}><Network />添加关系</Button></div>
       <div className="flex flex-wrap items-center gap-2"><input aria-label="搜索画布人物" placeholder="搜索姓名或别名…" className={`${input} min-w-0 flex-1 basis-40`} value={query} onChange={event => { touched.current = false; setQuery(event.target.value); }} /><Button size="icon" variant="outline" aria-label="缩小画布" onClick={() => zoom(.8)}><Minus /></Button><span aria-label="画布缩放比例" className="w-12 text-center text-xs">{Math.round(view.scale * 100)}%</span><Button size="icon" variant="outline" aria-label="放大画布" onClick={() => zoom(1.25)}><Plus /></Button><Button size="icon" variant="outline" aria-label="适应画布" onClick={fit}><Maximize /></Button><Button size="icon" variant="outline" aria-label={expanded ? "收起人物画布" : "展开人物画布"} title={expanded ? "退出专注（Esc）" : "展开为专注画布"} onClick={() => { touched.current = false; setExpanded(value => !value); }}><Expand /></Button><Button size="sm" variant="outline" disabled={!ready} onClick={() => safe(() => { const nodes = Object.fromEntries(characters.map((character, index) => [character.id, { ...data.nodes[character.id], position: defaultPosition(index, characters.length) }])); store.getState().layout(nodes); touched.current = false; setTimeout(fit, 0); })}>自动排布</Button><Button size="icon" variant="outline" aria-label="导出人物关系与状态" title="导出人物关系与状态（JSON）" disabled={!ready} onClick={() => { const url = URL.createObjectURL(new Blob(['\uFEFF', JSON.stringify({ novelId, characters: characters.map(({ id, name }) => ({ id, name })), ...data, nodes: Object.fromEntries(Object.entries(data.nodes).filter(([id]) => byId.has(id))), edges: data.edges.filter(edge => byId.has(edge.source) && byId.has(edge.target)) }, null, 2)], { type: 'application/json;charset=utf-8' })); const anchor = document.createElement('a'); anchor.href = url; anchor.download = '人物关系与状态.json'; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }}><Download /></Button></div>
-      <p className="text-xs leading-relaxed text-muted-foreground">拖动头像移动人物，拖动空白平移，滚轮或 ± 缩放；点击头像查看档案，点击关系标签编辑。头像、布局、关系与状态仅保存在当前浏览器，不跨设备同步。</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">拖动头像移动人物，拖动空白平移，滚轮或 ± 缩放；单击头像连线，再点另一人物填写关系；双击查看档案，点击空白或 Esc 取消连线。头像、布局、关系与状态仅保存在当前浏览器，不跨设备同步。</p>
+      <div className="character-link-hint text-xs text-primary" aria-live="polite">{sourceId && byId.has(sourceId) ? <>已选起点「{byId.get(sourceId)?.name}」，单击另一人物添加箭头。<button className="ml-2 underline" onClick={cancelLink}>取消连线</button></> : '双击 / 连续点按两下查看人物；键盘 Enter 查看，空格选择连线。'}</div>
       {characters.length > 500 && <p className="text-xs text-muted-foreground">画布最多同时展示 500 位人物，可用搜索定位其他人物，或切换人物列表。</p>}<p role="status" className="text-xs text-muted-foreground">{!ready ? error || '正在加载画布…' : saving ? '正在保存画布…' : error ? '存在未保存改动' : `画布已就绪 · ${characters.length} 位人物 · ${data.edges.filter(edge => byId.has(edge.source) && byId.has(edge.target)).length} 条关系`}</p>
       {(notice || error) && <div role={error ? 'alert' : 'status'} className="text-sm leading-relaxed">{error || notice}{error && ready && <Button size="sm" variant="outline" onClick={() => safe(() => store.getState().retry())}>重试保存画布</Button>}</div>}
     </header>
@@ -144,20 +179,24 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
       <div ref={viewport} className="character-board-viewport absolute inset-0 overflow-hidden" aria-label="人物关系画布" onPointerDown={event => {
         if (!ready || pointer.current || event.button !== 0 || (event.target as HTMLElement).closest('[data-board-control]')) return;
         const id = (event.target as HTMLElement).closest<HTMLElement>('[data-character-node]')?.dataset.characterNode;
-        pointer.current = { pointerId: event.pointerId, id, x: event.clientX, y: event.clientY, origin: id ? positions[id] : { x: view.x, y: view.y }, moved: false }; didDrag.current = false;
+        pointer.current = { pointerId: event.pointerId, id, x: event.clientX, y: event.clientY, origin: id ? positions[id] : { x: view.x, y: view.y }, moved: false };
         event.currentTarget.setPointerCapture(event.pointerId);
       }} onPointerMove={event => {
+        if (linkSourceRef.current && viewport.current) {
+          const rect = viewport.current.getBoundingClientRect(), transform = viewRef.current;
+          setLinkPoint({ x: (event.clientX - rect.left - transform.x) / transform.scale, y: (event.clientY - rect.top - transform.y) / transform.scale });
+        }
         const active = pointer.current; if (!active || event.pointerId !== active.pointerId) return;
         const dx = event.clientX - active.x, dy = event.clientY - active.y;
         if (Math.hypot(dx, dy) < 4 && !active.moved) return;
-        active.moved = true; didDrag.current = true; touched.current = true;
-        if (active.id) { active.position = boundedPosition({ x: active.origin.x + dx / viewRef.current.scale, y: active.origin.y + dy / viewRef.current.scale }); setMoving({ [store.getState().remaps[active.id] || active.id]: active.position }); }
+        active.moved = true; clearTap(); touched.current = true;
+        if (active.id) { active.position = canvasPosition({ x: active.origin.x + dx / viewRef.current.scale, y: active.origin.y + dy / viewRef.current.scale }); setMoving({ [store.getState().remaps[active.id] || active.id]: active.position }); }
         else setView(old => ({ ...old, x: active.origin.x + dx, y: active.origin.y + dy }));
-      }} onPointerUp={event => { const active = pointer.current; if (!active || event.pointerId !== active.pointerId) return; if (active.id && !active.moved) openCharacter(active.id); finishPointer(); }} onPointerCancel={event => { if (pointer.current?.pointerId === event.pointerId) finishPointer(true); }} onLostPointerCapture={event => { if (pointer.current?.pointerId === event.pointerId) finishPointer(); }}>
+      }} onPointerUp={event => { const active = pointer.current; if (!active || event.pointerId !== active.pointerId) return; if (!active.moved) { if (active.id) tapCharacter(active.id, event.clientX, event.clientY); else cancelLink(); } finishPointer(); }} onPointerCancel={event => { if (pointer.current?.pointerId === event.pointerId) finishPointer(true); }} onLostPointerCapture={event => { if (pointer.current?.pointerId === event.pointerId) finishPointer(); }}>
         <div className="character-board-world" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}>
-          <svg width="21000" height="21000" className="pointer-events-none absolute left-0 top-0 overflow-visible" aria-hidden="true"><defs>{Object.entries(edgeColors).map(([kind, color]) => <marker key={kind} id={`character-arrow-${kind}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill={color} /></marker>)}</defs>{edgeViews.map(({ edge: item, ...geometry }) => { return <path key={item.id} d={geometry.path} fill="none" stroke={edgeColors[item.kind]} strokeWidth={selected && item.source !== selected && item.target !== selected ? 1.3 : 2.5} opacity={selected && item.source !== selected && item.target !== selected ? .25 : .8} markerEnd={item.directed ? `url(#character-arrow-${item.kind})` : undefined} />; })}</svg>
-          {edgeViews.map(({ edge: item, ...geometry }) => { return <button key={item.id} data-board-control className="character-edge-label" style={{ left: geometry.label.x, top: geometry.label.y, borderColor: edgeColors[item.kind], color: edgeColors[item.kind] }} aria-label={`编辑关系：${byId.get(item.source)?.name} ${item.label} ${byId.get(item.target)?.name}`} onClick={() => { setEdge(item); setEdgeOpen(true); }}>{item.label}</button>; })}
-          {visible.map(character => { const node = data.nodes[character.id]; return <button type="button" key={character.id} data-character-node={character.id} disabled={!ready} className={`character-graph-node ${selected === character.id ? 'is-selected' : ''}`} style={{ left: positions[character.id].x, top: positions[character.id].y }} aria-label={`查看人物：${character.name}`} onClick={event => { if (event.detail === 0) openCharacter(character.id); didDrag.current = false; }} onKeyDown={event => { const direction = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key]; if (direction) { event.preventDefault(); const step = event.shiftKey ? 40 : 10; safe(() => store.getState().editNode(character.id, { position: boundedPosition({ x: positions[character.id].x + direction[0] * step, y: positions[character.id].y + direction[1] * step }) })); } }}><span className="character-avatar">{node?.avatar ? <img src={node.avatar} alt="" draggable={false} /> : Array.from(character.name.trim()).slice(0, 2).join('')}</span><strong>{character.name}</strong><span className="text-[11px] text-muted-foreground">{roleNames[character.role || 'supporting']} · {lifeNames[node?.state?.life || 'unknown']}</span>{node?.state?.location && <span className="character-node-location">{node.state.location}</span>}</button>; })}
+          <svg width="1" height="1" className="pointer-events-none absolute left-0 top-0 overflow-visible" aria-hidden="true"><defs>{Object.entries(edgeColors).map(([kind, color]) => <marker key={kind} id={`character-arrow-${kind}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill={color} /></marker>)}</defs>{preview && <path data-link-preview d={preview.path} fill="none" stroke={edgeColors.other} strokeWidth="2.5" strokeDasharray="6 4" markerEnd="url(#character-arrow-other)" />}{edgeViews.map(({ edge: item, ...geometry }) => { return <path key={item.id} d={geometry.path} fill="none" stroke={edgeColors[item.kind]} strokeWidth={selected && item.source !== selected && item.target !== selected ? 1.3 : 2.5} opacity={selected && item.source !== selected && item.target !== selected ? .25 : .8} markerEnd={item.directed ? `url(#character-arrow-${item.kind})` : undefined} />; })}</svg>
+          {edgeViews.map(({ edge: item, ...geometry }) => { return <button key={item.id} data-board-control className="character-edge-label" style={{ left: geometry.label.x, top: geometry.label.y, borderColor: edgeColors[item.kind], color: edgeColors[item.kind] }} aria-label={`编辑关系：${byId.get(item.source)?.name} ${item.label} ${byId.get(item.target)?.name}`} onClick={() => { cancelLink(); setEdge(item); setEdgeOpen(true); }}>{item.label}</button>; })}
+          {visible.map(character => { const node = data.nodes[character.id]; return <button type="button" key={character.id} data-character-node={character.id} disabled={!ready} className={`character-graph-node ${selected === character.id ? 'is-selected' : ''} ${sourceId === character.id ? 'is-link-source' : ''}`} style={{ left: positions[character.id].x, top: positions[character.id].y }} aria-label={`查看人物：${character.name}`} title="单击连线，双击详情；Enter 查看，空格连线" aria-pressed={sourceId === character.id} onClick={event => { if (event.detail === 0) openCharacter(character.id); }} onKeyDown={event => { if (event.key === ' ') { event.preventDefault(); clearTap(); singleTapRef.current(character.id); return; } const direction = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key]; if (direction) { event.preventDefault(); const step = event.shiftKey ? 40 : 10; safe(() => store.getState().editNode(character.id, { position: canvasPosition({ x: positions[character.id].x + direction[0] * step, y: positions[character.id].y + direction[1] * step }) })); } }}><span className="character-avatar">{node?.avatar ? <img src={node.avatar} alt="" draggable={false} /> : Array.from(character.name.trim()).slice(0, 2).join('')}</span><strong>{character.name}</strong><span className="text-[11px] text-muted-foreground">{roleNames[character.role || 'supporting']} · {lifeNames[node?.state?.life || 'unknown']}</span>{node?.state?.location && <span className="character-node-location">{node.state.location}</span>}</button>; })}
         </div>
         {ready && !visible.length && <p className="pointer-events-none absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-muted-foreground">{characters.length ? '没有匹配的人物，清空搜索即可返回。' : '先添加人物，再为他们建立关系。'}</p>}
       </div>
