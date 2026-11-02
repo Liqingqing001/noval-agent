@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useStore } from 'zustand';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -12,7 +13,7 @@ import { IS_DEMO } from '@/lib/runtime';
 import { flushActiveEditor } from '@/lib/editorEvents';
 import { createNovelExport, downloadExport } from '@/lib/novelExport';
 import type { ExportFormat } from '@/lib/novelExport';
-import { countReferenceCharacters, decodeReferenceFile, parseReferenceSource, referenceAnalysisKey, referenceAnalysisReady, referenceBriefErrors, referenceContext, referenceCreationMessages, referenceDraftContext, referenceDraftWarnings, referenceExportData, referenceHash, referenceOverlap, referencePlainHtml } from '@/lib/referenceCreation';
+import { countReferenceCharacters, decodeReferenceFile, parseReferenceSource, parseReferenceReport, referenceAnalysisKey, referenceAnalysisReady, referenceBriefErrors, referenceContext, referenceCreationMessages, referenceDraftContext, referenceDraftWarnings, referenceExportData, referenceHash, referenceOverlap, referencePlainHtml } from '@/lib/referenceCreation';
 import { analyzeReference, referenceAnalysisPlan, referenceChapters, referenceProjectReady } from '@/lib/referenceAnalysis';
 import type { ReferenceProject } from '@/types/reference';
 
@@ -42,6 +43,14 @@ export function ReferenceWorkbench() {
   const [reportPage, setReportPage] = useState(0);
   const [batchConsent, setBatchConsent] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState('');
+  const [requestPhase, setRequestPhase] = useState('准备分析范围');
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!busy) return;
+    const start = Date.now(); setElapsed(0);
+    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [busy]);
   const chapters = useMemo(() => referenceChapters(parsed?.paragraphs || []), [parsed]);
   const planState = useMemo(() => {
     try { return project && parsed ? { plan: referenceAnalysisPlan(project, parsed), error: '' } : { plan: null, error: '' }; }
@@ -87,34 +96,43 @@ export function ReferenceWorkbench() {
   const run = async (stage: Stage, force = false) => {
     if (!project || job.current || busy || !ready) return;
     if (!configured) { setNotice('请先在设置中配置模型并保存启用；本工作台使用同一份 API 配置。'); return; }
-    const snapshot = structuredClone(project), controller = new AbortController();
+    // Project updates are immutable. Do not clone the entire book and all cached reports on click.
+    const snapshot = project, controller = new AbortController();
     const request = { controller, id: snapshot.id, stage }; job.current = request;
-    setBusy(stage); setLiveText(''); setUnsavedResult(''); setNotice('');
+    flushSync(() => { setBusy(stage); setLiveText(''); setUnsavedResult(''); setNotice(''); setAnalysisProgress(''); setRequestPhase('准备分析范围'); });
     let partial = '';
     try {
+      await new Promise<void>(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+      if (controller.signal.aborted) return;
+      const analysisPlan = planState.plan;
       const cacheKey = stage === 'analysis' ? await referenceAnalysisKey(snapshot, settings) : '';
-      if (stage === 'analysis' && !force && snapshot.analysisKey === cacheKey && referenceProjectReady(snapshot)) {
-        setTab('report'); setNotice('已复用这篇文章在相同模型与参数下的分析，没有新增调用。'); return;
+      if (stage === 'analysis' && !force && (snapshot.analysisKey === cacheKey || !snapshot.analysisKey && snapshot.analyzedModel?.startsWith('从保留结果恢复')) && referenceProjectReady(snapshot, parsed?.paragraphs.length)) {
+        setTab('report'); setNotice('已打开保存的完整分析，没有新增调用；需要新结果时使用「重新分析」。'); return;
       }
       if (stage !== 'analysis') {
-        if (!referenceProjectReady(snapshot)) throw new Error('请先完成当前所选范围的分析，并至少核验一条原文依据。');
+        if (!referenceProjectReady(snapshot, parsed?.paragraphs.length)) throw new Error('请先完成当前所选范围的分析，并至少核验一条原文依据。');
         const errors = referenceBriefErrors(snapshot.brief);
         if (errors.length) throw new Error(errors.join(' '));
         if (stage === 'draft' && (!snapshot.outline.trim() || snapshot.confirmedContext !== referenceContext(snapshot))) throw new Error('请先检查新提纲并勾选确认；修改主题或文风后需要重新确认。');
       }
-      if (stage === 'analysis' && referenceAnalysisPlan(snapshot).calls > 1 && !batchConsent) { setNotice('请先核对批次数、调用上限和预计消耗，并勾选批量调用确认。'); return; }
+      if (stage === 'analysis' && !analysisPlan) throw new Error(planState.error || '分析范围无效。');
+      if (stage === 'analysis' && analysisPlan!.calls > 1 && !batchConsent) { setNotice('请先核对批次数、调用上限和预计消耗，并勾选批量调用确认。'); return; }
       const generate = async (messages: Parameters<ModelService['generate']>[0]['messages']) => {
         partial = '';
+        setRequestPhase('连接模型服务');
+        let lastPaint = 0;
         const content = await new ModelService(settings).generate({ signal: controller.signal, messages,
-        onStream: text => { partial = text.slice(0, 100000); if (text.length > 100000) controller.abort(); if (mounted.current && job.current === request) setLiveText(partial); },
+        onProgress: phase => { if (mounted.current && job.current === request) setRequestPhase(({ connecting: '连接模型服务', waiting: '请求已发出，等待模型', reasoning: '模型推理中，尚未返回正文', streaming: '正在接收分析文字', 'non-streaming': '等待非流式完整结果' })[phase]); },
+        onStream: text => { partial = text.slice(0, 100000); if (text.length > 100000) controller.abort(); if (mounted.current && job.current === request && Date.now() - lastPaint >= 100) { lastPaint = Date.now(); setLiveText(partial); } },
         });
         if (controller.signal.aborted) throw new Error('请求已取消，返回文字仅作部分结果保留。');
         partial = content.slice(0, 100000);
+        if (mounted.current) { setLiveText(partial); setRequestPhase('校验结果并保存'); }
         if (content.length > 100000) throw new Error('单次返回超过处理范围，已保留前 10 万字符供检查，未作为完整结果保存。');
         return content;
       };
       if (stage === 'analysis') {
-        const report = await analyzeReference({ project: snapshot, key: cacheKey, force, signal: controller.signal, generate,
+        const report = await analyzeReference({ project: snapshot, key: cacheKey, force, signal: controller.signal, generate, plan: analysisPlan!,
           progress: message => { if (mounted.current) setAnalysisProgress(message); },
           saveCache: async (key, entry) => {
             const latest = workspace.getState().projects.find(item => item.id === snapshot.id);
@@ -123,11 +141,12 @@ export function ReferenceWorkbench() {
             await workspace.getState().flush();
           },
         });
-        workspace.getState().update(snapshot.id, { report, analyzedRange: referenceAnalysisPlan(snapshot).range, style: report.style, methods: report.methods, analysisKey: cacheKey, analyzedModel: settings.model, confirmedContext: undefined, lastAttempt: undefined });
+        if (!referenceAnalysisReady(report) && referenceAnalysisReady(snapshot.report)) throw new Error(`本次报告未完成，原有有效报告未覆盖：${report.issues?.join(' ') || '覆盖或引文核验不完整。'}`);
+        workspace.getState().update(snapshot.id, { report, analyzedRange: analysisPlan!.range, style: report.style, methods: report.methods, analysisKey: cacheKey, analyzedModel: settings.model, confirmedContext: undefined, lastAttempt: undefined });
         await workspace.getState().flush();
         setReportPage(0);
         setTab('report'); setExportKind('report');
-        setNotice(referenceAnalysisReady(report) ? '分析已保存。引文位置已核对，模型解读仍需人工判断。' : '分析范围或引文核验不完整，已保留部分报告；请检查后重新分析，暂不用于自动创作。');
+        setNotice(referenceAnalysisReady(report) ? '分析已保存。引文位置已核对，模型解读仍需人工判断。' : `已保留部分报告，暂不用于自动创作：${report.issues?.join(' ') || '段落覆盖或引文核验不完整。'}`);
       } else {
         const content = await generate(referenceCreationMessages(snapshot, stage));
         if (stage === 'outline') {
@@ -151,6 +170,17 @@ export function ReferenceWorkbench() {
       if (job.current === request) job.current = null;
       if (mounted.current) setBusy(null);
     }
+  };
+  const recoverAnalysis = async () => {
+    if (!project?.lastAttempt || project.lastAttempt.stage !== stageNames.analysis || busy || !planState.plan) return;
+    setBusy('import');
+    try {
+      const report = parseReferenceReport(project.lastAttempt.text, planState.plan.paragraphs);
+      if (!referenceAnalysisReady(report)) throw new Error(`保留结果尚不完整：${report.issues?.join(' ') || '未覆盖当前范围或引文未核验。'} 不会编造缺失内容，请选择原分析范围或重新分析。`);
+      workspace.getState().update(project.id, { report, analyzedRange: planState.plan.range, style: report.style, methods: report.methods, confirmedContext: undefined, analysisKey: undefined, analyzedModel: '从保留结果恢复（原请求模型未记录）' });
+      await workspace.getState().flush(); setTab('report'); setNotice('已重新解析保留结果，没有调用模型、没有新增 API 费用；请核对报告范围和内容。');
+    } catch (error) { setNotice(error instanceof Error ? error.message : '保留结果无法完整解析，原有结果仍保留。'); }
+    finally { setBusy(null); }
   };
   const exportContent = async () => {
     if (!project || busy) return;
@@ -197,7 +227,7 @@ export function ReferenceWorkbench() {
       {warning && <div role="alert" className="rounded-lg border p-3 text-sm">{warning}<Button variant="outline" className="mt-2" disabled={!ready || saving} onClick={() => { if (confirm('明确清空无法读取的参考工作台数据？这不会删除小说。')) safely(() => workspace.getState().resetUnreadable()); }}>清空无法读取的参考数据</Button></div>}
       {notice && <p role="status" className="rounded-lg border bg-primary/5 p-3 text-sm leading-relaxed break-words">{notice}</p>}
       {unsavedResult && <label className="block rounded-lg border p-3 text-sm">本次结果尚未保存，请先复制备份再离开<textarea aria-label="尚未保存的结果" readOnly className={`${control} mt-2 min-h-48`} value={unsavedResult} /></label>}
-      {busy && <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border p-3 text-sm"><span>{busy === 'import' ? '正在本机保存…' : busy === 'export' ? '正在生成文件…' : `${stageNames[busy]}中，已收到 ${liveText.length.toLocaleString()} 字符；完成后检查结果。`}</span>{job.current && <Button variant="outline" size="sm" onClick={() => job.current?.controller.abort()}>取消当前调用</Button>}</div>}
+      {busy && <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border p-3 text-sm"><span>{busy === 'import' ? '正在本机保存…' : busy === 'export' ? '正在生成文件…' : `${stageNames[busy]} · ${requestPhase} · 已等待 ${elapsed} 秒 · 已收到 ${liveText.length.toLocaleString()} 字符`}</span>{job.current && <Button variant="outline" size="sm" onClick={() => job.current?.controller.abort()}>取消当前调用</Button>}</div>}
       {analysisProgress && <p role="status" className="text-sm leading-relaxed">{analysisProgress}</p>}
       <fieldset disabled={Boolean(busy) || !ready || Boolean(warning)} className="min-w-0 space-y-5 disabled:opacity-75">
         <div className="flex flex-wrap gap-2"><select aria-label="已保存参考文" className={`${control} flex-1`} value={currentId || ''} onChange={event => safely(() => { workspace.getState().select(event.target.value || null); setTab('source'); })}><option value="">新建参考文</option>{projects.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select><Button variant="outline" onClick={() => safely(() => { workspace.getState().select(null); setSourceInput(''); setSourceTitle(''); })}>新参考文</Button>{project && <Button variant="outline" onClick={() => { if (confirm(`删除参考文《${project.title}》及其分析和独立草稿？已导入的小说章节保留。`)) safely(() => workspace.getState().remove(project.id)); }}>删除参考文</Button>}</div>
@@ -226,10 +256,10 @@ export function ReferenceWorkbench() {
           </div>
           <div role="group" aria-label="参考创作页签" className="flex flex-wrap gap-2">{([['source', '原文'], ['report', '分析报告'], ['style', '文风与方法卡'], ['create', '新主题创作']] as const).map(([id, label]) => <Button key={id} variant={tab === id ? 'default' : 'outline'} aria-pressed={tab === id} onClick={() => setTab(id)}>{label}</Button>)}</div>
           {tab === 'source' && <section className="space-y-3 rounded-xl border bg-card p-4"><h2 className="font-medium">原文（分页浏览，每页 60 个定位单元）</h2><div className="flex flex-wrap items-center gap-3 text-sm"><Button variant="outline" size="sm" disabled={sourcePage === 0} onClick={() => setSourcePage(page => page - 1)}>原文上一页</Button><span>第 {sourcePage + 1}/{Math.ceil(parsed!.paragraphs.length / 60)} 页</span><Button variant="outline" size="sm" disabled={(sourcePage + 1) * 60 >= parsed!.paragraphs.length} onClick={() => setSourcePage(page => page + 1)}>原文下一页</Button></div>{parsed?.paragraphs.slice(sourcePage * 60, (sourcePage + 1) * 60).map(paragraph => <div id={`reference-${paragraph.id}`} key={paragraph.id} className={`rounded-lg border p-3 ${focusParagraph === paragraph.id ? 'ring-2 ring-primary' : ''}`}><p className="mb-1 text-xs text-muted-foreground">{paragraph.id}</p><p className="whitespace-pre-wrap break-words text-sm leading-7">{paragraph.text}</p></div>)}</section>}
-          {tab === 'report' && (project.report ? <section className="space-y-4 rounded-xl border bg-card p-4"><h2 className="font-medium">文章分析报告</h2><p className="text-sm leading-7 break-words">{project.report.summary}</p><p className="text-sm leading-7 break-words">读者判断：{project.report.audience}</p><p className="text-xs text-muted-foreground">报告范围 P{project.analyzedRange?.from || 1}–P{project.analyzedRange?.to || parsed!.paragraphs.length}，已覆盖 {reportCount - project.report.missingParagraphs.length}/{reportCount} 段；引文位置核验 {project.report.evidence.filter(item => item.verified).length}/{project.report.evidence.length}。只核对引文是否位于原段落，不代表模型解释正确。</p>{!analysisReady && <p role="alert" className="text-sm text-amber-700">报告范围或依据不完整，暂不能用于自动创作。缺少段落：{project.report.missingParagraphs.join('、') || '无；请核查引文'}。</p>}
+          {tab === 'report' && (project.report ? <section className="space-y-4 rounded-xl border bg-card p-4"><h2 className="font-medium">文章分析报告</h2><p className="text-sm leading-7 break-words">{project.report.summary}</p><p className="text-sm leading-7 break-words">读者判断：{project.report.audience}</p><p className="text-xs text-muted-foreground">报告范围 P{project.analyzedRange?.from || 1}–P{project.analyzedRange?.to || parsed!.paragraphs.length}，已覆盖 {reportCount - project.report.missingParagraphs.length}/{reportCount} 段；引文位置核验 {project.report.evidence.filter(item => item.verified).length}/{project.report.evidence.length}。只核对引文是否位于原段落，不代表模型解释正确。</p>{!analysisReady && <p role="alert" className="text-sm text-amber-700">{project.report.issues?.join(" ")} 报告范围、文风卡或依据不完整，暂不能用于自动创作。缺少段落：{project.report.missingParagraphs.join('、') || '无；请核查引文'}。</p>}
             <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th className="border p-2">段落</th><th className="border p-2">作用</th><th className="border p-2">方法</th></tr></thead><tbody>{project.report.structure.slice(reportPage * 100, (reportPage + 1) * 100).map(item => <tr key={item.paragraphId}><td className="border p-2">{item.paragraphId}</td><td className="border p-2 break-words">{item.role}</td><td className="border p-2 break-words">{item.technique}</td></tr>)}</tbody></table></div><div className="flex flex-wrap items-center gap-3 text-sm"><Button variant="outline" size="sm" disabled={reportPage === 0} onClick={() => setReportPage(page => page - 1)}>结构上一页</Button><span>第 {reportPage + 1}/{Math.max(1, Math.ceil(project.report.structure.length / 100))} 页</span><Button variant="outline" size="sm" disabled={(reportPage + 1) * 100 >= project.report.structure.length} onClick={() => setReportPage(page => page + 1)}>结构下一页</Button></div>
             <h3 className="text-sm font-medium">依据与模型解读</h3>{project.report.evidence.map((item, index) => <div key={index} className="rounded-lg border p-3 text-sm leading-7 break-words"><p>{item.conclusion}</p><p className="text-muted-foreground">「{item.quote}」</p><Button size="sm" variant="outline" disabled={!item.verified} onClick={() => { setSourcePage(Math.floor(parsed!.paragraphs.findIndex(paragraph => paragraph.id === item.paragraphId) / 60)); setFocusParagraph(item.paragraphId); setTab('source'); }}>{item.verified ? `定位 ${item.paragraphId}` : '引文未核验，不作为原文依据'}</Button></div>)}{project.report.limitations.map((text, index) => <p key={index} className="text-xs leading-relaxed text-muted-foreground">{text}</p>)}</section> : <p className="text-sm text-muted-foreground">还没有分析报告，先点击「开始分析文章」。</p>)}
-          {tab === 'style' && <section className="space-y-4 rounded-xl border bg-card p-4"><h2 className="font-medium">可编辑文风与方法卡</h2><p className="text-xs leading-relaxed text-muted-foreground">保存通用语言和结构特征，用于新主题；不要保留原角色、原事件或长原句。修改卡片不会重跑分析，但会取消旧提纲的确认。</p><label className="block text-sm">文风卡<textarea aria-label="文风卡" className={`${control} mt-1 min-h-48`} maxLength={6000} value={project.style} onChange={event => creative({ style: event.target.value })} /></label><label className="block text-sm">结构方法卡<textarea aria-label="结构方法卡" className={`${control} mt-1 min-h-48`} maxLength={6000} value={project.methods} onChange={event => creative({ methods: event.target.value })} /></label></section>}
+          {tab === 'style' && <section className="space-y-4 rounded-xl border bg-card p-4"><h2 className="font-medium">可编辑文风与方法卡</h2><p className="text-xs leading-relaxed text-muted-foreground">保存通用语言和结构特征，用于新主题；不要保留原角色、原事件或长原句。修改卡片不会重跑分析，但会取消旧提纲的确认。</p><label className="block text-sm">文风卡<textarea aria-label="文风卡" className={`${control} mt-1 min-h-48`} maxLength={20000} value={project.style} onChange={event => creative({ style: event.target.value })} /></label><label className="block text-sm">结构方法卡<textarea aria-label="结构方法卡" className={`${control} mt-1 min-h-48`} maxLength={20000} value={project.methods} onChange={event => creative({ methods: event.target.value })} /></label></section>}
           {tab === 'create' && <section className="space-y-4 rounded-xl border bg-card p-4"><h2 className="font-medium">换主题，创作新文章或样章</h2>
             <label className="block text-sm">新主题 / 故事设定<input aria-label="新主题" className={`${control} mt-1`} maxLength={300} value={project.brief.topic} onChange={event => creative({ brief: { ...project.brief, topic: event.target.value } })} /></label>
             <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm">稿件标题<input aria-label="新稿标题" className={`${control} mt-1`} maxLength={120} value={project.brief.title} onChange={event => creative({ brief: { ...project.brief, title: event.target.value } })} /></label><label className="text-sm">目标读者<input aria-label="目标读者" className={`${control} mt-1`} maxLength={200} value={project.brief.audience} onChange={event => creative({ brief: { ...project.brief, audience: event.target.value } })} /></label></div>
@@ -243,7 +273,7 @@ export function ReferenceWorkbench() {
             <label className="block text-sm">新稿正文（可直接编辑）<textarea aria-label="新稿正文" className={`${control} mt-1 min-h-80 leading-7`} value={project.draft?.text || ''} onChange={event => update({ draft: { text: event.target.value, context: project.draft?.context || referenceDraftContext(project), model: project.draft?.model || '手动编辑', createdAt: project.draft?.createdAt || Date.now() } })} /></label>
             {project.draft && <><p className="text-xs text-muted-foreground">正文 {countReferenceCharacters(project.draft.text)} 个非空白字符 · {draftWarnings.length ? '待检查，未验收' : '检查通过，可导入作品'}</p>{draftWarnings.map(text => <p key={text} className="text-xs leading-relaxed text-amber-700">{text}</p>)}{overlaps.map((text, index) => <p key={index} className="break-words text-xs text-muted-foreground">重合片段：{text}</p>)}<Button variant="outline" onClick={() => update({ draft: { ...project.draft!, completedBy: 'manual', context: referenceDraftContext(project) } })}>确认编辑完成</Button><p className="text-xs text-muted-foreground">人工确认不会跳过长度、占位内容和字面重合检查；不代表事实或全网原创保证。</p></>}
           </section>}
-          {project.lastAttempt && <details className="rounded-lg border p-3 text-sm"><summary className="cursor-pointer">上次{project.lastAttempt.stage}未完成：{project.lastAttempt.error}</summary><p className="mt-2 text-xs text-muted-foreground">保留的部分文字不作为成功报告或完整新稿。原有已完成结果仍保留。</p><pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs">{project.lastAttempt.text || '未收到文字。'}</pre></details>}
+          {project.lastAttempt && <details className="rounded-lg border p-3 text-sm"><summary className="cursor-pointer">上次{project.lastAttempt.stage}未完成：{project.lastAttempt.error}</summary><p className="mt-2 text-xs text-muted-foreground">保留的部分文字不作为成功报告或完整新稿。原有已完成结果仍保留。</p>{project.lastAttempt.stage === "分析文章" && <Button variant="outline" disabled={Boolean(busy)} onClick={() => void recoverAnalysis()}>重新解析保留结果（不调用模型）</Button>}<pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs">{project.lastAttempt.text || '未收到文字。'}</pre></details>}
           <section className="space-y-3 rounded-xl border bg-card p-4"><h2 className="font-medium">导出与确认导入</h2><div className="flex flex-wrap gap-2"><select aria-label="参考导出内容" className={`${control} sm:w-auto`} value={exportKind} onChange={event => setExportKind(event.target.value as typeof exportKind)}><option value="draft">新稿正文</option><option value="report">分析报告与卡片</option></select><select aria-label="参考导出格式" className={`${control} sm:w-auto`} value={exportFormat} onChange={event => setExportFormat(event.target.value as ExportFormat)}><option value="docx">Word（宋体 / 黑体）</option><option value="md">Markdown</option><option value="txt">TXT</option></select><Button variant="outline" disabled={exportKind === 'draft' ? !project.draft?.text.trim() : !project.report} onClick={() => void exportContent()}>导出所选内容</Button><Button disabled={!project.draft?.text.trim() || Boolean(draftWarnings.length)} onClick={() => { setTargetNovelId(currentNovelId || novels[0]?.id || ''); setChapterTitle(project.brief.title || project.brief.topic); setImportOpen(true); }}>预览导入小说</Button></div><p className="text-xs leading-relaxed text-muted-foreground">新稿可独立编辑和导出，不必创建小说；未验收稿可导出保留，但不能直接导入。报告默认包含范围和短引用，新稿不附参考原文。导入只新增一章，不自动导入原作角色、大纲或世界观。</p></section>
         </>}
       </fieldset>

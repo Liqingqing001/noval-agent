@@ -2,6 +2,7 @@ export interface ReferenceParagraph { id: string; text: string; start: number; e
 export interface ReferenceMetrics { characters: number; paragraphs: number; sentences: number; averageSentence: number; averageParagraph: number }
 export interface ReferenceEvidence { paragraphId: string; quote: string; conclusion: string; verified: boolean }
 export interface ReferenceReport {
+  issues?: string[];
   summary: string; audience: string;
   structure: Array<{ paragraphId: string; role: string; technique: string }>;
   style: string; methods: string; limitations: string[];

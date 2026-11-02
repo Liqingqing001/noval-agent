@@ -59,6 +59,7 @@ const draft = '星光越过海面，新的观测记录在此展开。'.repeat(35
           });
           else if (input.summaries) content = JSON.stringify({ summary: '综合各批次后的叙事节奏与变化。', audience: '文本推断：小说读者', style: '克制、用细节推进。', methods: '设置悬念，推进，回应。', limitations: ['仅覆盖所选范围，模型判断可能有误。'] });
           else content = input.confirmedOutline ? draft + '\n【新稿结束】' : '先描绘海岛观测站，再写仪器故障，最后通过合作完成观测。';
+          if (responseMode === 'missing-card' && input.paragraphs) { const report = JSON.parse(content); delete report.style; content = JSON.stringify(report); }
           await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ choices: [{ message: { content }, finish_reason: 'stop' }] }) });
         });
         await page.route('**/api/**', async route => {
@@ -90,6 +91,18 @@ const draft = '星光越过海面，新的观测记录在此展开。'.repeat(35
         await page.getByRole('heading', { name: '参考创作', exact: true }).waitFor();
         assert.equal(await page.locator('#workspace-assistant').isVisible(), false);
         if (width < 1280) assert.equal(await button('AI 助手').count(), 0);
+        // Recover a complete legacy response rejected only because cards were objects, without a paid call.
+        await page.evaluate(async ({ key, source }) => {
+          const database = await new Promise(resolve => { const request = indexedDB.open('novel-agent-reference-library-v1', 1); request.onsuccess = () => resolve(request.result); });
+          const workspace = await new Promise(resolve => { const request = database.transaction('workspaces').objectStore('workspaces').get(key); request.onsuccess = () => resolve(request.result); });
+          workspace.projects[0].lastAttempt = { stage: '分析文章', error: '文风卡缺失或过长', at: Date.now(), text: JSON.stringify({ summary: '环境开场', audience: '文本推断', style: { 视角: '第三人称', 句式: ['短句', '长短交替'] }, methods: ['铺垫', '回应'], structure: source.split('\n\n').map((text, index) => ({ paragraphId: `P${index + 1}`, role: '描写', technique: '细节' })), evidence: [{ paragraphId: 'P1', quote: '清晨的雨落在窗台', conclusion: '环境开场' }], limitations: [] }) };
+          await new Promise((resolve, reject) => { const transaction = database.transaction('workspaces', 'readwrite'); transaction.objectStore('workspaces').put(workspace, key); transaction.oncomplete = resolve; transaction.onerror = reject; }); database.close();
+        }, { key: referenceKey, source });
+        await page.reload();
+        await page.locator('summary').filter({ hasText: '上次分析文章未完成' }).click();
+        await button('重新解析保留结果（不调用模型）').click(); await waitIdle();
+        assert.equal(requests.length, 0); assert.ok((await stored()).report.style.includes('视角：第三人称'));
+        await button('查看或复用分析').click(); await waitIdle(); assert.equal(requests.length, 0);
         await button('新参考文').click();
         assert.equal(await page.evaluate(key => localStorage.getItem(key), referenceKey), null);
         const before = await novelState();
@@ -168,7 +181,11 @@ const draft = '星光越过海面，新的观测记录在此展开。'.repeat(35
         responseMode = 'invalid'; await button('重新分析（再次调用）').click(); await waitIdle();
         assert.equal((await stored()).report.evidence[0].verified, true); assert.equal((await stored()).draft.text, draft);
         assert.ok((await stored()).lastAttempt.text.includes('summary'));
-        responseMode = 'delay'; await button('重新分析（再次调用）').click(); await button('取消当前调用').click(); await waitIdle();
+        responseMode = 'missing-card'; await button('重新分析（再次调用）').click(); await waitIdle();
+        assert.ok((await stored()).report.style); assert.ok((await stored()).lastAttempt.error.includes('未返回文风卡'));
+        responseMode = 'delay';
+        assert.equal(await button('重新分析（再次调用）').evaluate(element => { element.click(); return Boolean(document.querySelector('fieldset[disabled]')) && document.body.textContent.includes('准备分析范围'); }), true);
+        await button('取消当前调用').click(); await waitIdle();
         assert.equal((await stored()).draft.text, draft);
         await page.reload(); await button('新主题创作').waitFor(); await button('新主题创作').click();
         assert.equal(await page.getByLabel('新稿正文', { exact: true }).inputValue(), draft);
@@ -238,7 +255,7 @@ const draft = '星光越过海面，新的观测记录在此展开。'.repeat(35
         await page.waitForFunction(() => document.querySelector('textarea[aria-label="文风卡"]')?.value === '存储失败时保留在页面的文风卡');
         assert.equal(await page.getByLabel('结构方法卡', { exact: true }).inputValue(), '快速修改的最终版本');
         assert.equal((await novelState()).chapters.length, before.chapters.length + 1);
-        assert.equal((await readWorkspace()).projects.find(project => project.id === 'legacy-reference').style, '原有文风卡');
+        assert.ok((await readWorkspace()).projects.find(project => project.id === 'legacy-reference').style.includes('视角：第三人称'));
         // Corrupt IndexedDB records must not be silently replaced with an empty library.
         const healthyWorkspace = await readWorkspace();
         const writeWorkspace = data => page.evaluate(async ({ key, data }) => {

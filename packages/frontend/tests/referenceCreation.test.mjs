@@ -49,6 +49,29 @@ test('reports verify exact local quotes and mark incomplete scope instead of cla
   assert.throws(() => parseReferenceReport('{"summary":', paragraphs), /完整 JSON/);
 });
 
+test('cards accept text, lists, structured dimensions and aliases without dropping long content', () => {
+  const value = reportInput();
+  value.style = { 视角: '第三人称', 句式: ['短句为主', '长短交替'], 节奏: { 段长: '短段', 统计: 12 }, 未提供: null };
+  value.methods = ['先铺设', '再回应'];
+  const report = parseReferenceReport(JSON.stringify(value), paragraphs);
+  assert.ok(report.style.includes('视角：第三人称')); assert.ok(report.style.includes('长短交替'));
+  assert.ok(report.methods.includes('再回应')); assert.equal(referenceAnalysisReady(report), true);
+  delete value.style; value.styleCard = '文风'.repeat(3000);
+  assert.equal(parseReferenceReport(JSON.stringify(value), paragraphs).style.length, 6000);
+  value.styleCard = '文'.repeat(20001);
+  assert.throws(() => parseReferenceReport(JSON.stringify(value), paragraphs), /不会静默截断/);
+});
+
+test('missing cards retain usable structure as a partial report and cannot unlock creation', () => {
+  const value = reportInput(); delete value.style;
+  const report = parseReferenceReport(JSON.stringify(value), paragraphs);
+  assert.equal(report.structure.length, paragraphs.length); assert.equal(report.evidence[0].verified, true);
+  assert.equal(report.style, ''); assert.ok(report.issues[0].includes('未返回文风卡'));
+  assert.equal(referenceAnalysisReady(report), false);
+  value.style = { 视角: null };
+  assert.equal(referenceAnalysisReady(parseReferenceReport(JSON.stringify(value), paragraphs)), false);
+});
+
 test('generation sends only selected reusable cards and the new brief, never the source', () => {
   const project = makeProject(); project.source += '\n【角色】原作秘密角色【/角色】';
   for (const mode of ['both', 'style', 'structure']) {

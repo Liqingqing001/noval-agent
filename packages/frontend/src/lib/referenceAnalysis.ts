@@ -1,6 +1,6 @@
 import type { ChatMessage } from '@/services/modelService';
 import type { ReferenceCache, ReferenceParagraph, ReferenceProject, ReferenceRange, ReferenceReport, ReferenceSynthesis } from '@/types/reference';
-import { countReferenceCharacters, parseReferenceReport, parseReferenceSource, referenceAnalysisMessages, referenceAnalysisReady, referenceHash } from './referenceCreation';
+import { countReferenceCharacters, parseReferenceReport, parseReferenceSource, referenceAnalysisMessages, referenceAnalysisReady, referenceHash, referenceCardText } from './referenceCreation';
 
 export function referenceRange(project: ReferenceProject, paragraphs = parseReferenceSource(project.source).paragraphs): ReferenceRange {
   const range = project.selection || { from: 1, to: paragraphs.length };
@@ -50,7 +50,9 @@ function synthesisFields(raw: string): ReferenceSynthesis {
     return value[name].trim();
   };
   if (!Array.isArray(value.limitations) || value.limitations.length > 10 || value.limitations.some((item: unknown) => typeof item !== 'string' || item.length > 500)) throw new Error('汇总局限字段格式错误，请检查后继续。');
-  return { summary: read('summary', 1000), audience: read('audience', 500), style: read('style', 4000), methods: read('methods', 4000), limitations: value.limitations };
+  const style = referenceCardText(value.style ?? value.styleCard, '汇总文风卡'), methods = referenceCardText(value.methods ?? value.methodCard, '汇总方法卡');
+  if (!style || !methods) throw new Error('汇总未返回文风或方法卡，已有批次已保存，请检查后继续。');
+  return { summary: read('summary', 1000), audience: read('audience', 500), style, methods, limitations: value.limitations };
 }
 
 function mergeReports(reports: ReferenceReport[], synthesis: ReferenceSynthesis): ReferenceReport {
@@ -68,12 +70,13 @@ interface AnalysisOptions {
   generate: (messages: ChatMessage[]) => Promise<string>;
   saveCache: (key: string, value: ReferenceCache) => Promise<void>;
   progress: (message: string) => void;
+  plan?: ReturnType<typeof referenceAnalysisPlan>;
 }
 
 /** Foreground, sequential and resumable: a failed call never silently retries paid requests. */
 export async function analyzeReference(options: AnalysisOptions): Promise<ReferenceReport> {
   const { project, signal, force, generate, saveCache, progress } = options;
-  const plan = referenceAnalysisPlan(project);
+  const plan = options.plan || referenceAnalysisPlan(project);
   const ensureActive = () => { if (signal.aborted) throw new Error('分析已取消，已完成批次保留；再次点击可继续。'); };
   let nodes: Array<{ key: string; report: ReferenceReport }> = [];
   for (let index = 0; index < plan.chunks.length; index++) {
@@ -86,7 +89,7 @@ export async function analyzeReference(options: AnalysisOptions): Promise<Refere
     ensureActive();
     if (!referenceAnalysisReady(report)) {
       if (plan.chunks.length === 1) return report;
-      throw new Error(`批次 ${index + 1} 的段落覆盖或引文核验不完整。此前完成的批次已保留，请点击继续，不会自动重试。`);
+      throw new Error(`批次 ${index + 1} 未完成：${report.issues?.join(' ') || '段落覆盖或引文核验不完整。'} 此前完成的批次已保留，不会自动重试。`);
     }
     if (!cached) await saveCache(key, { report });
     nodes.push({ key, report });
