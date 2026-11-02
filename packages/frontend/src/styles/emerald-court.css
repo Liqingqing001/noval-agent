@@ -32,6 +32,9 @@
   background-image: radial-gradient(ellipse at 10% 0%, hsl(var(--primary) / .12), transparent 50%);
 }
 .dark .workspace-app { color-scheme: dark; }
+.dark .workspace-app button { color: hsl(var(--foreground)); }
+.dark .workspace-app button.bg-primary { color: hsl(var(--primary-foreground)); }
+.dark .workspace-app .bookshelf > :first-child > button { color: #315740; }
 .workspace-app :is(h1, h2), .court-brand {
   font-family: 'Palatino Linotype', 'Songti SC', 'SimSun', serif;
   letter-spacing: .055em;
