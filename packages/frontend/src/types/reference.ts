@@ -9,9 +9,14 @@ export interface ReferenceReport {
 }
 export interface ReferenceBrief { topic: string; audience: string; title: string; min: number; max: number; requirements: string; mode: 'both' | 'style' | 'structure' }
 export interface ReferenceDraft { text: string; context: string; completedBy?: 'model' | 'manual'; model: string; createdAt: number }
+export interface ReferenceRange { from: number; to: number }
+export type ReferenceSynthesis = Pick<ReferenceReport, 'summary' | 'audience' | 'style' | 'methods' | 'limitations'>;
+export interface ReferenceCache { report?: ReferenceReport; synthesis?: ReferenceSynthesis }
 export interface ReferenceProject {
   id: string; title: string; source: string; sourceHash: string; createdAt: number; updatedAt: number;
   report?: ReferenceReport; analysisKey?: string; analyzedModel?: string;
+  selection?: ReferenceRange; analyzedRange?: ReferenceRange;
+  analysisCache?: Record<string, ReferenceCache>;
   style: string; methods: string; brief: ReferenceBrief;
   outline: string; confirmedContext?: string; draft?: ReferenceDraft;
   lastAttempt?: { stage: string; text: string; error: string; at: number };

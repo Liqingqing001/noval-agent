@@ -30,8 +30,8 @@ const draft = '星光越过海面，新的观测记录在此展开。'.repeat(35
       const context = await browser.newContext({ viewport: { width, height: 1000 } });
       try {
         const data = structuredClone(fixture), requests = [], backendRequests = [], errors = [];
-        let responseMode = 'normal';
-        await context.addInitScript(({ fixture, isDemo }) => {
+        let responseMode = 'normal', failOnRequest = 0;
+        await context.addInitScript(({ fixture, isDemo, source }) => {
           if (sessionStorage.getItem('reference-test-initialized')) return;
           sessionStorage.setItem('reference-test-initialized', 'yes');
           const key = name => isDemo ? `${name}-demo-v1` : name;
@@ -39,22 +39,25 @@ const draft = '星光越过海面，新的观测记录在此展开。'.repeat(35
             apiProvider: 'custom', protocol: 'openai', baseUrl: 'https://model.example.test/v1', apiKey: 'TEST_PLACEHOLDER', authMode: 'bearer', model: 'test-model', temperature: .7, sendTemperature: false, maxTokens: 8192, timeoutSeconds: 30, tokenParameter: 'auto', stream: false, extraBody: '', extraHeaders: '', profiles: {},
           } }));
           localStorage.setItem(key('novel-agent-storage'), JSON.stringify({ state: { ...fixture, sessions: [], currentNovelId: null, currentChapterId: null, currentView: 'reference' } }));
+          localStorage.setItem(`${key('novel-agent-reference')}:${isDemo ? 'browser' : 'test-user'}`, JSON.stringify({ version: 1, currentId: 'legacy-reference', projects: [{ id: 'legacy-reference', title: '旧版参考资料', source, sourceHash: 'legacy-hash', createdAt: 1, updatedAt: 1, style: '原有文风卡', methods: '', brief: { topic: '', audience: '', title: '', requirements: '', min: 800, max: 1200, mode: 'both' }, outline: '', imports: [] }] }));
           if (!isDemo) {
             localStorage.setItem('novel-agent-migrated', 'true');
             localStorage.setItem('novel-agent-auth-token', 'TEST_PLACEHOLDER');
             localStorage.setItem('novel-agent-auth', JSON.stringify({ state: { isAuthenticated: true, user: { id: 'test-user', nickname: '测试用户', email: 'test@example.test' } } }));
           }
-        }, { fixture, isDemo });
+        }, { fixture, isDemo, source });
         const page = await context.newPage();
         page.on('pageerror', error => errors.push(error.message));
         await page.route('https://model.example.test/**', async route => {
           const payload = route.request().postDataJSON(); requests.push(payload);
+          if (requests.length === failOnRequest) { await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { message: '模拟批次服务中断' } }) }); return; }
           if (responseMode === 'delay') { await new Promise(resolve => setTimeout(resolve, 1000)); try { await route.abort(); } catch {} return; }
           let content;
           const input = JSON.parse(payload.messages[1].content);
           if (input.paragraphs) content = responseMode === 'invalid' ? '{"summary":' : JSON.stringify({
-            summary: '用环境细节建立安静的叙事节奏。', audience: '文本推断：日常故事读者。', style: '短句，第三人称，以物象承载情绪。', methods: '开场设问，经过转折，结尾回应。', structure: input.paragraphs.map(p => ({ paragraphId: p.id, role: '推进内容', technique: '环境描写' })), evidence: [{ paragraphId: 'P1', quote: '清晨的雨落在窗台', conclusion: '以环境开场。' }], limitations: ['仅依据所选文章，不代表真实阅读数据。'],
+            summary: '用环境细节建立安静的叙事节奏。', audience: '文本推断：日常故事读者。', style: '短句，第三人称，以物象承载情绪。', methods: '开场设问，经过转折，结尾回应。', structure: input.paragraphs.map(p => ({ paragraphId: p.id, role: '推进内容', technique: '环境描写' })), evidence: [{ paragraphId: input.paragraphs[0].id, quote: input.paragraphs[0].text.slice(0, 30), conclusion: '以环境开场。' }], limitations: ['仅依据所选文章，不代表真实阅读数据。'],
           });
+          else if (input.summaries) content = JSON.stringify({ summary: '综合各批次后的叙事节奏与变化。', audience: '文本推断：小说读者', style: '克制、用细节推进。', methods: '设置悬念，推进，回应。', limitations: ['仅覆盖所选范围，模型判断可能有误。'] });
           else content = input.confirmedOutline ? draft + '\n【新稿结束】' : '先描绘海岛观测站，再写仪器故障，最后通过合作完成观测。';
           await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ choices: [{ message: { content }, finish_reason: 'stop' }] }) });
         });
@@ -74,7 +77,12 @@ const draft = '星光越过海面，新的观测记录在此展开。'.repeat(35
           } else throw new Error(`Unexpected backend request: ${request.method()} ${path}`);
           await route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
         });
-        const stored = () => page.evaluate(key => JSON.parse(localStorage.getItem(key)).projects[0], referenceKey);
+        const readWorkspace = () => page.evaluate(async key => {
+          const database = await new Promise((resolve, reject) => { const request = indexedDB.open('novel-agent-reference-library-v1', 1); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+          try { return await new Promise((resolve, reject) => { const transaction = database.transaction('workspaces'); const request = transaction.objectStore('workspaces').get(key); transaction.oncomplete = () => resolve(request.result); transaction.onerror = () => reject(transaction.error); }); }
+          finally { database.close(); }
+        }, referenceKey);
+        const stored = async () => { const workspace = await readWorkspace(); return workspace.projects.find(project => project.id === workspace.currentId); };
         const novelState = () => page.evaluate(key => JSON.parse(localStorage.getItem(key)).state, key('novel-agent-storage'));
         const button = name => page.getByRole('button', { name, exact: true });
         const waitIdle = () => page.waitForFunction(() => !document.querySelector('fieldset[disabled]'));
@@ -82,6 +90,8 @@ const draft = '星光越过海面，新的观测记录在此展开。'.repeat(35
         await page.getByRole('heading', { name: '参考创作', exact: true }).waitFor();
         assert.equal(await page.locator('#workspace-assistant').isVisible(), false);
         if (width < 1280) assert.equal(await button('AI 助手').count(), 0);
+        await button('新参考文').click();
+        assert.equal(await page.evaluate(key => localStorage.getItem(key), referenceKey), null);
         const before = await novelState();
         // Both pasted and file input are usable. Import/save never calls the model.
         await page.getByLabel('参考原文输入', { exact: true }).fill(source);
@@ -163,12 +173,89 @@ const draft = '星光越过海面，新的观测记录在此展开。'.repeat(35
         await page.reload(); await button('新主题创作').waitFor(); await button('新主题创作').click();
         assert.equal(await page.getByLabel('新稿正文', { exact: true }).inputValue(), draft);
         assert.equal((await novelState()).chapters.length, before.chapters.length + 1);
+        // A whole book can be saved independently of analysis limits and the selected scope.
+        responseMode = 'normal';
+        const book = Array.from({ length: 10 }, (_, chapter) => [`第${chapter + 1}章 远海`, ...Array.from({ length: 20 }, (_, paragraph) => `第${chapter}-${paragraph}段：` + '海面上的微光映照着船舱，人物在不同的时刻作出选择。'.repeat(8))].join('\n\n')).join('\n\n');
+        assert.ok(Array.from(book).length > 20000);
+        await button('新参考文').click();
+        await page.getByLabel('选择参考文件', { exact: true }).setInputFiles({ name: '长篇小说.txt', mimeType: 'text/plain', buffer: Buffer.from(book) });
+        await page.waitForFunction(text => document.querySelector('textarea[aria-label="参考原文输入"]')?.value === text, book);
+        const initialCalls = requests.length;
+        await button('保存参考文（不调用模型）').click(); await waitIdle();
+        assert.equal(requests.length, initialCalls);
+        assert.equal((await stored()).source, book);
+        assert.equal(await page.locator('[id^="reference-P"]').count(), 60);
+        await button('原文下一页').click(); assert.ok(await page.locator('#reference-P61').isVisible());
+        await page.getByLabel('分析章节', { exact: true }).selectOption('1');
+        await button('开始分析文章').click(); await waitIdle();
+        assert.equal(requests.length, initialCalls + 1);
+        assert.ok(JSON.parse(requests.at(-1).messages[1].content).paragraphs.every(p => Number(p.id.slice(1)) >= 22 && Number(p.id.slice(1)) <= 42));
+        assert.deepEqual((await stored()).analyzedRange, { from: 22, to: 42 });
+        await button('分析完整作品').click();
+        const budget = Number((await page.getByText(/本次只发送 P/).textContent()).match(/最多 (\d+) 次模型调用/)[1]);
+        const beforeBlocked = requests.length;
+        await button('开始分析文章').click(); await waitIdle(); assert.equal(requests.length, beforeBlocked);
+        await page.getByLabel('确认批量分析费用', { exact: true }).check();
+        failOnRequest = requests.length + 2;
+        await button('开始分析文章').click(); await waitIdle();
+        assert.equal(requests.length, failOnRequest);
+        assert.ok((await stored()).lastAttempt.error);
+        assert.equal(Object.keys((await stored()).analysisCache).length, 2);
+        await page.reload(); await page.getByLabel('确认批量分析费用', { exact: true }).waitFor();
+        await page.getByLabel('确认批量分析费用', { exact: true }).check();
+        const beforeResume = requests.length;
+        await button('开始分析文章').click(); await waitIdle();
+        assert.equal(requests.length - beforeResume, budget - 1);
+        assert.equal((await stored()).report.structure.length, 210);
+        assert.deepEqual((await stored()).analyzedRange, { from: 1, to: 210 });
+        assert.equal(await page.locator('tbody tr').count(), 100);
+        await button('结构下一页').click(); assert.equal(await page.locator('tbody tr').count(), 100);
+        await page.getByRole('button', { name: /^定位 P/ }).last().click();
+        assert.ok(Number((await page.locator('[id^="reference-P"]').first().getAttribute('id')).split('-P')[1]) > 1);
+        await button('导出完整原文备份').click({ trial: true });
+        const backup = page.waitForEvent('download'); await button('导出完整原文备份').click();
+        assert.equal(readFileSync(await (await backup).path(), 'utf8').replace(/^\uFEFF/, ''), book);
+        await page.getByRole('button', { name: '分析报告', exact: true }).click();
+        await page.getByLabel('参考导出内容', { exact: true }).selectOption('report');
+        await page.getByLabel('参考导出格式', { exact: true }).selectOption('docx');
+        const longReport = page.waitForEvent('download'); await button('导出所选内容').click();
+        const longReportFile = await longReport;
+        if (process.env.REFERENCE_ARTIFACT_DIR) await longReportFile.saveAs(resolve(process.env.REFERENCE_ARTIFACT_DIR, `${mode}-${width}-长文分析报告.docx`));
+        await waitIdle();
+        // A failed IndexedDB write must remain visibly unsaved and be recoverable without dropping edits.
+        await page.evaluate(() => { window.originalReferenceTransaction = IDBDatabase.prototype.transaction; IDBDatabase.prototype.transaction = function(...args) { if (args[1] === 'readwrite') throw new DOMException('模拟空间不足', 'QuotaExceededError'); return window.originalReferenceTransaction.apply(this, args); }; });
+        await button('文风与方法卡').click(); await page.getByLabel('文风卡', { exact: true }).fill('存储失败时保留在页面的文风卡');
+        await page.getByRole('alert').filter({ hasText: '参考资料未保存' }).waitFor();
+        assert.equal(await page.getByLabel('文风卡', { exact: true }).inputValue(), '存储失败时保留在页面的文风卡');
+        await page.evaluate(() => { IDBDatabase.prototype.transaction = window.originalReferenceTransaction; });
+        await button('重试保存').click();
+        await page.getByRole('alert').filter({ hasText: '参考资料未保存' }).waitFor({ state: 'hidden' });
+        await page.getByRole('status').filter({ hasText: '参考资料库已就绪' }).waitFor();
+        await page.getByLabel('结构方法卡', { exact: true }).fill('快速修改的中间版本');
+        await page.getByLabel('结构方法卡', { exact: true }).fill('快速修改的最终版本');
+        await page.getByRole('status').filter({ hasText: '参考资料库已就绪' }).waitFor();
+        await page.reload(); await button('文风与方法卡').click();
+        await page.waitForFunction(() => document.querySelector('textarea[aria-label="文风卡"]')?.value === '存储失败时保留在页面的文风卡');
+        assert.equal(await page.getByLabel('结构方法卡', { exact: true }).inputValue(), '快速修改的最终版本');
+        assert.equal((await novelState()).chapters.length, before.chapters.length + 1);
+        assert.equal((await readWorkspace()).projects.find(project => project.id === 'legacy-reference').style, '原有文风卡');
+        // Corrupt IndexedDB records must not be silently replaced with an empty library.
+        const healthyWorkspace = await readWorkspace();
+        const writeWorkspace = data => page.evaluate(async ({ key, data }) => {
+          const database = await new Promise(resolve => { const request = indexedDB.open('novel-agent-reference-library-v1', 1); request.onsuccess = () => resolve(request.result); });
+          try { await new Promise((resolve, reject) => { const transaction = database.transaction('workspaces', 'readwrite'); transaction.objectStore('workspaces').put(data, key); transaction.oncomplete = resolve; transaction.onerror = () => reject(transaction.error); }); }
+          finally { database.close(); }
+        }, { key: referenceKey, data });
+        await writeWorkspace({ version: 999, projects: [] }); await page.reload();
+        await page.getByRole('alert').filter({ hasText: '参考资料无法读取' }).waitFor();
+        assert.equal((await readWorkspace()).version, 999);
+        await writeWorkspace(healthyWorkspace); await page.reload(); await button('文风与方法卡').click();
         if (isDemo) assert.deepEqual(backendRequests, []);
         assert.ok(!backendRequests.some(path => /\/api\/reference(?:[\/-]|$)/.test(path)));
         assert.deepEqual(errors, []);
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
         if (process.env.REFERENCE_ARTIFACT_DIR) await page.screenshot({ path: resolve(process.env.REFERENCE_ARTIFACT_DIR, `${mode}-${width}.png`), fullPage: true });
-        results.push(`${width}px: standalone source, analysis/evidence/cache, cards, outline confirmation, draft validation, three exports, non-overwrite/idempotent import, failure/cancel, reload`);
+        results.push(`${width}px: article workflow, legacy migration, long-book import, chapter scope, paged source/report, bounded batch consent, failure/resume without repeated calls, full backup, long Word report, IndexedDB quota recovery, reload`);
       } finally { await context.close(); }
     }
     console.log(JSON.stringify({ mode, url: base, results }));

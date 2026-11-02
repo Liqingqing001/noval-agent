@@ -7,4 +7,4 @@
 
 [演示模式与发布说明](docs/updates/2026-11-01-github-pages-demo.md)
 
-书架的「参考创作」支持粘贴 / TXT / Markdown → 分析结构与文风 → 换主题拟提纲 → 确认后写新稿 → 编辑导出。无需先选小说，使用自己在设置中配置的模型；参考资料与独立新稿保存在当前浏览器。[使用步骤与首版范围](docs/prd/reference-article-mvp.md) · [更新记录](docs/updates/2026-11-01-reference-article.md)
+书架的「参考创作」支持粘贴 / TXT / Markdown 完整导入最多 100 万字符的作品，选择章节或范围、分批分析与汇总文风结构，再换主题拟提纲、确认后写新稿并编辑导出。无需先选小说，使用自己配置的模型；参考资料、批次进度与独立新稿保存在当前浏览器，失败后可主动继续。[长文使用步骤与范围](docs/prd/reference-longform-v2.md) · [更新记录](docs/updates/2026-11-02-reference-longform.md)
