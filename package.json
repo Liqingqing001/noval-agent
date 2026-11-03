@@ -7,6 +7,8 @@
     "packages/*"
   ],
   "scripts": {
+    "book:build": "node scripts/build-book.mjs",
+    "test:book": "node scripts/build-book.mjs && node packages/frontend/tests/book.browser.cjs",
     "test:board": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/characterBoard.test.mjs",
     "test:reference": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/referenceCreation.test.mjs",
     "test:progress": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/outlineProgress.test.mjs",

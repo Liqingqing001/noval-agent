@@ -1,0 +1,330 @@
+{
+  "title": "潮汐替人记得",
+  "status": "完本",
+  "chapterCount": 40,
+  "hanCount": 60720,
+  "characterCount": 68780,
+  "countingRule": "逐章去掉标题后统计 Unicode Han 汉字；不计标点、空白、阿拉伯数字、大纲、设定及图片文字。",
+  "chapters": [
+    {
+      "id": "01",
+      "title": "第一章 没有人寄出的信",
+      "hanCount": 1993,
+      "characterCount": 2277,
+      "summary": "陈望的死者灯出现林汐声音，林雾带画像赴十七号闸，遇到沈砚。",
+      "sha256": "57b3144600db8ea106944a1245805d03f00fc5700d645b3f116c6833ec76ea13"
+    },
+    {
+      "id": "02",
+      "title": "第二章 借来的河道",
+      "hanCount": 2066,
+      "characterCount": 2400,
+      "summary": "两人逃入借河街；陈望遗物的潮位记录证明海难日期不成立。",
+      "sha256": "e57dbff1a11983c62b25d9098dac5eb821ad83908c939a4a37bd89845e83fd32"
+    },
+    {
+      "id": "03",
+      "title": "第三章 无名者的早餐",
+      "hanCount": 1905,
+      "characterCount": 2228,
+      "summary": "老周承认隐瞒；早餐棚汇合许照、陆苗，得到母亲笔记与铜钥匙。",
+      "sha256": "f77c7a00448305a37a906baa05695d9d092fcd5908045a5c5141f4090c72154e"
+    },
+    {
+      "id": "04",
+      "title": "第四章 校准日",
+      "hanCount": 1858,
+      "characterCount": 2144,
+      "summary": "档案馆校准暴露十一秒残余回声，季衡发出灯塔邀请。",
+      "sha256": "8d62d9bc8ed6f00d7f92e3d02728a25696cca4ef676d23b6ce4ff5b26f2dd7a0"
+    },
+    {
+      "id": "05",
+      "title": "第五章 被取走的夏天",
+      "hanCount": 1876,
+      "characterCount": 2183,
+      "summary": "林雾核对取忆底单，在受控回溯中看见码头船票与接入室。",
+      "sha256": "ac06c01b1d80fe51622650a1d2d631177e4cee39665ba6b5d73b1ea3f8fe6151"
+    },
+    {
+      "id": "06",
+      "title": "第六章 灯塔里的晚餐",
+      "hanCount": 1687,
+      "characterCount": 1972,
+      "summary": "灯塔档案确认母亲已死，接入超期；新候选名单包含陆苗。",
+      "sha256": "fb20565c03187521a82ba9a02d779389c475048c424d94cba7dff9327d398271"
+    },
+    {
+      "id": "07",
+      "title": "第七章 名单上的孩子",
+      "hanCount": 1740,
+      "characterCount": 2008,
+      "summary": "泵房找到账册与陈望未写完的领养信，盐仓建立家属登记。",
+      "sha256": "591107a12b7d00f625ea7fe56635360d2b25f537f7df1dabc2a49c8fb473ab82"
+    },
+    {
+      "id": "08",
+      "title": "第八章 七道门的图纸",
+      "hanCount": 1646,
+      "characterCount": 1883,
+      "summary": "染坊试验从失败走向可退出的局部成功，器材定位风险被发现。",
+      "sha256": "7bf06f8da17dec45be3c989cb1f6671559656c5ecad4b8f30abc8c3a03ac94d4"
+    },
+    {
+      "id": "09",
+      "title": "第九章 给海的公开信",
+      "hanCount": 1600,
+      "characterCount": 1840,
+      "summary": "公开信区分证据与希望；老周公开承认过去并被带走。",
+      "sha256": "0f815acfa0df564033a50e203df4cad4dedf776014685687ed51ee8dacea2032"
+    },
+    {
+      "id": "10",
+      "title": "第十章 被淹过一次的房间",
+      "hanCount": 1471,
+      "characterCount": 1680,
+      "summary": "博物馆第六站重启；撤离演练与实测揭露伪维护。",
+      "sha256": "16f90d4462d4b9a95714070acac3df8fd5fd6cde2597f1d71c34eeed618cf1b8"
+    },
+    {
+      "id": "11",
+      "title": "第十一章 一个守门人的证词",
+      "hanCount": 1433,
+      "characterCount": 1664,
+      "summary": "老周写完整证词，季衡受监督参与；深度预处理在即。",
+      "sha256": "f74ae4d40482f9d54a104e2a72b69c85e4b18b915de21dc79bb58d28ccb61435"
+    },
+    {
+      "id": "12",
+      "title": "第十二章 志愿中心",
+      "hanCount": 1573,
+      "characterCount": 1808,
+      "summary": "志愿中心逐一核对同意，暂停预处理，候选者获得重新决定的时间。",
+      "sha256": "4cce2c01552d18148354c3bca5b8177edca60a71e16a11e0b327d55101cf2b3e"
+    },
+    {
+      "id": "13",
+      "title": "第十三章 退潮线之外",
+      "hanCount": 1969,
+      "characterCount": 2211,
+      "summary": "修正实时显示与疏散登记，救出东沉区地图上不存在的人。",
+      "sha256": "6c1624fc4cf1b00c0eeba01cb6ebad03ec295fdae9f1970754b4841bc04a5f4d"
+    },
+    {
+      "id": "14",
+      "title": "第十四章 三短一长",
+      "hanCount": 1451,
+      "characterCount": 1666,
+      "summary": "沈渡的灯留下普通生活与未成行的未来；沈砚接受禁潜与私人保留。",
+      "sha256": "8934281e4f6c353dd254cde9737dff7a445d68e10a709014ebb8c72bc4f3b163"
+    },
+    {
+      "id": "15",
+      "title": "第十五章 母灯不说谎",
+      "hanCount": 1455,
+      "characterCount": 1631,
+      "summary": "听证审查技术边界与结构性不公，跨部门资源打破单一选择。",
+      "sha256": "77d667a4acb39188bcaae4fd103d53e329d0d9e0b78ede0e04310e113793e9de"
+    },
+    {
+      "id": "16",
+      "title": "第十六章 一张没有中心的地图",
+      "hanCount": 1383,
+      "characterCount": 1550,
+      "summary": "以住区与人的路线重新画图，七站联测验证局部故障可隔离。",
+      "sha256": "5c47dc03da62c9d3f98ec7a61d084cf18748006190805ffadb5da783b7dbb44b"
+    },
+    {
+      "id": "17",
+      "title": "第十七章 风先到的地方",
+      "hanCount": 1399,
+      "characterCount": 1583,
+      "summary": "归潮前训练拒绝与退出，七号核残余控制逻辑响应新网。",
+      "sha256": "7d3963f967217911c4517ca4372d93126f082389297b81507e48b2e945ab7e40"
+    },
+    {
+      "id": "18",
+      "title": "第十八章 熄灯的街道",
+      "hanCount": 1320,
+      "characterCount": 1491,
+      "summary": "街道主动降耗，林雾给母亲写信，也给自己留休息的时间。",
+      "sha256": "4db0a20a717d5c31c34ba0021f0428a10768bca75e153f8896c1a7dddcad70b4"
+    },
+    {
+      "id": "19",
+      "title": "第十九章 第一重潮",
+      "hanCount": 1349,
+      "characterCount": 1515,
+      "summary": "第一潮中保留退出、泄压与轮换，旧核心损失令第二峰更险。",
+      "sha256": "e5417f84e9fa76c9ea7016d0a283ef5566ea1bcee8fceba149f0e6b609cb8269"
+    },
+    {
+      "id": "20",
+      "title": "第二十章 两场潮之间",
+      "hanCount": 1364,
+      "characterCount": 1529,
+      "summary": "两潮间寻找机械替代方案；林雾面对提取母亲索引的不可逆代价。",
+      "sha256": "743080c3a6192b5882ffd0ee2fc9d7dc769b64a5fbc958dd5fbaef0939ba36d5"
+    },
+    {
+      "id": "21",
+      "title": "第二十一章 母亲的私人部分",
+      "hanCount": 1457,
+      "characterCount": 1630,
+      "summary": "提取区分私人回声与公共逻辑，母亲最后那句话完整呈现。",
+      "sha256": "29fced949ca864151a5d98faf0bfd7f2a241391baf9b0890f515ee97dc434041"
+    },
+    {
+      "id": "22",
+      "title": "第二十二章 从烟囱下去的机器",
+      "hanCount": 1301,
+      "characterCount": 1469,
+      "summary": "无人清淤架修复导潮门，危险分拆；东沉区房屋受损被正式记录。",
+      "sha256": "35def446c2e20a0e0835afeefc9324882118ed43ed80e1ec474eb5bbb5bd03d1"
+    },
+    {
+      "id": "23",
+      "title": "第二十三章 风眼里的电话",
+      "hanCount": 1289,
+      "characterCount": 1454,
+      "summary": "最后通话与决议，公共设施和财产先于人的永久接入被重新评估。",
+      "sha256": "c017eb53d7a448510ce2b6b9bf8704bed0f09a13b91c1a66e1dc132add7a13ca"
+    },
+    {
+      "id": "24",
+      "title": "第二十四章 第二重潮",
+      "hanCount": 1356,
+      "characterCount": 1529,
+      "summary": "第二峰中分站降载，七号核按流程关闭，多方协作渡过潮峰。",
+      "sha256": "5b82c0fa0c40aac8ce90c627d4f411d8c9f1925021b2cc47ba83c9e68db8a8e4"
+    },
+    {
+      "id": "25",
+      "title": "第二十五章 清点",
+      "hanCount": 1399,
+      "characterCount": 1576,
+      "summary": "从统计回到具体的人，搜寻、医疗与死亡事实不被胜利掩盖。",
+      "sha256": "7a50fba5d7c92f3b9b4fdef681b947d55e003b813c10ff662e099c5a50208a62"
+    },
+    {
+      "id": "26",
+      "title": "第二十六章 谁来署名",
+      "hanCount": 1339,
+      "characterCount": 1506,
+      "summary": "贡献署名纳入非正式劳动，事故调查与表彰分开。",
+      "sha256": "649984acaa8f3ac6de1c34cc715c27ef789120ffd3231794722ed937c74df7dd"
+    },
+    {
+      "id": "27",
+      "title": "第二十七章 毁坏的家不是空地",
+      "hanCount": 1315,
+      "characterCount": 1452,
+      "summary": "东沉区重建保留不同选择，居住权不因地图涂色而消失。",
+      "sha256": "bd63978a8fc747be4d431c53b0ff5fd3f0b5b020ac1f76d01cc0ed18c425dbfb"
+    },
+    {
+      "id": "28",
+      "title": "第二十八章 证词不能替人活",
+      "hanCount": 1852,
+      "characterCount": 2056,
+      "summary": "公开听证区分背景与责任，证词不能替人决定往后的生活。",
+      "sha256": "9b39c2c2dc9664935eb5795214c02821cbe95ef4aa8ebc44ebae3aebc332b32d"
+    },
+    {
+      "id": "29",
+      "title": "第二十九章 修复师的新规矩",
+      "hanCount": 1350,
+      "characterCount": 1492,
+      "summary": "灯铺重开，透明告知、可拒绝与修复边界进入日常营业。",
+      "sha256": "58fa3e7fc9cc4019bb94531c61f3e26bc3dfb64f6ebcb736a56a6ff036cd2407"
+    },
+    {
+      "id": "30",
+      "title": "第三十章 陆苗的入学表",
+      "hanCount": 1327,
+      "characterCount": 1501,
+      "summary": "陆苗年龄与入学纠错，和许照建立照护约定，也获准做普通孩子。",
+      "sha256": "09540c48f0bdae4d3003adccc12caba8c3116ba0e34f3af0c698e082bd63ab4a"
+    },
+    {
+      "id": "31",
+      "title": "第三十一章 一瓶酱油的航程",
+      "hanCount": 1245,
+      "characterCount": 1419,
+      "summary": "沈砚买回迟到的酱油，赴北陆学习，与林雾保留想念和离开的自由。",
+      "sha256": "df23bd3ccb24eb6baaa5f5c0dfca1f4ffd623b15948c4d938c6dc6bdea89bce6"
+    },
+    {
+      "id": "32",
+      "title": "第三十二章 潮玻璃的另一种用法",
+      "hanCount": 1350,
+      "characterCount": 1488,
+      "summary": "无记忆节点降低对人类共振的依赖，长期制度试点如实公布边界。",
+      "sha256": "4af56d088b3a2d7919fc082f99011b5183a890e22f7468c75d6a35f52777c9c5"
+    },
+    {
+      "id": "33",
+      "title": "第三十三章 没有声音的档案室",
+      "hanCount": 1346,
+      "characterCount": 1490,
+      "summary": "档案室保护私密与证据，拒绝替死者拼接合乎公众期待的回答。",
+      "sha256": "a7f99f9269d020b9bf33d3866f970693c484c4d06991d1776be870f23e543720"
+    },
+    {
+      "id": "34",
+      "title": "第三十四章 判决到来的上午",
+      "hanCount": 1339,
+      "characterCount": 1487,
+      "summary": "判决与分项补偿推进；贡献不豁免，原谅不作为追责条件。",
+      "sha256": "646bdda01b1dd9506fe2e257d707ad21a7e92f5442452df58e4707e020597e67"
+    },
+    {
+      "id": "35",
+      "title": "第三十五章 一个迟到的葬礼",
+      "hanCount": 1365,
+      "characterCount": 1544,
+      "summary": "林汐迟到的葬礼不再要求她守护城市，画像回到普通饭桌旁。",
+      "sha256": "59477810599d4a4d7cf823b3bed32c29f5d2f39396b4a6c7cc05942bf3304a29"
+    },
+    {
+      "id": "36",
+      "title": "第三十六章 离城的人",
+      "hanCount": 1279,
+      "characterCount": 1438,
+      "summary": "林雾交接工作，独自离城看山，允许行程只走一半。",
+      "sha256": "adf8b3f64e7564e088ad48ff8bc14db832f7f2c03751d36ed3cf9cc956e16df6"
+    },
+    {
+      "id": "37",
+      "title": "第三十七章 小潮测试",
+      "hanCount": 1526,
+      "characterCount": 1692,
+      "summary": "小潮试点失败被公开、补偿和整改，变化在于错误不再被抹去。",
+      "sha256": "4c1a938e4d1ce122cc97e94a9f3a91a8ca2666bf6c0b949f49f7d112a23929e9"
+    },
+    {
+      "id": "38",
+      "title": "第三十八章 不再征收的下午",
+      "hanCount": 1460,
+      "characterCount": 1619,
+      "summary": "永久记忆税废除，损伤不会倒转，但未来不必重复。",
+      "sha256": "19f05be230f87c19b45725d2aa45212eab006b4f224845a5890d0e73e5738139"
+    },
+    {
+      "id": "39",
+      "title": "第三十九章 下一次涨潮",
+      "hanCount": 1402,
+      "characterCount": 1551,
+      "summary": "下一次大潮平稳渡过，林雾不再是中心，普通回家成为真正成果。",
+      "sha256": "a62739952a2dc3022b0434a809db4ea19404ef9a66f3b3078a3c8cd2dedaf872"
+    },
+    {
+      "id": "40",
+      "title": "第四十章 把门留给活着的人",
+      "hanCount": 1885,
+      "characterCount": 2124,
+      "summary": "一位新客人得到不必立刻选择的下午，家人聚餐，门由里面打开。",
+      "sha256": "eabe005e8a96b5875b33a07b2d990b857a2fdcaaf903e845c7b46eaba8348a56"
+    }
+  ]
+}
