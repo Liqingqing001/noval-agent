@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useMemo, useCallback, useEffect } from 'react';
-import { BookOpen, Pencil, Download, GripVertical, Star, Users, User, List, ChevronLeft } from 'lucide-react';
+import { BookOpen, Pencil, Download, GripVertical, Star, Users, User, List, ChevronLeft, Send } from 'lucide-react';
 import { useNovelStore } from '@/stores/novelStore';
 import { ChapterList } from '@/components/chapter/ChapterList';
 import { ChapterEditor } from '@/components/editor/ChapterEditor';
@@ -23,9 +23,10 @@ const getDefaultChapterListWidth = () => {
 
 interface MainContentProps {
   currentView: ViewType;
+  onOpenPublication: () => void;
 }
 
-export function MainContent({ currentView }: MainContentProps) {
+export function MainContent({ currentView, onOpenPublication }: MainContentProps) {
   const [exportOpen, setExportOpen] = useState(false);
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [chapterListWidth, setChapterListWidth] = useState(getDefaultChapterListWidth);
@@ -169,6 +170,8 @@ export function MainContent({ currentView }: MainContentProps) {
                 </span>
               )}
             </div>
+            <div className="publication-header-actions flex shrink-0 gap-2">
+            <button type="button" onClick={onOpenPublication} className="flex shrink-0 items-center gap-2 rounded-xl border border-primary/20 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10" title="选择平台、查看 AI 政策并准备投稿"><Send className="h-4 w-4" />发布</button>
             <button
               onClick={() => { flushActiveEditor(); setExportOpen(true); }}
               className="flex shrink-0 items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-sm font-medium transition-colors"
@@ -177,6 +180,7 @@ export function MainContent({ currentView }: MainContentProps) {
               <Download className="h-4 w-4" />
               导出
             </button>
+            </div>
           </div>
           {/* 简介：只在 outline 视图不显示（因为 OutlineView 自己会显示） */}
           {novel?.summary && currentView !== 'outline' && (

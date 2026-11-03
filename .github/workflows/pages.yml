@@ -33,6 +33,10 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Validate frontend
         run: |
+          npm run publication:report
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:publication
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run book:build
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:demo
@@ -68,6 +72,8 @@ jobs:
           node packages/frontend/tests/referenceCreation.browser.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node packages/frontend/tests/characterBoard.browser.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node packages/frontend/tests/publication.browser.cjs
           exit $LASTEXITCODE
         env:
           DATABASE_URL: file:./ci-unused.db
@@ -90,6 +96,8 @@ jobs:
           node packages/frontend/tests/referenceCreation.browser.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node packages/frontend/tests/characterBoard.browser.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node packages/frontend/tests/publication.browser.cjs
           exit $LASTEXITCODE
         env:
           PARITY_MODE: demo

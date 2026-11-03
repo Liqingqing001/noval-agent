@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {createSubmissionBrief,createPublicationHtml,publicationChapters} from '../src/lib/publication.ts';
+const novel={id:'a',title:'<script>alert(1)</script>',summary:'简介 & 正文',status:'draft',wordCount:0,createdAt:0,updatedAt:0};
+const chapter=(id,sequence,novelId='a')=>({id,novelId,title:`第${sequence}章`,sequence,content:'正常段落\n\n下一段 & 内容',wordCount:0,createdAt:0,updatedAt:0});
+const chapters=[chapter('two',2),chapter('foreign',0,'b'),chapter('one',1)];
+const platform={name:'测试平台',entryUrl:'https://example.test/',checkedAt:'2026-11-03'};
+test('submission materials isolate a selected book, preserve unknown AI use and never claim submission',()=>{const before=JSON.stringify(chapters);const brief=createSubmissionBrief(novel,chapters,platform,'unknown','generated');assert.match(brief,/尚未提交/);assert.match(brief,/正文：尚未确认/);assert.match(brief,/封面 \/ 插图：包含 AI 生成内容/);assert.match(brief,/具体工具、涉及范围/);assert.equal(publicationChapters('a',chapters).length,2);assert.ok(brief.indexOf('第1章')<brief.indexOf('第2章'));assert.ok(!brief.includes('第0章'));assert.equal(JSON.stringify(chapters),before);});
+test('a standalone reading page escapes content and keeps all chapter boundaries',()=>{const page=createPublicationHtml(novel,chapters);assert.ok(page.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));assert.ok(!page.includes('<script>'));assert.match(page,/&amp;/);assert.match(page,/id="chapter-2"/);assert.ok(!page.includes('第0章'));assert.throws(()=>createPublicationHtml(novel,[]),/没有章节/);});
+test('all directory claims have traceable sources and no platform pretends remote integration',()=>{const data=JSON.parse(readFileSync(new URL('../src/data/publishingPlatforms.json',import.meta.url),'utf8'));assert.equal(new Set(data.map(x=>x.id)).size,data.length);for(const id of ['qidian','fanqie','jjwxc','ao3','kdp'])assert.ok(data.some(x=>x.id===id));for(const p of data){assert.equal(p.automatic,false);assert.match(p.checkedAt,/^\d{4}-\d{2}-\d{2}$/);assert.ok(p.sources.length>0);assert.equal(new URL(p.entryUrl).protocol,'https:');for(const source of p.sources){assert.ok(source.access);assert.equal(new URL(source.url).protocol,'https:');}assert.ok(p.ai.text&&p.ai.assisted&&p.ai.cover&&p.ai.monetization);}});

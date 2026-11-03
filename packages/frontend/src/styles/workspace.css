@@ -62,3 +62,10 @@
 }
 .workspace-layout.workspace-reference > .workspace-assistant,
 .workspace-layout.workspace-reference > .workspace-agent-divider { display: none !important; }
+
+/* Keep export and publishing visible before the lazy publishing panel is loaded. */
+.publication-header-actions { display: flex; flex-shrink: 0; gap: 8px; }
+@media (max-width: 640px) {
+  .publication-header-actions > button { padding-left: 11px; padding-right: 11px; }
+  .publication-header-actions > button svg { display: none; }
+}

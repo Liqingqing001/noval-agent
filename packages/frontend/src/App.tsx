@@ -17,6 +17,7 @@ import '@/styles/workspace.css';
 import '@/styles/emerald-court.css';
 
 const DemoAssistant = lazy(() => import('@/demo/DemoAssistant').then(module => ({ default: module.DemoAssistant })));
+const PublicationHub = lazy(() => import('@/components/publishing/PublicationHub').then(module => ({ default: module.PublicationHub })));
 
 // localStorage key
 const STORAGE_KEY_SIDEBAR = 'novel-agent-sidebar-width';
@@ -35,6 +36,8 @@ const getDefaultSidebarWidth = () => {
 };
 
 function App() {
+  const [publicationOpen, setPublicationOpen] = useState(false);
+  const openPublication = () => { flushActiveEditor(); setPublicationOpen(true); };
   const [mobilePanel, setMobilePanel] = useState<'bookshelf' | 'content' | 'assistant'>('content');
   const [sidebarWidth, setSidebarWidth] = useState(getDefaultSidebarWidth);
   const [agentPanelWidth, setAgentPanelWidth] = useState(getDefaultAgentWidth);
@@ -141,7 +144,7 @@ function App() {
       <div className={`workspace-layout flex min-h-0 flex-1 ${currentView === 'reference' ? 'workspace-reference' : ''}`} data-mobile-panel={mobilePanel}>
       {/* Left Sidebar - Bookshelf */}
       <div id="workspace-bookshelf" style={{ width: sidebarWidth }} className="workspace-panel workspace-sidebar flex-shrink-0">
-        <Sidebar currentView={currentView} onLogout={logout} onNavigate={showContent} />
+        <Sidebar currentView={currentView} onLogout={logout} onNavigate={showContent} onOpenPublication={openPublication} />
       </div>
 
       <div
@@ -152,7 +155,7 @@ function App() {
       />
 
       <main id="workspace-content" className="workspace-panel workspace-content flex-1 flex flex-col min-w-0 overflow-hidden">
-        <MainContent currentView={currentView} />
+        <MainContent currentView={currentView} onOpenPublication={openPublication} />
       </main>
 
       <div
@@ -179,6 +182,7 @@ function App() {
       </nav>
 
       {/* 首次登录迁移向导 */}
+      {publicationOpen && <Suspense fallback={<p className="fixed inset-x-4 bottom-20 z-50 rounded-lg border bg-card p-4 text-sm" role="status">正在载入发布中心…</p>}><PublicationHub onClose={() => setPublicationOpen(false)} /></Suspense>}
       {showMigration && (
         <MigrationWizard
           onClose={() => {

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, BookOpen, FileText, Users, Globe, Settings, Trash2, Pencil, Sparkles, LogOut, Cloud, ImagePlus } from 'lucide-react';
+import { Plus, BookOpen, FileText, Users, Globe, Settings, Trash2, Pencil, Sparkles, LogOut, Cloud, ImagePlus, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNovelStore } from '@/stores/novelStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -11,9 +11,10 @@ interface SidebarProps {
   currentView: ViewType;
   onLogout?: () => void;
   onNavigate?: () => void;
+  onOpenPublication: () => void;
 }
 
-export function Sidebar({ currentView, onLogout, onNavigate }: SidebarProps) {
+export function Sidebar({ currentView, onLogout, onNavigate, onOpenPublication }: SidebarProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [newNovelTitle, setNewNovelTitle] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -282,6 +283,7 @@ export function Sidebar({ currentView, onLogout, onNavigate }: SidebarProps) {
 
       {/* Navigation */}
       <div className="p-3 space-y-1 border-t border-border/60 bg-card/40">
+        <button type="button" onClick={onOpenPublication} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm hover:bg-primary/10"><Send className="h-4 w-4 opacity-70" /><span className="font-medium">发布中心</span></button>
         {navItems.map((item) => (
           <button
             key={item.id}
