@@ -96,7 +96,7 @@ export function ChapterList({ onSelectChapter, selectedChapterId, width = 288 }:
       style={{ width }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-5 border-b border-border/60">
+      <div className="chapter-directory-header shrink-0 flex items-center justify-between px-4 py-5 border-b border-border/60">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg border border-border bg-background flex items-center justify-center">
             <FileText className="h-3.5 w-3.5 text-muted-foreground" />
@@ -114,7 +114,7 @@ export function ChapterList({ onSelectChapter, selectedChapterId, width = 288 }:
       </div>
 
       {/* Chapter List */}
-      <div className="min-h-0 flex-1 overflow-y-auto p-2.5 space-y-1.5 scrollbar-thin">
+      <div className="chapter-directory-list min-h-0 flex-1 overflow-y-auto p-2.5 space-y-1.5 scrollbar-thin">
         {chapters.map((chapter, index) => (
           <div key={chapter.id} className={`chapter-entry group relative rounded-lg border transition-colors ${selectedChapterId === chapter.id ? 'border-primary/20 bg-primary/[0.07]' : 'border-transparent hover:bg-muted/50'}`}>
             {editingId === chapter.id ? (
@@ -133,7 +133,7 @@ export function ChapterList({ onSelectChapter, selectedChapterId, width = 288 }:
                     <span className={selectedChapterId === chapter.id ? 'font-medium text-primary' : ''}>{getChapterLabel(index)}</span>
                     <span className="tabular-nums">{chapter.wordCount.toLocaleString()} 字</span>
                   </span>
-                  <span className="block break-words pr-12 text-sm font-medium leading-6">{chapter.title}</span>
+                  <span className="chapter-entry-title block break-words pr-12 text-sm font-medium leading-6">{chapter.title}</span>
                 </button>
                 <div className="chapter-actions absolute bottom-3 right-2 flex items-center gap-0.5">
                   <Button variant="ghost" size="icon" className="h-6 w-6 rounded-md text-muted-foreground hover:text-primary" aria-label={`重命名章节：${chapter.title}`} title="重命名章节"
@@ -180,7 +180,7 @@ export function ChapterList({ onSelectChapter, selectedChapterId, width = 288 }:
       </div>
 
       {/* Stats */}
-      <div className="p-4 border-t border-border/50 bg-muted/20">
+      <div className="chapter-directory-stats shrink-0 p-4 border-t border-border/50 bg-muted/20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-primary/60" />

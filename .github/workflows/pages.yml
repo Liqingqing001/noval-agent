@@ -99,6 +99,8 @@ jobs:
           VITE_BASE_PATH: /noval-agent/
       - name: Verify database-exported novel in product interface
         run: node packages/frontend/tests/book.browser.cjs
+      - name: Verify usable mobile reading and bookshelf space
+        run: npm run test:mobile-space
       - name: Verify same creative features in public demo
         run: |
           node packages/frontend/tests/featureParity.browser.cjs

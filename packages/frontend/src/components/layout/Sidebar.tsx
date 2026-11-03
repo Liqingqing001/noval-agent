@@ -114,7 +114,7 @@ export function Sidebar({ currentView, onLogout, onNavigate, onOpenPublication }
   return (
     <div className="bookshelf flex h-full min-h-0 flex-col border-r border-border/70 bg-background">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-5 border-b border-border/60">
+      <div className="bookshelf-header flex shrink-0 items-center justify-between px-4 py-5 border-b border-border/60">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl border border-border bg-background flex items-center justify-center shadow-sm">
             <BookOpen className="h-4 w-4 text-foreground" />
@@ -132,7 +132,7 @@ export function Sidebar({ currentView, onLogout, onNavigate, onOpenPublication }
       </div>
 
       {/* Novel List */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 space-y-3 scrollbar-thin">
+      <div className="bookshelf-books min-h-0 flex-1 overflow-y-auto px-3 py-4 space-y-3 scrollbar-thin" aria-label="书籍列表">
         <input
           ref={fileInputRef}
           type="file"
@@ -282,7 +282,7 @@ export function Sidebar({ currentView, onLogout, onNavigate, onOpenPublication }
       </div>
 
       {/* Navigation */}
-      <div className="p-3 space-y-1 border-t border-border/60 bg-card/40">
+      <div className="bookshelf-navigation shrink-0 p-3 space-y-1 border-t border-border/60 bg-card/40" role="navigation" aria-label="作品功能">
         <button type="button" onClick={onOpenPublication} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm hover:bg-primary/10"><Send className="h-4 w-4 opacity-70" /><span className="font-medium">发布中心</span></button>
         {navItems.map((item) => (
           <button
@@ -305,9 +305,9 @@ export function Sidebar({ currentView, onLogout, onNavigate, onOpenPublication }
       </div>
 
       {/* User Info & Logout */}
-      {IS_DEMO && <div className="border-t px-4 py-3 text-xs text-muted-foreground">公开演示 · 本机保存，无云端账号</div>}
+      {IS_DEMO && <div className="bookshelf-footer shrink-0 border-t px-4 py-3 text-xs text-muted-foreground">公开演示 · 本机保存，无云端账号</div>}
       {user && !IS_DEMO && (
-        <div className="p-3 border-t border-border/50 bg-card/50">
+        <div className="bookshelf-footer shrink-0 p-3 border-t border-border/50 bg-card/50">
           <div className="flex items-center gap-2 px-2 py-1.5 mb-1">
             <div className="w-7 h-7 rounded-full border border-border bg-background flex items-center justify-center shrink-0">
               <Cloud className="h-3.5 w-3.5 text-muted-foreground" />

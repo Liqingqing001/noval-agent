@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Pencil, Trash2, Check, Clock, Filter, BookOpen, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, Clock, Filter, BookOpen, AlertTriangle, ChevronDown, ChevronRight, RefreshCw, Info } from 'lucide-react';
 import { useNovelStore } from '@/stores/novelStore';
 import { cn } from '@/lib/utils';
 import type { PlotCard as PlotCardType } from '@/types';
@@ -198,11 +198,11 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
   };
 
   return (
-    <div className="h-full overflow-y-auto p-4">
+    <div className="chapter-outline-scroll h-full overflow-y-auto p-4">
       <div className="max-w-4xl mx-auto">
         {/* 操作按钮区 */}
-        <div className="flex flex-wrap items-center justify-end mb-4 gap-2">
-          <button type="button" className="px-3 py-2 border rounded-md text-sm hover:bg-muted" disabled={!currentNovelId} onClick={() => { const count = reconcileOutlineProgress(currentNovelId || undefined); setProgressNotice(count ? `已更新 ${count} 条正文关联或写作状态。` : '已检查，无需更新；手动状态会保留，重名或标题不一致时请编辑大纲关联正文。'); }}>重新识别正文状态</button>
+        <div className="outline-create-actions flex flex-wrap items-center justify-end mb-4 gap-2">
+          <button type="button" aria-label="重新识别正文状态" title="重新识别正文状态" className="outline-refresh-control px-3 py-2 border rounded-md text-sm hover:bg-muted" disabled={!currentNovelId} onClick={() => { const count = reconcileOutlineProgress(currentNovelId || undefined); setProgressNotice(count ? `已更新 ${count} 条正文关联或写作状态。` : '已检查，无需更新；手动状态会保留，重名或标题不一致时请编辑大纲关联正文。'); }}><RefreshCw className="h-4 w-4" /><span>重新识别正文状态</span></button>
           {onCreateVolume && (
             <button
               onClick={onCreateVolume}
@@ -219,14 +219,19 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
             <Plus className="h-4 w-4" />
             新建章节大纲
           </button>
+          <details className="outline-mobile-status-help">
+            <summary aria-label="查看写作状态说明" title="查看写作状态说明"><Info className="h-4 w-4" /></summary>
+            <p>自动状态按已保存正文识别；手动状态优先保留。「已完成」不代表达到目标字数或校稿完成。</p>
+          </details>
         </div>
 
-        <p className="mb-3 text-xs leading-relaxed text-muted-foreground">自动状态按已保存正文识别；手动状态优先保留。「已完成」不代表达到目标字数或校稿完成。</p>
+        <p className="outline-status-help mb-3 text-xs leading-relaxed text-muted-foreground">自动状态按已保存正文识别；手动状态优先保留。「已完成」不代表达到目标字数或校稿完成。</p>
         {progressNotice && <p role="status" className="mb-3 text-xs text-primary">{progressNotice}</p>}
         {/* 状态筛选 */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="outline-status-filters grid grid-cols-3 gap-3 mb-6">
           <button
             onClick={() => setStatusFilter('all')}
+            aria-pressed={statusFilter === 'all'}
             className={cn(
               'p-3 rounded-lg border transition-all text-left',
               statusFilter === 'all'
@@ -239,6 +244,7 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
           </button>
           <button
             onClick={() => setStatusFilter('pending')}
+            aria-pressed={statusFilter === 'pending'}
             className={cn(
               'p-3 rounded-lg border transition-all text-left',
               statusFilter === 'pending'
@@ -251,6 +257,7 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
           </button>
           <button
             onClick={() => setStatusFilter('completed')}
+            aria-pressed={statusFilter === 'completed'}
             className={cn(
               'p-3 rounded-lg border transition-all text-left',
               statusFilter === 'completed'
@@ -291,14 +298,14 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
                   onDragEnd={handleVolumeDragEnd}
                   onDrop={(e) => handleVolumeDrop(e, volIndex)}
                   className={cn(
-                    'border rounded-lg overflow-hidden transition-all',
+                    'outline-volume border rounded-lg overflow-hidden transition-all',
                     draggedVolumeIndex === volIndex && 'opacity-50 scale-[0.98]',
                     dragOverVolumeIndex === volIndex && draggedVolumeIndex !== volIndex && 'border-primary border-2'
                   )}
                 >
                   {/* 卷标题 - 可点击收缩 */}
                   <div
-                    className="bg-muted/30 p-3 border-b group/vol cursor-pointer select-none"
+                    className="outline-volume-heading bg-muted/30 p-3 border-b group/vol cursor-pointer select-none"
                     onClick={() => toggleVolumeCollapse(vol.id)}
                   >
                     <div className="flex items-center gap-3">
@@ -317,13 +324,13 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
                         )}
                         <p className="text-xs text-muted-foreground mt-1">{volChapters.length} 章</p>
                       </div>
-                      <div className="flex gap-1 opacity-0 group-hover/vol:opacity-100 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <div className="outline-volume-actions flex gap-1 opacity-0 group-hover/vol:opacity-100 shrink-0" onClick={(e) => e.stopPropagation()}>
                         {onEditVolume && (
                           <button aria-label={`编辑卷：${vol.title}`} onClick={() => onEditVolume(vol)} className="p-1 hover:bg-muted rounded">
                             <Pencil className="h-4 w-4 text-muted-foreground" />
                           </button>
                         )}
-                        <button onClick={() => handleDeleteVolume(vol)} className="p-1 hover:bg-muted rounded">
+                        <button aria-label={`删除卷：${vol.title}`} onClick={() => handleDeleteVolume(vol)} className="p-1 hover:bg-muted rounded">
                           <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                         </button>
                       </div>
@@ -338,11 +345,11 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
                         return (
                           <div
                             key={card.id}
-                            className="group p-3 hover:bg-muted/30 flex items-start gap-3"
+                            className="outline-chapter-row group p-3 hover:bg-muted/30 flex items-start gap-3"
                           >
                             <span className="text-sm font-bold text-muted-foreground w-8">{idx + 1}</span>
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
+                              <div className="outline-chapter-title flex items-center gap-2">
                                 <h4 className="font-medium truncate">{card.title}</h4>
                                 <span className={cn(
                                   'text-xs px-2 py-0.5 rounded-full border flex items-center gap-1 shrink-0',
@@ -356,11 +363,11 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
                                 <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{card.summary}</p>
                               )}
                             </div>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100">
+                            <div className="outline-row-actions flex gap-1 opacity-0 group-hover:opacity-100">
                               <button aria-label={`编辑章节大纲：${card.title}`} onClick={() => onEditCard(card)} className="p-1 hover:bg-muted rounded">
                                 <Pencil className="h-4 w-4 text-muted-foreground" />
                               </button>
-                              <button onClick={() => handleDeleteCard(card.id)} className="p-1 hover:bg-muted rounded">
+                              <button aria-label={`删除章节大纲：${card.title}`} onClick={() => handleDeleteCard(card.id)} className="p-1 hover:bg-muted rounded">
                                 <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                               </button>
                             </div>
@@ -391,10 +398,10 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
                     {unassigned.map((card, idx) => {
                       const StatusIcon = statusConfig[card.status].icon;
                       return (
-                        <div key={card.id} className="group p-3 hover:bg-muted/30 flex items-start gap-3">
+                        <div key={card.id} className="outline-chapter-row group p-3 hover:bg-muted/30 flex items-start gap-3">
                           <span className="text-sm font-bold text-muted-foreground w-8">{idx + 1}</span>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="outline-chapter-title flex items-center gap-2">
                               <h4 className="font-medium truncate">{card.title}</h4>
                               <span className={cn(
                                 'text-xs px-2 py-0.5 rounded-full border flex items-center gap-1 shrink-0',
@@ -408,11 +415,11 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
                               <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{card.summary}</p>
                             )}
                           </div>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100">
+                          <div className="outline-row-actions flex gap-1 opacity-0 group-hover:opacity-100">
                             <button aria-label={`编辑章节大纲：${card.title}`} onClick={() => onEditCard(card)} className="p-1 hover:bg-muted rounded">
                               <Pencil className="h-4 w-4 text-muted-foreground" />
                             </button>
-                            <button onClick={() => handleDeleteCard(card.id)} className="p-1 hover:bg-muted rounded">
+                            <button aria-label={`删除章节大纲：${card.title}`} onClick={() => handleDeleteCard(card.id)} className="p-1 hover:bg-muted rounded">
                               <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                             </button>
                           </div>
@@ -443,16 +450,16 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
                   onDragEnd={handleDragEnd}
                   onDrop={(e) => handleDrop(e, originalIndex)}
                   className={cn(
-                    'group bg-card border rounded-lg p-4 shadow-sm hover:shadow-md transition-all',
+                    'outline-flat-card group bg-card border rounded-lg p-4 shadow-sm hover:shadow-md transition-all',
                     statusFilter === 'all' && 'cursor-grab active:cursor-grabbing',
                     draggedIndex === originalIndex && 'opacity-50 scale-[0.98]',
                     dragOverIndex === originalIndex && draggedIndex !== originalIndex && 'border-primary border-2'
                   )}
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="outline-chapter-row flex items-start gap-3">
                     <span className="text-sm font-bold text-muted-foreground w-8">{originalIndex + 1}</span>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="outline-chapter-title flex items-center gap-2 mb-2">
                         <h3 className="font-medium truncate">{card.title}</h3>
                         <span className={cn(
                           'text-xs px-2 py-0.5 rounded-full border flex items-center gap-1 shrink-0',
@@ -474,11 +481,11 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
                         </button>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <div className="outline-row-actions flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                       <button aria-label={`编辑章节大纲：${card.title}`} onClick={() => onEditCard(card)} className="p-2 hover:bg-muted rounded-md">
                         <Pencil className="h-4 w-4 text-muted-foreground" />
                       </button>
-                      <button onClick={() => handleDeleteCard(card.id)} className="p-2 hover:bg-muted rounded-md">
+                      <button aria-label={`删除章节大纲：${card.title}`} onClick={() => handleDeleteCard(card.id)} className="p-2 hover:bg-muted rounded-md">
                         <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                       </button>
                     </div>

@@ -1,0 +1,100 @@
+/* Loaded after the court theme: phone space belongs to books and writing first. */
+.editor-format-actions { display: contents; }
+.editor-mobile-save { display: none; }
+.demo-banner-more { position: relative; }
+.demo-banner-more > summary { cursor: pointer; padding: 5px 2px; }
+.demo-banner-info { position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; width: min(280px, calc(100vw - 24px)); padding: 14px; border: 1px solid hsl(var(--border)); border-radius: 10px; background: hsl(var(--card)); box-shadow: 0 6px 24px #0002; line-height: 1.9; }
+.demo-banner-info a { display: inline-block; margin-top: 8px; }
+
+@media (max-width: 767px), (max-width: 1279px) and (max-height: 500px) {
+  .workspace-app .demo-banner { flex-wrap: nowrap; min-height: 40px; padding: 5px 12px; gap: 8px; }
+  .workspace-app .demo-banner > p { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .workspace-app .demo-banner strong { font-size: 11px; font-weight: 500; }
+  .workspace-app .demo-banner-description { display: none; }
+  .workspace-app .demo-banner-actions { flex-shrink: 0; gap: 12px; font-size: 11px; }
+  .workspace-app .demo-banner-info p { white-space: normal; }
+
+  .workspace-app .bookshelf-header { min-height: 64px; padding: 10px 14px; box-shadow: none; border-bottom-width: 1px; }
+  .workspace-app .bookshelf-header::after { display: none; }
+  .workspace-app .bookshelf-header .court-brand { display: none; }
+  .workspace-app .bookshelf-header h2 { font-size: 16px; }
+  .workspace-app .bookshelf-header > div > div:first-child { height: 32px; width: 32px; border-width: 1px; }
+  .workspace-app .bookshelf-header > button { height: 36px; width: 36px; }
+  .workspace-app .bookshelf-books { padding: 12px; overscroll-behavior: contain; }
+  .workspace-app .shelf-book { padding: 12px; border-radius: 12px; }
+  .workspace-app .shelf-book-layout { grid-template-columns: 64px minmax(0,1fr); gap: 10px 14px; }
+  .workspace-app .shelf-cover > img, .workspace-app .shelf-cover > .book-cover-placeholder { width: 64px; height: 90px; }
+  .workspace-app .shelf-book h3 button { font-size: 16px; -webkit-line-clamp: unset; }
+  .workspace-app .shelf-book-actions { padding-top: 6px; }
+  .workspace-app .bookshelf-navigation { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px; padding: 8px; border-top-width: 1px; }
+  .workspace-app .bookshelf-navigation > button { justify-content: center; gap: 5px; min-height: 40px; padding: 8px 2px; margin: 0; font-size: 12px; border-radius: 7px; }
+  .workspace-app .bookshelf-navigation > button > svg { width: 15px; height: 15px; flex-shrink: 0; }
+  .workspace-app .bookshelf-navigation > button > div { display: none; }
+  .workspace-app .bookshelf-footer { padding: 6px 12px; border-top-width: 1px; font-size: 10px; }
+
+  .workspace-app .manuscript-heading { padding: 8px 12px; align-items: center; }
+  .workspace-app .manuscript-title { gap: 4px 8px; }
+  .workspace-app .manuscript-title h1 { font-size: 16px; line-height: 1.5; letter-spacing: 0; }
+  .workspace-app .manuscript-title > .tag-creative:not(:nth-child(2)) { display: none; }
+  .workspace-app .manuscript-title > .tag-creative { padding: 1px 5px; font-size: 10px; }
+  .workspace-app .manuscript-header::after { display: none; }
+  .workspace-app .manuscript-header { border-bottom: 1px solid hsl(var(--border)); }
+  .workspace-app .chapter-directory-toggle { min-height: 40px; padding: 7px 12px; font-size: 13px; }
+  .workspace-app .chapter-directory-toggle > span:last-child { font-size: 11px; }
+  .workspace-app .chapter-directory-header { padding: 9px 12px; min-height: 56px; }
+  .workspace-app .chapter-directory-header > div > div:first-child { display: none; }
+  .workspace-app .chapter-directory-list { padding: 8px; overscroll-behavior: contain; }
+  .workspace-app .chapter-directory-stats { padding: 7px 12px; }
+  .workspace-app .chapter-entry { display: grid; grid-template-columns: minmax(0,1fr) 60px; align-items: center; border-radius: 8px; }
+  .workspace-app .chapter-entry > button { padding: 10px; }
+  .workspace-app .chapter-entry > button > span:first-child { gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+  .workspace-app .chapter-entry-title { padding-right: 0; line-height: 1.7; }
+  .workspace-app .chapter-entry .chapter-actions { position: static; justify-content: center; padding: 0 4px 0 0; gap: 0; }
+  .workspace-app .chapter-entry .chapter-actions button { width: 28px; height: 36px; }
+  .workspace-app .chapter-entry > div:first-child:not(.chapter-actions) { grid-column: 1 / -1; }
+
+  .workspace-app .editor-toolbar { flex-wrap: nowrap; gap: 5px; padding: 5px 8px; }
+  .workspace-app .editor-format-actions { display: flex; flex: 1; min-width: 0; align-items: center; gap: 3px; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
+  .workspace-app .editor-format-actions > * { flex-shrink: 0; }
+  .workspace-app .editor-toolbar-spacer, .workspace-app .editor-save-status { display: none; }
+  .workspace-app .editor-preferences { flex-shrink: 0; }
+  .workspace-app .editor-preferences-panel { right: 0; width: min(260px, calc(100vw - 32px)); }
+  .workspace-app .editor-mobile-save { display: inline; color: hsl(var(--muted-foreground)); }
+  .workspace-app .editor-last-edit { display: none; }
+  .workspace-app .editor-status-bar { padding: 6px 12px; font-size: 10px; }
+  .workspace-app .workspace-content .manuscript-background { padding: 0; }
+  .workspace-app .workspace-content .manuscript-page { margin: 0; padding: 18px 16px 36px; min-height: 100%; border: 0; border-radius: 0; box-shadow: none; }
+  .workspace-app .manuscript-page::before { display: none; }
+  .workspace-app .manuscript-page > input { font-size: 19px; margin-bottom: 12px; letter-spacing: 0; }
+  .workspace-app .workspace-mobile-nav button { min-height: 50px; flex-direction: row; gap: 8px; }
+  .workspace-app .workspace-mobile-nav { border-top-width: 1px; }
+}
+@media (max-width: 1279px) and (max-height: 500px) {
+  .workspace-app .bookshelf-header { min-height: 48px; padding-top: 6px; padding-bottom: 6px; }
+  .workspace-app .bookshelf-header p { display: none; }
+  .workspace-app .bookshelf-navigation { grid-template-columns: repeat(7,minmax(0,1fr)); }
+  .workspace-app .bookshelf-footer { display: none; }
+  .workspace-app .bookshelf-books { padding-top: 8px; padding-bottom: 8px; }
+  .workspace-app .shelf-cover > img, .workspace-app .shelf-cover > .book-cover-placeholder { height: 66px; width: 48px; }
+  .workspace-app .shelf-book-layout { grid-template-columns: 48px minmax(0,1fr) auto; align-items: center; }
+  .workspace-app .shelf-book-actions { grid-column: auto; border: 0; padding: 0; }
+  .workspace-app .demo-banner { min-height: 34px; }
+  .workspace-app .workspace-mobile-nav button { min-height: 42px; }
+}
+@media (max-width: 1279px) and (max-height: 500px) {
+  .workspace-app .chapter-directory-header { min-height: 36px; padding: 2px 12px; }
+  .workspace-app .chapter-directory-header > div { gap: 8px; }
+  .workspace-app .chapter-directory-header > div > div:last-child { display: flex; align-items: baseline; gap: 10px; }
+  .workspace-app .chapter-directory-header p { margin-top: 0; }
+  .workspace-app .chapter-directory-header > button { width: 32px; height: 30px; }
+  .workspace-app .chapter-directory-stats { padding-top: 3px; padding-bottom: 3px; }
+}
+@media (max-width: 1279px) and (max-height: 500px) {
+  .workspace-app .manuscript-heading { padding: 3px 12px; }
+  .workspace-app .publication-header-actions > button { min-height: 30px; height: 30px; padding: 4px 10px; }
+  .workspace-app .chapter-directory-toggle { min-height: 32px; padding-top: 4px; padding-bottom: 4px; font-size: 12px; }
+  .workspace-app .editor-toolbar { padding-top: 2px; padding-bottom: 2px; }
+  .workspace-app .editor-status-bar { padding-top: 3px; padding-bottom: 3px; }
+  .workspace-app .workspace-content .manuscript-page { padding-top: 12px; }
+  .workspace-app .manuscript-page > input { font-size: 17px; margin-bottom: 8px; }
+}

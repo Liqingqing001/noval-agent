@@ -7,6 +7,7 @@
     "packages/*"
   ],
   "scripts": {
+    "test:mobile-space": "node packages/frontend/tests/mobileReadingSpace.browser.cjs",
     "demo:import": "node scripts/import-tide-demo.mjs",
     "demo:check": "node scripts/import-tide-demo.mjs --check",
     "test:database-case": "node --test packages/backend/tests/tideDemo.test.mjs",

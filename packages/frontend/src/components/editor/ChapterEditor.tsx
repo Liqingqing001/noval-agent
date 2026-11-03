@@ -172,6 +172,7 @@ export function ChapterEditor({ chapterId }: ChapterEditorProps) {
     <div className="flex min-h-0 flex-col h-full bg-white/80 dark:bg-background/80">
       {/* Toolbar - 绿色主题 */}
       <div className="editor-toolbar shrink-0 px-3 py-2 border-b border-green-100 dark:border-green-900 bg-white/90 dark:bg-background/90 backdrop-blur-sm">
+        <div className="editor-format-actions" role="group" aria-label="正文格式工具">
         <Button
           variant="ghost"
           size="icon"
@@ -265,9 +266,10 @@ export function ChapterEditor({ chapterId }: ChapterEditorProps) {
           editor.commands.setContent(compact, { emitUpdate: true });
           editor.view.dispatch(closeHistory(editor.state.tr));
         }}>整理空行</Button>
-        <div className="min-w-1 flex-1" />
+        </div>
+        <div className="editor-toolbar-spacer min-w-1 flex-1" />
         <EditorPreferences value={preferences} onChange={setPreferences} />
-        <span title="正文自动保存到本机，Ctrl+S 可立即保存" role="status" className={`whitespace-nowrap px-1 text-xs font-medium ${isSaving ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
+        <span title="正文自动保存到本机，Ctrl+S 可立即保存" role="status" className={`editor-save-status whitespace-nowrap px-1 text-xs font-medium ${isSaving ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
           {isSaving ? '保存中...' : '已保存'}
         </span>
       </div>
@@ -296,13 +298,14 @@ export function ChapterEditor({ chapterId }: ChapterEditorProps) {
       </div>
 
       {/* Status Bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-t border-green-100 dark:border-green-900 bg-white/90 dark:bg-background/90 text-xs">
+      <div className="editor-status-bar shrink-0 flex items-center justify-between px-4 py-2.5 border-t border-green-100 dark:border-green-900 bg-white/90 dark:bg-background/90 text-xs">
         <span className="font-medium text-green-700 dark:text-green-400">
           字数：<span className="text-green-600 dark:text-green-300">{wordCount.toLocaleString()}</span>
         </span>
-        <span className="text-green-500/70 dark:text-green-400/70">
+        <span className="editor-last-edit text-green-500/70 dark:text-green-400/70">
           最后编辑：{new Date(chapter.updatedAt).toLocaleString()}
         </span>
+        <span className="editor-mobile-save" role="status" title={`最后编辑：${new Date(chapter.updatedAt).toLocaleString()}`}>{isSaving ? '保存中...' : '已保存'}</span>
       </div>
     </div>
   );

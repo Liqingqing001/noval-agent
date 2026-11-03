@@ -112,10 +112,10 @@ export function ForeshadowingPanel() {
   };
 
   return (
-    <div className="h-full overflow-y-auto p-6">
+    <div className="foreshadowing-panel h-full overflow-y-auto p-6">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="foreshadowing-heading flex items-center justify-between mb-6">
           <div>
             <h2 className="text-lg font-semibold">伏笔管理</h2>
             <p className="text-sm text-muted-foreground">
@@ -129,7 +129,7 @@ export function ForeshadowingPanel() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="foreshadowing-stats grid grid-cols-3 gap-4 mb-6">
           <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               {foreshadowings.filter((f) => f.status === 'planted').length}
@@ -162,11 +162,11 @@ export function ForeshadowingPanel() {
               return (
                 <div
                   key={f.id}
-                  className="p-4 border rounded-lg hover:shadow-sm transition-shadow bg-card"
+                  className="foreshadowing-card p-4 border rounded-lg hover:shadow-sm transition-shadow bg-card"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="foreshadowing-card-title flex items-center gap-2 mb-1">
                         <StatusIcon className={`h-4 w-4 ${statusConfig[f.status].color}`} />
                         <h3 className="font-medium truncate">{f.title}</h3>
                         <span className={`text-xs px-1.5 py-0.5 rounded ${
@@ -180,7 +180,7 @@ export function ForeshadowingPanel() {
                       {f.description && (
                         <p className="text-sm text-muted-foreground mb-2">{f.description}</p>
                       )}
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      <div className="foreshadowing-chapter-links flex items-center gap-4 text-xs text-muted-foreground">
                         {f.plantedChapterId && (
                           <span>埋下：{getChapterTitle(f.plantedChapterId)}</span>
                         )}

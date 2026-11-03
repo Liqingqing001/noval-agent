@@ -15,6 +15,7 @@ import { BookOpen, Library, Bot } from 'lucide-react';
 import { flushActiveEditor } from '@/lib/editorEvents';
 import '@/styles/workspace.css';
 import '@/styles/emerald-court.css';
+import '@/styles/mobile-workspace.css';
 
 const DemoAssistant = lazy(() => import('@/demo/DemoAssistant').then(module => ({ default: module.DemoAssistant })));
 const PublicationHub = lazy(() => import('@/components/publishing/PublicationHub').then(module => ({ default: module.PublicationHub })));
