@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, BookOpen, FileText, Users, Globe, Settings, Trash2, Pencil, Sparkles, LogOut, Cloud, ImagePlus, Send } from 'lucide-react';
+import { Plus, BookOpen, FileText, Users, Globe, Settings, Trash2, Pencil, Sparkles, LogOut, Cloud, ImagePlus, Send, MoreHorizontal, Eye, ImageOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ContextActionMenu, useContextActionMenu } from '@/components/ui/ContextActionMenu';
+import { ImagePreview } from '@/components/ui/ImagePreview';
 import { useNovelStore } from '@/stores/novelStore';
 import { useAuthStore } from '@/stores/authStore';
 import { IS_DEMO } from '@/lib/runtime';
@@ -19,6 +21,9 @@ export function Sidebar({ currentView, onLogout, onNavigate, onOpenPublication }
   const [newNovelTitle, setNewNovelTitle] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const [menuNovelId, setMenuNovelId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ src: string; name: string } | null>(null);
+  const menu = useContextActionMenu();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -78,8 +83,7 @@ export function Sidebar({ currentView, onLogout, onNavigate, onOpenPublication }
     reader.readAsDataURL(file);
   };
 
-  const handleCoverButtonClick = (e: React.MouseEvent, novelId: string) => {
-    e.stopPropagation();
+  const handleCoverButtonClick = (novelId: string) => {
     const input = fileInputRef.current;
     if (!input) return;
     input.dataset.novelId = novelId;
@@ -87,10 +91,9 @@ export function Sidebar({ currentView, onLogout, onNavigate, onOpenPublication }
     input.click();
   };
 
-  const handleRemoveCover = (e: React.MouseEvent, novelId: string) => {
-    e.stopPropagation();
+  const handleRemoveCover = (novelId: string) => {
     if (confirm('确定移除这本书的封面吗？')) {
-      updateNovel(novelId, { cover: undefined });
+      updateNovel(novelId, { cover: '' });
     }
   };
 
@@ -101,6 +104,15 @@ export function Sidebar({ currentView, onLogout, onNavigate, onOpenPublication }
       handleCoverUpload(novelId, file);
     }
   };
+
+  const menuNovel = novels.find(novel => novel.id === menuNovelId);
+  const menuItems = menuNovel ? [
+    { id: 'preview', label: '预览封面', icon: <Eye className="h-4 w-4" />, disabled: !menuNovel.cover, onSelect: () => { if (menuNovel.cover) setPreview({ src: menuNovel.cover, name: menuNovel.title }); } },
+    { id: 'cover', label: menuNovel.cover ? '更换封面' : '添加封面', icon: <ImagePlus className="h-4 w-4" />, onSelect: () => handleCoverButtonClick(menuNovel.id) },
+    ...(menuNovel.cover ? [{ id: 'remove-cover', label: '移除封面', icon: <ImageOff className="h-4 w-4" />, onSelect: () => handleRemoveCover(menuNovel.id) }] : []),
+    { id: 'rename', label: '重命名小说', icon: <Pencil className="h-4 w-4" />, separatorBefore: true, onSelect: () => { setEditingId(menuNovel.id); setEditTitle(menuNovel.title); } },
+    { id: 'delete', label: '删除小说', icon: <Trash2 className="h-4 w-4" />, danger: true, onSelect: () => { if (confirm(`确定删除《${menuNovel.title}》？`)) deleteNovel(menuNovel.id); } },
+  ] : [];
 
   const navItems: { id: ViewType; icon: typeof BookOpen; label: string }[] = [
     { id: 'outline', icon: FileText, label: '大纲' },
@@ -137,14 +149,23 @@ export function Sidebar({ currentView, onLogout, onNavigate, onOpenPublication }
           ref={fileInputRef}
           type="file"
           accept="image/*"
+          hidden
           className="hidden"
           onChange={handleCoverInputChange}
         />
         {novels.map((novel) => (
           <div
             key={novel.id}
+            data-novel-id={novel.id}
             onClick={() => handleSelectNovel(novel.id)}
-            className={`shelf-book group relative cursor-pointer rounded-xl border p-3 transition-colors ${currentNovelId === novel.id ? 'is-selected border-primary/25 bg-card' : 'border-border/60 bg-card/60 hover:border-primary/25 hover:bg-card'}`}
+            onContextMenu={event => { setMenuNovelId(novel.id); menu.onContextMenu(event); }}
+            onKeyDown={event => {
+              if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') {
+                setMenuNovelId(novel.id);
+                menu.onMenuKeyDown(event);
+              }
+            }}
+            className={`shelf-book group relative cursor-pointer select-none rounded-xl border p-3 transition-colors ${currentNovelId === novel.id ? 'is-selected border-primary/25 bg-card' : 'border-border/60 bg-card/60 hover:border-primary/25 hover:bg-card'}`}
           >
             {/* 选中指示条 */}
             {currentNovelId === novel.id && (
@@ -162,34 +183,34 @@ export function Sidebar({ currentView, onLogout, onNavigate, onOpenPublication }
                 }}
                 onBlur={() => handleUpdateTitle(novel.id)}
                 autoFocus
-                className="w-full px-3 py-2 text-sm font-medium bg-background border-2 border-primary rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className="w-full select-text px-3 py-2 text-sm font-medium bg-background border-2 border-primary rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20"
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
               <>
                 <div className="shelf-book-layout">
-                  <div className="shelf-cover relative shrink-0">
+                  <button
+                    type="button"
+                    className="shelf-cover relative shrink-0 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-default"
+                    disabled={!novel.cover}
+                    aria-label={`预览封面：${novel.title}`}
+                    title={novel.cover ? '点击放大预览' : '在更多菜单中添加封面'}
+                    onClick={event => { event.stopPropagation(); if (novel.cover) { event.currentTarget.focus({ preventScroll: true }); setPreview({ src: novel.cover, name: novel.title }); } }}
+                  >
                     {novel.cover ? (
                       <img
                         src={novel.cover}
                         alt={`${novel.title}封面`}
+                        draggable={false}
                         className="h-20 w-14 rounded-md object-cover border border-border/60 shadow-sm"
                       />
                     ) : (
                       <div className="book-cover-placeholder h-20 w-14 rounded-md flex flex-col items-center justify-between overflow-hidden px-2 py-3 text-primary"><BookOpen className="h-4 w-4 opacity-70" /><span className="line-clamp-2 text-center text-[10px] font-medium leading-relaxed">{novel.title}</span><span className="h-px w-4 bg-primary/30" /></div>
                     )}
-                    <button
-                      type="button"
-                      onClick={(e) => handleCoverButtonClick(e, novel.id)}
-                      className="absolute -right-2 -bottom-2 h-7 w-7 rounded-full border border-border bg-background shadow-sm flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity hover:bg-muted"
-                      title={novel.cover ? '更换封面' : '添加封面'}
-                    >
-                      <ImagePlus className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                  </button>
 
                   <div className="min-w-0">
-                    <h3><button type="button" onClick={() => handleSelectNovel(novel.id)} aria-current={currentNovelId === novel.id ? 'true' : undefined} className="w-full rounded text-left font-semibold text-sm leading-6 line-clamp-2 break-words focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40" title={novel.title}>
+                    <h3 className="pr-7"><button type="button" onClick={event => { event.stopPropagation(); handleSelectNovel(novel.id); }} aria-current={currentNovelId === novel.id ? 'true' : undefined} className="w-full rounded text-left font-semibold text-sm leading-6 line-clamp-2 break-words focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40" title={novel.title}>
                       {novel.title}
                     </button></h3>
                     <div className="flex flex-col items-start gap-2 mt-2">
@@ -206,38 +227,16 @@ export function Sidebar({ currentView, onLogout, onNavigate, onOpenPublication }
                     </div>
                   </div>
 
-                  {/* 操作按钮 */}
-                  <div className="shelf-book-actions flex items-center justify-end gap-1 border-t border-border/50 pt-2" onClick={(e) => e.stopPropagation()}>
-                    {novel.cover && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 rounded-lg hover:bg-destructive/10"
-                        onClick={(e) => handleRemoveCover(e, novel.id)}
-                        title="移除封面"
-                      >
-                        <ImagePlus className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 rounded-lg hover:bg-muted"
-                      aria-label="重命名小说" title="重命名小说"
-                      onClick={() => { setEditingId(novel.id); setEditTitle(novel.title); }}
-                    >
-                      <Pencil className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 rounded-lg hover:bg-destructive/10"
-                      aria-label="删除小说" title="删除小说"
-                      onClick={() => confirm('确定删除？') && deleteNovel(novel.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                    </Button>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shelf-book-more absolute right-2 top-2 h-8 w-8 rounded-lg text-muted-foreground hover:bg-primary/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/40"
+                    aria-label={`更多操作：${novel.title}`}
+                    aria-haspopup="menu"
+                    aria-expanded={menu.menuProps.open && menuNovelId === novel.id}
+                    title="更多操作（也可右键）"
+                    onClick={event => { event.stopPropagation(); setMenuNovelId(novel.id); menu.openAtElement(event.currentTarget); }}
+                  ><MoreHorizontal className="h-4 w-4" /></Button>
                 </div>
               </>
             )}
@@ -280,6 +279,9 @@ export function Sidebar({ currentView, onLogout, onNavigate, onOpenPublication }
           </div>
         )}
       </div>
+
+      <ContextActionMenu {...menu.menuProps} items={menuItems} label={menuNovel ? `《${menuNovel.title}》操作菜单` : '书籍操作菜单'} />
+      <ImagePreview open={!!preview} onOpenChange={open => { if (!open) setPreview(null); }} src={preview?.src} name={preview?.name || ''} kind="cover" />
 
       {/* Navigation */}
       <div className="bookshelf-navigation shrink-0 p-3 space-y-1 border-t border-border/60 bg-card/40" role="navigation" aria-label="作品功能">

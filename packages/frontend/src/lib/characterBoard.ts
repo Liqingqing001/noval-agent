@@ -10,6 +10,16 @@ export interface CharacterBoardData { version: 1; nodes: Record<string, Characte
 export const emptySnapshot = (): CharacterSnapshot => ({ life: 'unknown', location: '', condition: '', goal: '', inventory: '', notes: '', asOfChapterId: '' });
 export const emptyBoard = (): CharacterBoardData => ({ version: 1, nodes: {}, edges: [] });
 export const defaultPosition = (index: number, count = 16): BoardPoint => { const columns = Math.min(40, Math.max(4, Math.ceil(Math.sqrt(count)))); return { x: 100 + index % columns * 210, y: 90 + Math.floor(index / columns) * 190 }; };
+
+/** A display-only neighborhood: retain the person even when isolated, excluding peer-to-peer lines. */
+export function characterFocusGraph<T extends { id: string }>(characters: T[], edges: CharacterEdge[], focusId: string | null) {
+  const ids = new Set(characters.map(character => character.id));
+  const validEdges = edges.filter(edge => ids.has(edge.source) && ids.has(edge.target));
+  if (!focusId || !ids.has(focusId)) return { characters, edges: validEdges };
+  const focusedEdges = validEdges.filter(edge => edge.source === focusId || edge.target === focusId);
+  const visibleIds = new Set([focusId, ...focusedEdges.flatMap(edge => [edge.source, edge.target])]);
+  return { characters: characters.filter(character => visibleIds.has(character.id)), edges: focusedEdges };
+}
 export const canvasPosition = (point: BoardPoint): BoardPoint => {
   if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) throw new Error('人物位置必须是有限坐标。');
   return { x: point.x, y: point.y };

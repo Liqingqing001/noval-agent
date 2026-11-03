@@ -25,7 +25,7 @@
   .workspace-app .shelf-book-layout { grid-template-columns: 64px minmax(0,1fr); gap: 10px 14px; }
   .workspace-app .shelf-cover > img, .workspace-app .shelf-cover > .book-cover-placeholder { width: 64px; height: 90px; }
   .workspace-app .shelf-book h3 button { font-size: 16px; -webkit-line-clamp: unset; }
-  .workspace-app .shelf-book-actions { padding-top: 6px; }
+  .workspace-app .shelf-book-more { right: 7px; top: 7px; }
   .workspace-app .bookshelf-navigation { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px; padding: 8px; border-top-width: 1px; }
   .workspace-app .bookshelf-navigation > button { justify-content: center; gap: 5px; min-height: 40px; padding: 8px 2px; margin: 0; font-size: 12px; border-radius: 7px; }
   .workspace-app .bookshelf-navigation > button > svg { width: 15px; height: 15px; flex-shrink: 0; }
@@ -76,8 +76,7 @@
   .workspace-app .bookshelf-footer { display: none; }
   .workspace-app .bookshelf-books { padding-top: 8px; padding-bottom: 8px; }
   .workspace-app .shelf-cover > img, .workspace-app .shelf-cover > .book-cover-placeholder { height: 66px; width: 48px; }
-  .workspace-app .shelf-book-layout { grid-template-columns: 48px minmax(0,1fr) auto; align-items: center; }
-  .workspace-app .shelf-book-actions { grid-column: auto; border: 0; padding: 0; }
+  .workspace-app .shelf-book-layout { grid-template-columns: 48px minmax(0,1fr); align-items: center; }
   .workspace-app .demo-banner { min-height: 34px; }
   .workspace-app .workspace-mobile-nav button { min-height: 42px; }
 }

@@ -99,7 +99,7 @@ export function CharacterEditor({
 
         <div className="space-y-4 py-4">
           <div className="flex items-center gap-4">
-            <CharacterPortrait avatar={avatar} name={name || '人物'} className="shrink-0" />
+            <CharacterPortrait avatar={avatar} name={name || '人物'} className="shrink-0" previewable />
             <div className="space-y-2 text-sm">
               <label className="cursor-pointer text-primary">上传人物头像<input aria-label="编辑人物头像" type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={async event => { const file = event.target.files?.[0]; event.target.value = ''; if (!file) return; try { setAvatar(await characterAvatar(file)); setAvatarError(''); } catch (error) { setAvatarError(error instanceof Error ? error.message : '头像读取失败'); } }} /></label>
               <p className="text-xs text-muted-foreground">头像随人物档案保存；支持 5 MiB 以内的 PNG、JPEG、WebP。</p>

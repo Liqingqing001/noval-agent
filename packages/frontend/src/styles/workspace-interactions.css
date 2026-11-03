@@ -1,0 +1,10 @@
+/* Prevent drag/click selection on app controls, while keeping writing and prose selectable. */
+.workspace-app :where(button, [role="button"], [role="tab"], .bookshelf-header, .bookshelf-navigation, .shelf-book, .chapter-entry, .chapter-directory-header, .chapter-directory-stats, .editor-toolbar, .editor-status-bar, .workspace-mobile-nav) {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.workspace-app :where(input, textarea, [contenteditable="true"], .tiptap, .world-setting-content, .character-profile-fields) {
+  -webkit-user-select: text;
+  user-select: text;
+}

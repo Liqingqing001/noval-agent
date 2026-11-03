@@ -17,6 +17,12 @@
 
 .character-graph-node.is-link-source .character-avatar { outline: 3px dashed hsl(var(--primary)); outline-offset: 5px; }
 .character-link-hint { height: 2.5rem; overflow-y: auto; line-height: 1.25rem; }
+.character-board-toolbar, .character-board-viewport { -webkit-user-select: none; user-select: none; }
+.character-board-toolbar input, .character-board-toolbar select { -webkit-user-select: text; user-select: text; }
+.character-board-inspector { -webkit-user-select: text; user-select: text; }
+.character-graph-node.is-focus-person .character-avatar { outline: 3px solid hsl(var(--primary)); outline-offset: 5px; }
+.character-graph-node.is-focus-person strong::after { content: ' · 聚焦'; font-size: 10px; color: hsl(var(--primary)); }
+.character-focus-banner { line-height: 1.6; }
 
 @media (max-width: 639px) {
   .character-profile-row { display: grid; grid-template-columns: 72px minmax(0, 1fr); align-items: center; }

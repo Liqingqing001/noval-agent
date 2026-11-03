@@ -365,7 +365,7 @@ function CharacterListView() {
                       <GripVertical className="h-5 w-5 text-muted-foreground" />
                     </div>
 
-                    <CharacterPortrait avatar={char.avatar} name={char.name} className="shrink-0" />
+                    <CharacterPortrait avatar={char.avatar} name={char.name} className="shrink-0" previewable />
 
                     <div className="character-profile-details flex-1 min-w-0">
                       <div className="character-profile-heading flex items-center gap-2 mb-2">

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canvasPosition, defaultPosition, edgeGeometry, emptyBoard, emptySnapshot, remapBoardCharacter, seedCharacterRelationships, validateCharacterBoard } from '../src/lib/characterBoard.ts';
+import { canvasPosition, defaultPosition, edgeGeometry, emptyBoard, emptySnapshot, remapBoardCharacter, seedCharacterRelationships, validateCharacterBoard, characterFocusGraph } from '../src/lib/characterBoard.ts';
 import { parseCharacterRelationships, resolveCharacterPortrait } from '../src/lib/characterProfiles.ts';
 
 test('board positions retain negative and distant coordinates without a world boundary', () => {
@@ -71,4 +71,18 @@ test('DB relationship JSON normalizes defensively without guessing from prose', 
   assert.deepEqual(parseCharacterRelationships(JSON.stringify([relation])), [relation]);
   assert.deepEqual(parseCharacterRelationships('[invalid'), []);
   assert.deepEqual(parseCharacterRelationships([{ targetName: '顾夏', kind: 'friend', label: '友人' }, { ...relation, directed: 'yes' }]), []);
+});
+
+test('person focus keeps incoming and outgoing neighbors, excludes peer lines, and never rewrites the board', () => {
+  const characters = ['a', 'b', 'c', 'isolated'].map(id => Object.freeze({ id, name: id }));
+  const relation = (id, source, target) => Object.freeze({ id, source, target, label: '同伴', kind: 'ally', directed: true, notes: '' });
+  const edges = [relation('ab', 'a', 'b'), relation('ca', 'c', 'a'), relation('bc', 'b', 'c'), relation('foreign', 'a', 'missing')];
+  const original = JSON.stringify({ characters, edges });
+  const focused = characterFocusGraph(Object.freeze(characters), Object.freeze(edges), 'a');
+  assert.deepEqual(focused.characters.map(person => person.id), ['a', 'b', 'c']);
+  assert.deepEqual(focused.edges.map(edge => edge.id), ['ab', 'ca']);
+  assert.deepEqual(characterFocusGraph(characters, edges, 'isolated'), { characters: [characters[3]], edges: [] });
+  assert.deepEqual(characterFocusGraph(characters, edges, null).edges.map(edge => edge.id), ['ab', 'ca', 'bc']);
+  assert.deepEqual(characterFocusGraph(characters, edges, 'deleted').characters, characters);
+  assert.equal(JSON.stringify({ characters, edges }), original);
 });

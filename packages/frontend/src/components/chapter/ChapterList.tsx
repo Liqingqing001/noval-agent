@@ -3,6 +3,7 @@ import { Plus, Trash2, Edit3, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNovelStore } from '@/stores/novelStore';
 import { chapterTitleText } from '@/lib/chapterTitle';
+import { ContextActionMenu, useContextActionMenu } from '@/components/ui/ContextActionMenu';
 
 interface ChapterListProps {
   onSelectChapter: (id: string) => void;
@@ -34,6 +35,8 @@ export function ChapterList({ onSelectChapter, selectedChapterId, width = 288 }:
   const [newChapterTitle, setNewChapterTitle] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const [contextChapterId, setContextChapterId] = useState<string | null>(null);
+  const contextMenu = useContextActionMenu();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const currentNovelId = useNovelStore((state) => state.currentNovelId);
@@ -96,6 +99,11 @@ export function ChapterList({ onSelectChapter, selectedChapterId, width = 288 }:
       className="chapter-directory flex h-full min-h-0 flex-col shrink-0 border-r border-border/60 bg-background"
       style={{ width }}
     >
+      <ContextActionMenu {...contextMenu.menuProps} label="章节操作" items={contextChapterId && chapters.some(chapter => chapter.id === contextChapterId) ? [
+        { id: 'open', label: '打开章节', icon: <FileText className="h-4 w-4" />, onSelect: () => onSelectChapter(contextChapterId) },
+        { id: 'rename', label: '重命名章节', icon: <Edit3 className="h-4 w-4" />, onSelect: () => { const chapter = chapters.find(item => item.id === contextChapterId); if (chapter) { setEditingId(chapter.id); setEditTitle(chapter.title); } } },
+        { id: 'delete', label: '删除章节', icon: <Trash2 className="h-4 w-4" />, danger: true, separatorBefore: true, onSelect: () => handleDeleteChapter(contextChapterId) },
+      ] : []} />
       {/* Header */}
       <div className="chapter-directory-header shrink-0 flex items-center justify-between px-4 py-5 border-b border-border/60">
         <div className="flex items-center gap-2">
@@ -117,7 +125,10 @@ export function ChapterList({ onSelectChapter, selectedChapterId, width = 288 }:
       {/* Chapter List */}
       <div className="chapter-directory-list min-h-0 flex-1 overflow-y-auto p-2.5 space-y-1.5 scrollbar-thin">
         {chapters.map((chapter, index) => (
-          <div key={chapter.id} className={`chapter-entry group relative rounded-lg border transition-colors ${selectedChapterId === chapter.id ? 'border-primary/20 bg-primary/[0.07]' : 'border-transparent hover:bg-muted/50'}`}>
+          <div key={chapter.id}
+            onContextMenu={event => { setContextChapterId(chapter.id); contextMenu.onContextMenu(event); }}
+            onKeyDown={event => { if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') { setContextChapterId(chapter.id); contextMenu.onMenuKeyDown(event); } }}
+            className={`chapter-entry group relative rounded-lg border transition-colors ${selectedChapterId === chapter.id ? 'border-primary/20 bg-primary/[0.07]' : 'border-transparent hover:bg-muted/50'}`}>
             {editingId === chapter.id ? (
               <div className="p-3">
                 <label className="mb-2 block text-[11px] text-muted-foreground">{getChapterLabel(index)} · 重命名</label>
