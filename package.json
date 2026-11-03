@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "test:interactions": "node packages/frontend/tests/workspaceInteractions.browser.cjs",
+    "test:mobile-board": "node packages/frontend/tests/mobileCharacterBoard.browser.cjs",
     "test:mobile-space": "node packages/frontend/tests/mobileReadingSpace.browser.cjs",
     "demo:import": "node scripts/import-demo-library.mjs",
     "demo:check": "node scripts/import-demo-library.mjs --check",
@@ -20,7 +21,7 @@
     "book:build": "node scripts/build-book.mjs",
     "school:build": "node scripts/build-school.mjs",
     "test:book": "node scripts/build-book.mjs && node packages/frontend/tests/book.browser.cjs",
-    "test:board": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/characterBoard.test.mjs",
+    "test:board": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/characterBoard.test.mjs packages/frontend/tests/boardGestures.test.mjs",
     "test:reference": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/referenceCreation.test.mjs",
     "test:progress": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/outlineProgress.test.mjs",
     "test:writing": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/writingContext.test.mjs",

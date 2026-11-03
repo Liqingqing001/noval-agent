@@ -179,7 +179,11 @@ const boardKey = `${key('novel-agent-character-board')}:${isDemo ? 'browser' : '
         await page.getByLabel('只看一个人的关系', { exact: true }).selectOption(profiles[4].id);
         assert.equal(await page.locator('[data-character-node]').count(), 1, 'An isolated central person remains visible');
         assert.equal(await page.locator('[data-character-edge]').count(), 0);
-        await page.locator(`[data-character-focus="${profiles[4].id}"]`).getByText('此人还没有关系记录。', { exact: false }).waitFor();
+        await page.locator(`[data-character-focus="${profiles[4].id}"]`).getByText('0 人 / 0 条关系', { exact: false }).waitFor();
+        await button('查看关系清单').click();
+        const emptyRelations = page.getByRole('dialog', { name: `${profiles[4].name}的直接关系`, exact: true });
+        await emptyRelations.getByText('此人还没有已记录的直接关系。', { exact: true }).waitFor();
+        await page.keyboard.press('Escape'); await emptyRelations.waitFor({ state: 'hidden' });
         await button('返回全部关系').click();
         assert.equal(await page.locator('[data-character-node]').count(), profiles.length);
         assert.equal(await page.locator('.character-board-world').getAttribute('style'), priorTransform);

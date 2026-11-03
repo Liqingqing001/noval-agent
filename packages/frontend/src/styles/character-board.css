@@ -10,7 +10,7 @@
 .character-node-location { max-width: 116px; padding: 2px 8px; border-radius: 10px; background: hsl(var(--card)); border: 1px solid hsl(var(--border)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
 .character-edge-label { position: absolute; transform: translate(-50%, -50%); border: 1px solid; border-radius: 16px; padding: 4px 10px; background: hsl(var(--card)); font-size: 12px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .character-board-inspector { width: 340px; max-width: 100%; overscroll-behavior: contain; }
-@media (max-width: 700px) { .character-board-inspector { width: 100%; } .character-board > header { max-height: 40%; overflow-y: auto; } }
+@media (max-width: 700px) { .character-board-inspector { width: 100%; } }
 .character-board-expanded { position: fixed; inset: 0; z-index: 40; background: hsl(var(--background)); }
 .character-graph-node { z-index: 1; }
 .character-edge-label { z-index: 2; }
@@ -23,6 +23,68 @@
 .character-graph-node.is-focus-person .character-avatar { outline: 3px solid hsl(var(--primary)); outline-offset: 5px; }
 .character-graph-node.is-focus-person strong::after { content: ' · 聚焦'; font-size: 10px; color: hsl(var(--primary)); }
 .character-focus-banner { line-height: 1.6; }
+
+/* Keep the canvas toolbar visible; instructions and secondary tools open over it. */
+.character-board-toolbar { display: grid; gap: 8px; max-height: none; overflow: visible; padding: 12px 16px; }
+.character-board-heading { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.character-board-heading h2 { min-width: 0; font-size: 14px; white-space: nowrap; }
+.character-board-heading > button { flex-shrink: 0; }
+.character-board-filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.character-board-filters > input { min-width: 0; height: 38px; }
+.character-focus-controls { display: flex; align-items: center; min-width: 0; gap: 6px; font-size: 12px; }
+.character-focus-controls > span, .character-focus-controls > svg { flex-shrink: 0; }
+.character-focus-controls > select { flex: 1; min-width: 0; width: 0; height: 38px; }
+.character-board-navigation { display: flex; align-items: center; min-width: 0; gap: 8px; }
+.character-board-zoom-controls { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.character-board-zoom-controls > button { width: 34px; height: 34px; }
+.character-board-zoom-controls svg { width: 16px; height: 16px; }
+.character-board-zoom-ratio { width: 40px; font-size: 12px; text-align: center; font-variant-numeric: tabular-nums; }
+.character-board-status { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; color: hsl(var(--muted-foreground)); font-size: 12px; }
+.character-focus-banner { display: flex; align-items: center; gap: 8px; min-width: 0; border: 1px solid hsl(var(--primary) / .2); border-radius: 8px; background: hsl(var(--primary) / .05); padding: 5px 8px; font-size: 12px; }
+.character-focus-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.character-focus-banner > button { flex-shrink: 0; height: 28px; padding: 0 8px; font-size: 12px; }
+.character-board-short-label { display: none; }
+.character-board .character-link-hint { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: auto; min-height: 28px; overflow: visible; padding: 4px 8px; border-radius: 7px; background: hsl(var(--primary) / .06); }
+.character-link-hint > span { min-width: 0; }
+.character-link-hint > button { flex-shrink: 0; text-decoration: underline; }
+.character-board-notice { display: flex; align-items: center; gap: 8px; }
+.character-board-notice > span { flex: 1; min-width: 0; }
+.character-board-notice > button { flex-shrink: 0; }
+
+@media (max-width: 700px) {
+  .character-board-toolbar { gap: 6px; padding: 8px 10px; }
+  .character-board-heading { gap: 6px; min-height: 32px; }
+  .character-board-heading h2 { font-size: 14px; }
+  .character-board-heading > .character-board-primary-action, .character-board-heading > .character-board-tools-trigger { width: 32px; height: 32px; padding: 0; }
+  .character-board-primary-action > span, .character-board-tools-trigger > span { display: none; }
+  .character-board-heading svg { width: 16px; height: 16px; }
+  .character-board-filters { gap: 8px; }
+  .character-board-filters > input, .character-focus-controls > select { height: 36px; padding: 6px 8px; font-size: 13px; }
+  .character-focus-controls { gap: 4px; }
+  .character-focus-controls > svg { display: none; }
+  .character-board-zoom-controls { gap: 4px; }
+  .character-board-zoom-controls > button { width: 30px; height: 30px; }
+  .character-board-zoom-controls svg { width: 14px; height: 14px; }
+  .character-board-zoom-ratio { width: 34px; font-size: 11px; }
+  .character-board-status { font-size: 11px; }
+  .character-focus-banner { gap: 4px; padding: 4px 6px; font-size: 11px; }
+  .character-focus-banner > button { padding: 0 6px; font-size: 11px; }
+  .character-board-wide-label { display: none; }
+  .character-board-short-label { display: inline; }
+  .character-board-notice { font-size: 12px; line-height: 1.5; }
+}
+
+@media (max-width: 1279px) and (max-height: 500px) and (min-width: 600px) {
+  .character-board-toolbar { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 8px; padding: 6px 8px; }
+  .character-board-heading { grid-column: 1; grid-row: 1; gap: 6px; }
+  .character-board-heading > .character-board-primary-action, .character-board-heading > .character-board-tools-trigger { width: 30px; height: 30px; padding: 0; }
+  .character-board-primary-action > span, .character-board-tools-trigger > span { display: none; }
+  .character-board-filters { grid-column: 2; grid-row: 1; }
+  .character-board-filters > input, .character-focus-controls > select { height: 32px; padding: 4px 6px; font-size: 13px; }
+  .character-board-navigation, .character-focus-banner, .character-board .character-link-hint, .character-board-notice { grid-column: 1 / -1; }
+  .character-board-zoom-controls > button { height: 28px; width: 30px; }
+  .character-board-zoom-controls svg { width: 14px; height: 14px; }
+}
 
 @media (max-width: 639px) {
   .character-profile-row { display: grid; grid-template-columns: 72px minmax(0, 1fr); align-items: center; }

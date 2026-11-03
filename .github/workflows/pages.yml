@@ -86,6 +86,8 @@ jobs:
           node packages/frontend/tests/publication.browser.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:interactions
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:mobile-board
           exit $LASTEXITCODE
         env:
           DATABASE_URL: file:./ci-unused.db
@@ -114,6 +116,8 @@ jobs:
           node packages/frontend/tests/publication.browser.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:interactions
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:mobile-board
           exit $LASTEXITCODE
         env:
           PARITY_MODE: demo
