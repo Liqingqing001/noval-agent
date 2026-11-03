@@ -1,0 +1,2 @@
+# Keep the downloadable Chinese TXT in Windows-compatible UTF-8 BOM / CRLF.
+packages/frontend/public/book/novel.txt -text whitespace=cr-at-eol
