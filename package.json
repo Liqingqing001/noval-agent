@@ -7,6 +7,10 @@
     "packages/*"
   ],
   "scripts": {
+    "demo:import": "node scripts/import-tide-demo.mjs",
+    "demo:check": "node scripts/import-tide-demo.mjs --check",
+    "test:database-case": "node --test packages/backend/tests/tideDemo.test.mjs",
+    "test:world": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/worldSettingContent.test.mjs",
     "publication:report": "node scripts/build-publication-report.mjs",
     "test:publication": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/publication.test.mjs",
     "book:build": "node scripts/build-book.mjs",
@@ -15,7 +19,7 @@
     "test:reference": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/referenceCreation.test.mjs",
     "test:progress": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/outlineProgress.test.mjs",
     "test:writing": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/writingContext.test.mjs",
-    "test:demo": "node --test packages/frontend/tests/demo.test.mjs",
+    "test:demo": "node --import tsx --test packages/frontend/tests/demo.test.mjs packages/frontend/tests/demoSeedPolicy.test.mjs",
     "test:editor": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/editorExport.test.mjs",
     "test:sync": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/structuredContent.test.mjs packages/frontend/tests/autoSync.test.mjs packages/frontend/tests/modificationInstructions.test.mjs",
     "test:models": "node --import tsx --test packages/frontend/tests/modelService.test.mjs",

@@ -3,7 +3,7 @@ const {chromium}=require('playwright');
 const {spawn}=require('node:child_process');
 const {resolve}=require('node:path');
 const {readFile,mkdir}=require('node:fs/promises');
-const seed=require('../src/demo/lingShiOrigin.json');
+const seed=require('../src/demo/tideMemory.json');
 const platforms=require('../src/data/publishingPlatforms.json');
 const isDemo=process.env.PARITY_MODE!=='full';
 const base=`http://127.0.0.1:5194${isDemo?'/noval-agent/':'/'}`;
@@ -36,7 +36,7 @@ try{
  await dialog.getByRole('button',{name:'复制章节正文',exact:true}).click();const copied=await page.evaluate(()=>window.__copied);assert.ok(copied.includes(fixture.chapters[0].content.slice(0,40)));assert.ok(!copied.includes('不应导出的外部正文'));assert.ok(!copied.startsWith(fixture.novels[0].title));
  await page.evaluate(()=>{navigator.clipboard.writeText=async()=>{throw Error('Denied');};});await dialog.getByRole('button',{name:'复制简介',exact:true}).click();await dialog.getByLabel('手动复制内容').waitFor();
  await dialog.getByLabel('搜索发布平台').fill('GitHub');await dialog.locator('.publication-platforms>button').first().click();
- const [html]=await Promise.all([page.waitForEvent('download'),dialog.getByRole('button',{name:'下载独立阅读页 HTML',exact:true}).click()]);const htmlText=await readFile(await html.path(),'utf8');assert.match(htmlText,/<!doctype html>/);assert.match(htmlText,/chapter-17/);assert.ok(!htmlText.includes('不应导出的外部正文'));
+ const [html]=await Promise.all([page.waitForEvent('download'),dialog.getByRole('button',{name:'下载独立阅读页 HTML',exact:true}).click()]);const htmlText=await readFile(await html.path(),'utf8');assert.match(htmlText,/<!doctype html>/);assert.ok(htmlText.includes(`chapter-${seed.chapters.length}`));assert.ok(!htmlText.includes('不应导出的外部正文'));
  assert.ok(await dialog.evaluate(node=>node.scrollWidth<=node.clientWidth+1),'Dialog overflow');assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
  await mkdir('/tmp/publication-preview',{recursive:true});await page.screenshot({path:`/tmp/publication-preview/${isDemo?'demo':'full'}-${width}.png`});
  await dialog.getByRole('button',{name:'平台调研与 AI 政策',exact:true}).click();await dialog.getByLabel('搜索发布平台').fill('');await dialog.locator('.publication-platforms>button').first().click();await dialog.locator('.publication-scroll').evaluate(node=>node.scrollTop=0);await page.screenshot({path:`/tmp/publication-preview/${isDemo?'demo':'full'}-research-${width}.png`});await dialog.getByRole('button',{name:'准备发布材料',exact:true}).click();

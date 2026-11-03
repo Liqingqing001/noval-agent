@@ -3,7 +3,7 @@ import { Bot, Play, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNovelStore } from '@/stores/novelStore';
 import { readManuscript, paragraphText } from '@/lib/manuscript';
-import sample from './lingShiOrigin.json';
+import sample from './tideMemory.json';
 
 export function DemoAssistant({ onNavigate }: { onNavigate?: () => void }) {
   const [length, setLength] = useState(0);
@@ -23,13 +23,13 @@ export function DemoAssistant({ onNavigate }: { onNavigate?: () => void }) {
     <div className="flex items-center gap-2 border-b p-4 font-medium"><Bot className="h-5 w-5 text-primary" />AI 创作助手</div>
     <div className="flex-1 space-y-4 overflow-y-auto p-4">
       <div className="rounded-xl border bg-card p-4 text-sm leading-relaxed">
-        <p className="font-medium">先体验，再配置模型</p><p className="mt-2 text-muted-foreground">左侧已载入《灵石起源》真实示例。你可以编辑章节、查看人物与大纲，并导出 TXT、Markdown 或 Word。</p>
-        <p className="mt-2 text-xs text-muted-foreground">下面将完整回放第一章《{chapter?.title}》已有文字，不调用模型、不消耗 API 额度，也不会覆盖正文。</p>
+        <p className="font-medium">查看完整作品，再配置模型</p><p className="mt-2 text-muted-foreground">左侧已载入从项目数据库导出的《潮汐替人记得》完整案例。人物、世界观、大纲和四十章正文都在产品面板中，可以编辑和导出。</p>
+        <p className="mt-2 text-xs text-muted-foreground">下面只回放数据库已保存的章节《{chapter?.title}》已有文字，不调用模型、不消耗 API 额度，也不会覆盖正文。</p>
       </div>
-      <Button className="w-full" onClick={() => { setLength(0); setExpanded(false); setPlaying(true); }} disabled={playing && !finished}><Play className="h-4 w-4" />{playing && !finished ? '示例回放中…' : '演示正文生成效果'}</Button>
+      <Button className="w-full" onClick={() => { setLength(0); setExpanded(false); setPlaying(true); }} disabled={playing && !finished}><Play className="h-4 w-4" />{playing && !finished ? '示例回放中…' : '回放已有章节（非实时生成）'}</Button>
       {playing && <div className="rounded-xl border bg-card p-4">
         <p className="mb-2 text-xs font-medium text-primary" role="status">{finished ? '示例回放完成' : '示例回放中'} · 已有文字，非实时 AI 生成</p>
-        <p className="mb-3 text-xs text-muted-foreground">第一章《{chapter?.title}》 · 已回放 {length.toLocaleString()} / {text.length.toLocaleString()} 字符</p>
+        <p className="mb-3 text-xs text-muted-foreground">《{chapter?.title}》 · 已回放 {length.toLocaleString()} / {text.length.toLocaleString()} 字符</p>
         <div id="demo-playback-text" className={expanded ? '' : 'max-h-96 overflow-y-auto pr-1'}><p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{text.slice(0, length)}</p></div>
         <Button variant="ghost" size="sm" className="mt-2 text-xs" aria-expanded={expanded} aria-controls="demo-playback-text" onClick={() => setExpanded(value => !value)}>{expanded ? '收起全文' : '展开全文'}</Button>
         <p className="mt-2 text-xs leading-relaxed text-muted-foreground">文字可滚动阅读，也可展开全文；完整正文请到章节面板编辑或导出。</p>

@@ -1,7 +1,7 @@
 // Run against a demo build. Use PLAYWRIGHT_MODULE / CHROME_PATH for an existing installation.
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
-const sample = require('../src/demo/lingShiOrigin.json');
+const sample = require('../src/demo/tideMemory.json');
 const { mkdirSync } = require('node:fs');
 const { join } = require('node:path');
 
@@ -26,13 +26,13 @@ const { join } = require('node:path');
         await page.locator('.tiptap').waitFor();
         const original = await page.evaluate(() => localStorage.getItem('novel-agent-storage-demo-v1'));
         if (width < 1280) await page.getByRole('navigation', { name: '工作区切换' }).getByRole('button', { name: 'AI 助手', exact: true }).click();
-        const start = page.getByRole('button', { name: '演示正文生成效果', exact: true });
+        const start = page.getByRole('button', { name: '回放已有章节（非实时生成）', exact: true });
         const text = page.locator('#demo-playback-text');
         await start.click();
         await page.waitForFunction(() => document.querySelector('#demo-playback-text')?.textContent.length > 1200);
         await page.getByText('本章全文回放结束。', { exact: true }).waitFor();
         assert.equal(await text.textContent(), expected, 'Replay must include the complete opening chapter, including its last paragraph');
-        await page.getByText(`第一章《${sample.chapters[0].title}》 · 已回放 ${expected.length.toLocaleString()} / ${expected.length.toLocaleString()} 字符`, { exact: true }).waitFor();
+        await page.getByText(`《${sample.chapters[0].title}》 · 已回放 ${expected.length.toLocaleString()} / ${expected.length.toLocaleString()} 字符`, { exact: true }).waitFor();
         const expand = page.getByRole('button', { name: '展开全文', exact: true });
         assert.equal(await expand.getAttribute('aria-expanded'), 'false');
         assert.ok(await text.evaluate(element => element.scrollHeight > element.clientHeight));

@@ -41,6 +41,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:demo
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:world
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:editor
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:models
@@ -63,7 +65,17 @@ jobs:
         run: |
           npm run db:generate
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node -e "require('fs').closeSync(require('fs').openSync('packages/backend/prisma/ci-unused.db', 'a'))"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npx prisma migrate deploy --schema packages/backend/prisma/schema.prisma
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run demo:import
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run demo:check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --exit-code -- packages/frontend/src/demo/tideMemory.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:database-case
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run build
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -85,10 +97,8 @@ jobs:
         env:
           VITE_DEMO_MODE: 'true'
           VITE_BASE_PATH: /noval-agent/
-      - name: Verify complete novel and reading site
+      - name: Verify database-exported novel in product interface
         run: node packages/frontend/tests/book.browser.cjs
-        env:
-          BOOK_DIST: '1'
       - name: Verify same creative features in public demo
         run: |
           node packages/frontend/tests/featureParity.browser.cjs

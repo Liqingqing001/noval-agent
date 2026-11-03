@@ -3,7 +3,7 @@ const { chromium } = require('playwright');
 const { spawn } = require('node:child_process');
 const { resolve } = require('node:path');
 const { mkdirSync, readFileSync } = require('node:fs');
-const fixture = require('../src/demo/lingShiOrigin.json');
+const fixture = require('../src/demo/tideMemory.json');
 const isDemo = (process.env.PARITY_MODE || 'demo') === 'demo';
 const mode = isDemo ? 'demo' : 'full';
 const base = process.env.PARITY_URL || `http://127.0.0.1:5186${isDemo ? '/noval-agent/' : '/'}`;
@@ -51,7 +51,11 @@ const boardKey = `${storageKey('novel-agent-character-board')}:${isDemo ? 'brows
       else await locator.click();
     };
     const details = async locator => {
-      if (width === 390) { await tap(locator); await tap(locator); }
+      if (width === 390) {
+       // The canvas refits asynchronously after focus-mode resize. Tap final coordinates, not the pre-ResizeObserver box.
+       await page.evaluate(async () => { for (let frame = 0; frame < 3; frame++) await new Promise(requestAnimationFrame); });
+       await tap(locator); await tap(locator);
+      }
       else await locator.dblclick();
       await page.getByRole('complementary', { name: '人物详情' }).waitFor();
     };

@@ -62,7 +62,7 @@ async function run() {
         await page.locator('.tiptap').fill(`手机编辑检查 ${width}`);
         if (compact) {
           await changePanel('AI 助手');
-          await page.getByRole('button', { name: '演示正文生成效果' }).click();
+          await page.getByRole('button', { name: '回放已有章节（非实时生成）' }).click();
           await changePanel('作品');
           assert.equal(await page.locator('.tiptap').innerText(), `手机编辑检查 ${width}`);
           await changePanel('AI 助手');

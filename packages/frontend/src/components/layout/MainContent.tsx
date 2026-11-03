@@ -9,6 +9,7 @@ import { SettingsView } from '@/components/settings/SettingsView';
 import { OutlineView } from '@/components/outline/OutlineView';
 import { CharacterEditor } from '@/components/characters/CharacterEditor';
 import { WorldSettingEditor } from '@/components/world/WorldSettingEditor';
+import { WorldSettingContent } from '@/components/world/WorldSettingContent';
 import type { ViewType, Character, WorldSetting } from '@/types';
 
 const STORAGE_KEY_CHAPTER_LIST = 'novel-agent-chapter-list-width';
@@ -569,7 +570,7 @@ function WorldView() {
                         </div>
                       </div>
                       {setting.content && (
-                        <p className="text-sm text-muted-foreground mt-2">{setting.content}</p>
+                        <WorldSettingContent content={setting.content} />
                       )}
                       {!setting.content && (
                         <p className="text-xs text-muted-foreground italic mt-2">点击编辑添加详细内容</p>

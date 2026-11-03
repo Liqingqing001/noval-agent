@@ -4,7 +4,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const { spawn } = require('node:child_process');
 const { resolve } = require('node:path');
 const { mkdirSync } = require('node:fs');
-const fixture = require('../src/demo/lingShiOrigin.json');
+const fixture = require('../src/demo/tideMemory.json');
 const mode = process.env.PARITY_MODE || 'demo';
 const isDemo = mode === 'demo';
 const base = process.env.PARITY_URL || `http://127.0.0.1:5182${isDemo ? '/noval-agent/' : '/'}`;
