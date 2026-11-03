@@ -142,8 +142,25 @@ const near = (actual, expected, tolerance, message) => assert.ok(Math.abs(actual
         const labelBox = await page.locator('.character-edge-label').first().boundingBox(), labelCanvas = await canvas.boundingBox();
         const labelTouch = { id: 5, x: labelBox.x + labelBox.width / 2, y: labelBox.y + labelBox.height / 2 };
         const labelSecond = { id: 6, x: Math.min(labelCanvas.x + labelCanvas.width - 12, labelTouch.x + 65), y: labelTouch.y };
-        await touch('touchStart', [labelTouch]); await touch('touchStart', [labelTouch, labelSecond]);
-        await touch('touchMove', [{ ...labelTouch, x: labelTouch.x - 5 }, { ...labelSecond, x: labelSecond.x + 5 }]);
+        const labelJitter = { ...labelTouch, x: labelTouch.x + 1 }, labelBefore = await transform();
+        const labelStartCenter = { x: (labelJitter.x + labelSecond.x) / 2, y: (labelJitter.y + labelSecond.y) / 2 };
+        const labelStartDistance = Math.hypot(labelSecond.x - labelJitter.x, labelSecond.y - labelJitter.y);
+        const labelAnchor = { x: (labelStartCenter.x - labelCanvas.x - labelBefore.x) / labelBefore.scale, y: (labelStartCenter.y - labelCanvas.y - labelBefore.y) / labelBefore.scale };
+        await touch('touchStart', [labelTouch]);
+        // A tiny move activates the label's implicit pointer capture before the
+        // second finger transfers capture to the viewport. Losing the child's
+        // capture during this handoff must not remove that still-active finger.
+        await touch('touchMove', [labelJitter]); await frames();
+        await touch('touchStart', [labelJitter, labelSecond]);
+        for (const spreadBy of [5, 15]) {
+          const moved = [{ ...labelTouch, x: labelTouch.x - spreadBy }, { ...labelSecond, x: labelSecond.x + spreadBy }];
+          await touch('touchMove', moved); await frames();
+          const view = await transform(), distance = Math.hypot(moved[1].x - moved[0].x, moved[1].y - moved[0].y);
+          const centroid = { x: (moved[0].x + moved[1].x) / 2, y: (moved[0].y + moved[1].y) / 2 };
+          near(view.scale, Math.min(2.2, labelBefore.scale * distance / labelStartDistance), .003, 'Pinch continues scaling after label-to-viewport pointer capture handoff');
+          near((centroid.x - labelCanvas.x - view.x) / view.scale, labelAnchor.x, .5, 'Label-start pinch keeps its horizontal world anchor');
+          near((centroid.y - labelCanvas.y - view.y) / view.scale, labelAnchor.y, .5, 'Label-start pinch keeps its vertical world anchor');
+        }
         await touch('touchEnd', []); await frames(); await assertNoAccidentalAction(baseline);
 
         // Beginning a pinch on a dragged avatar must roll back that provisional move.
@@ -190,7 +207,7 @@ const near = (actual, expected, tolerance, message) => assert.ok(Math.abs(actual
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Character page must not overflow horizontally');
         assert.deepEqual(errors, []); assert.deepEqual(writes, []);
         await page.screenshot({ path: `/tmp/mobile-character-board/board-${mode}-${width}x${height}.png` });
-        results.push({ viewport: `${width}x${height}`, header: Math.round(toolbarBox.height), canvas: Math.round(canvasBox.height), pinchScale: [initial.scale, enlarged.scale, shrunk.scale], checks: 'native two-finger zoom/centroid pan; provisional avatar rollback; remaining contact suppression; third contact/cancel; fresh pan/drag; readable compact toolbar and focus list' });
+        results.push({ viewport: `${width}x${height}`, header: Math.round(toolbarBox.height), canvas: Math.round(canvasBox.height), pinchScale: [initial.scale, enlarged.scale, shrunk.scale], checks: 'native two-finger zoom/centroid pan; label capture handoff; provisional avatar rollback; remaining contact suppression; third contact/cancel; fresh pan/drag; readable compact toolbar and focus list' });
       } finally { await cdp?.detach(); await context.close(); }
     }
     console.log(JSON.stringify({ mode, results, screenshots: '/tmp/mobile-character-board' }));

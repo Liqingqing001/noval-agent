@@ -341,6 +341,9 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
         if (event.pointerType === 'touch' && finishTouch(event.pointerId)) return;
         if (pointer.current?.pointerId === event.pointerId) finishPointer(true);
       }} onLostPointerCapture={event => {
+        // A label's implicit capture can transfer to this viewport as a second
+        // finger lands. Its bubbling loss is not the end of that active touch.
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) return;
         if (event.pointerType === 'touch' && touchPoints.current.has(event.pointerId) && finishTouch(event.pointerId)) return;
         if (pointer.current?.pointerId === event.pointerId) finishPointer(true);
       }}>
