@@ -137,13 +137,27 @@ const near = (actual, expected, tolerance, message) => assert.ok(Math.abs(actual
         near(await page.evaluate(() => visualViewport.scale), documentScale, .001, 'Pinch zooms the canvas, not the browser document');
         await assertNoAccidentalAction(baseline);
 
-        // Pinching may begin on a relationship label, not just unoccupied canvas.
+        // Activate the label's implicit capture before the second finger arrives.
         await button('适应画布').click(); await frames();
         const labelBox = await page.locator('.character-edge-label').first().boundingBox(), labelCanvas = await canvas.boundingBox();
         const labelTouch = { id: 5, x: labelBox.x + labelBox.width / 2, y: labelBox.y + labelBox.height / 2 };
         const labelSecond = { id: 6, x: Math.min(labelCanvas.x + labelCanvas.width - 12, labelTouch.x + 65), y: labelTouch.y };
-        await touch('touchStart', [labelTouch]); await touch('touchStart', [labelTouch, labelSecond]);
-        await touch('touchMove', [{ ...labelTouch, x: labelTouch.x - 5 }, { ...labelSecond, x: labelSecond.x + 5 }]);
+        const labelJitter = { ...labelTouch, x: labelTouch.x + 1 };
+        const labelInitial = await transform();
+        await touch('touchStart', [labelTouch]);
+        await touch('touchMove', [labelJitter]); await frames();
+        await touch('touchStart', [labelJitter, labelSecond]); await frames();
+        const labelDistance = Math.hypot(labelSecond.x - labelJitter.x, labelSecond.y - labelJitter.y);
+        const labelAnchor = { x: ((labelJitter.x + labelSecond.x) / 2 - labelCanvas.x - labelInitial.x) / labelInitial.scale, y: ((labelJitter.y + labelSecond.y) / 2 - labelCanvas.y - labelInitial.y) / labelInitial.scale };
+        for (const spreadBy of [5, 15]) {
+          const spreadLabel = [{ ...labelTouch, x: labelTouch.x - spreadBy }, { ...labelSecond, x: labelSecond.x + spreadBy }];
+          await touch('touchMove', spreadLabel); await frames();
+          const labelView = await transform();
+          const labelRatio = Math.hypot(spreadLabel[1].x - spreadLabel[0].x, spreadLabel[1].y - spreadLabel[0].y) / labelDistance;
+          near(labelView.scale, Math.min(2.2, Math.max(.05, labelInitial.scale * labelRatio)), .003, 'Label capture handoff keeps distance-based pinch working');
+          near(((spreadLabel[0].x + spreadLabel[1].x) / 2 - labelCanvas.x - labelView.x) / labelView.scale, labelAnchor.x, .5, 'Label pinch preserves horizontal world anchor');
+          near(((spreadLabel[0].y + spreadLabel[1].y) / 2 - labelCanvas.y - labelView.y) / labelView.scale, labelAnchor.y, .5, 'Label pinch preserves vertical world anchor');
+        }
         await touch('touchEnd', []); await frames(); await assertNoAccidentalAction(baseline);
 
         // Beginning a pinch on a dragged avatar must roll back that provisional move.
