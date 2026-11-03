@@ -39,6 +39,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run book:build
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run school:build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:demo
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:world
@@ -65,17 +67,13 @@ jobs:
         run: |
           npm run db:generate
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node -e "require('fs').closeSync(require('fs').openSync('packages/backend/prisma/ci-unused.db', 'a'))"
+          npm run demo:rebuild
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npx prisma migrate deploy --schema packages/backend/prisma/schema.prisma
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run demo:import
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run demo:check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          git diff --exit-code -- packages/frontend/src/demo/tideMemory.json
+          git diff --exit-code -- packages/frontend/src/demo/tideMemory.json packages/frontend/src/demo/schoolNight.json packages/frontend/src/demo/library.json packages/frontend/public/book/manifest.json packages/frontend/public/school/manifest.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:database-case
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:profiles
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run build
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -99,6 +97,8 @@ jobs:
           VITE_BASE_PATH: /noval-agent/
       - name: Verify database-exported novel in product interface
         run: node packages/frontend/tests/book.browser.cjs
+      - name: Verify both database-exported chapter playbacks
+        run: node packages/frontend/tests/demoPlayback.browser.cjs
       - name: Verify usable mobile reading and bookshelf space
         run: npm run test:mobile-space
       - name: Verify same creative features in public demo

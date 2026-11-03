@@ -8,6 +8,7 @@ import { flushActiveEditor } from '@/lib/editorEvents';
 import { SettingsView } from '@/components/settings/SettingsView';
 import { OutlineView } from '@/components/outline/OutlineView';
 import { CharacterEditor } from '@/components/characters/CharacterEditor';
+import { CharacterPortrait } from '@/components/characters/CharacterPortrait';
 import { WorldSettingEditor } from '@/components/world/WorldSettingEditor';
 import { WorldSettingContent } from '@/components/world/WorldSettingContent';
 import type { ViewType, Character, WorldSetting } from '@/types';
@@ -358,14 +359,16 @@ function CharacterListView() {
                     char.role === 'protagonist' ? 'ring-2 ring-amber-200/50' : ''
                   }`}
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="character-profile-row flex items-start gap-3">
                     {/* 拖拽手柄 */}
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing pt-1">
+                    <div className="character-profile-drag opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing pt-1">
                       <GripVertical className="h-5 w-5 text-muted-foreground" />
                     </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
+                    <CharacterPortrait avatar={char.avatar} name={char.name} className="shrink-0" />
+
+                    <div className="character-profile-details flex-1 min-w-0">
+                      <div className="character-profile-heading flex items-center gap-2 mb-2">
                         <h3 className="font-medium text-lg">{char.name}</h3>
                         <span className={`px-2 py-0.5 text-xs rounded-md border ${roleInfo.color}`}>
                           {roleInfo.label}
@@ -373,7 +376,11 @@ function CharacterListView() {
                       </div>
 
                       {/* 详细信息 */}
-                      <div className="space-y-2">
+                      <div className="character-profile-fields space-y-2">
+                        {!!char.relationships?.length && <div>
+                          <span className="text-xs text-muted-foreground font-medium">人物关系</span>
+                          <div className="mt-1 flex flex-wrap gap-1.5">{char.relationships.map((relation, index) => <span key={`${relation.targetId}-${index}`} title={relation.notes} className="rounded-md border bg-muted/40 px-2 py-1 text-xs">{characters.find(item => item.id === relation.targetId)?.name || '关联人物'} · {relation.label}</span>)}</div>
+                        </div>}
                         {char.personality && (
                           <div>
                             <span className="text-xs text-muted-foreground font-medium">性格</span>
@@ -413,7 +420,7 @@ function CharacterListView() {
                     </div>
 
                     {/* 操作按钮 */}
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="character-profile-actions flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

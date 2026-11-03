@@ -23,6 +23,14 @@ export interface Chapter {
   updatedAt: number;
 }
 
+export interface CharacterRelationship {
+  targetId: string;
+  kind: 'family' | 'ally' | 'rival' | 'other';
+  label: string;
+  notes?: string;
+  directed?: boolean;
+}
+
 export interface Character {
   id: string;
   novelId: string;
@@ -32,6 +40,8 @@ export interface Character {
   appearance?: string;
   personality?: string;
   background?: string;
+  avatar?: string;
+  relationships?: CharacterRelationship[];
   firstAppearanceChapterId?: string;
   role?: 'protagonist' | 'supporting' | 'minor';
   sequence?: number;

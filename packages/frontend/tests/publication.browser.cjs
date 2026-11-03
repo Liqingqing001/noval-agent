@@ -29,6 +29,7 @@ try{
  assert.match(await dialog.locator('.publication-research').textContent(),/拒绝 AI 生成内容/);
  await dialog.getByLabel('平台地区',{exact:true}).selectOption('global');assert.equal(await dialog.locator('.publication-platforms>button').count(),4);await dialog.getByLabel('AI 政策筛选').selectOption('conditional');assert.equal(await dialog.locator('.publication-platforms>button').count(),1);assert.match(await dialog.locator('.publication-research').textContent(),/非商业/);await dialog.getByLabel('AI 政策筛选').selectOption('all');await dialog.getByLabel('平台地区',{exact:true}).selectOption('all');
  await dialog.getByRole('button',{name:'准备发布材料',exact:true}).click();
+ await dialog.getByLabel('准备发布的作品',{exact:true}).selectOption(fixture.novels[0].id);
  assert.equal(await dialog.getByLabel('正文 AI 使用',{exact:true}).inputValue(),'unknown');
  await dialog.getByLabel('正文 AI 使用',{exact:true}).selectOption('generated');
  const [brief]=await Promise.all([page.waitForEvent('download'),dialog.getByRole('button',{name:'下载投稿资料',exact:true}).click()]);const briefText=await readFile(await brief.path(),'utf8');assert.match(briefText,/尚未提交/);assert.match(briefText,/包含 AI 生成内容/);assert.match(briefText,/封面 \/ 插图：尚未确认/);assert.ok(!briefText.includes('不应导出的外部正文'));

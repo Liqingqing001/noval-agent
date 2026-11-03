@@ -10,6 +10,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { useNovelStore } from '@/stores/novelStore';
+import { chapterTitleText } from '@/lib/chapterTitle';
 import type { Foreshadowing } from '@/types';
 
 const statusConfig = {
@@ -108,7 +109,7 @@ export function ForeshadowingPanel() {
   const getChapterTitle = (chapterId: string | undefined) => {
     if (!chapterId) return null;
     const chapter = chapters.find((c) => c.id === chapterId);
-    return chapter ? `第${chapter.sequence}章：${chapter.title}` : null;
+    return chapter ? `第${chapter.sequence + 1}章：${chapterTitleText(chapter.title)}` : null;
   };
 
   return (
@@ -277,7 +278,7 @@ export function ForeshadowingPanel() {
                   <option value="">选择章节</option>
                   {chapters.map((chapter) => (
                     <option key={chapter.id} value={chapter.id}>
-                      第{chapter.sequence}章：{chapter.title}
+                      第{chapter.sequence + 1}章：{chapterTitleText(chapter.title)}
                     </option>
                   ))}
                 </select>
@@ -294,7 +295,7 @@ export function ForeshadowingPanel() {
                   <option value="">选择章节</option>
                   {chapters.map((chapter) => (
                     <option key={chapter.id} value={chapter.id}>
-                      第{chapter.sequence}章：{chapter.title}
+                      第{chapter.sequence + 1}章：{chapterTitleText(chapter.title)}
                     </option>
                   ))}
                 </select>

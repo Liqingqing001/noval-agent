@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { useNovelStore } from '@/stores/novelStore';
 import type { PlotCard } from '@/types';
 import { hasChapterBody } from '@/lib/outlineProgress';
+import { chapterTitleText } from '@/lib/chapterTitle';
 
 interface PlotCardEditorProps {
   card: PlotCard | null;
@@ -195,7 +196,7 @@ export function PlotCardEditor({
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder={type === 'volume' ? '例如：第一卷 赵家村篇' : '例如：第一章 觉醒'}
+              placeholder={type === 'volume' ? '例如：第一卷 赵家村篇' : '例如：多出来的课桌'}
               autoFocus
             />
           </div>
@@ -253,7 +254,7 @@ export function PlotCardEditor({
                 <option value="">暂不关联</option>
                 {chapters.map((chapter) => (
                   <option key={chapter.id} value={chapter.id}>
-                    第{chapter.sequence}章：{chapter.title}
+                    第{chapter.sequence + 1}章：{chapterTitleText(chapter.title)}
                   </option>
                 ))}
               </select>

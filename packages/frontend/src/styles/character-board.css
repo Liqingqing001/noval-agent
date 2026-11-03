@@ -17,3 +17,13 @@
 
 .character-graph-node.is-link-source .character-avatar { outline: 3px dashed hsl(var(--primary)); outline-offset: 5px; }
 .character-link-hint { height: 2.5rem; overflow-y: auto; line-height: 1.25rem; }
+
+@media (max-width: 639px) {
+  .character-profile-row { display: grid; grid-template-columns: 72px minmax(0, 1fr); align-items: center; }
+  .character-profile-drag { display: none; }
+  .character-profile-row > .character-avatar { grid-column: 1; grid-row: 1; }
+  .character-profile-details { display: contents; }
+  .character-profile-heading { grid-column: 2; grid-row: 1; flex-wrap: wrap; margin-bottom: 0; }
+  .character-profile-fields { grid-column: 1 / -1; grid-row: 2; min-width: 0; }
+  .character-profile-actions { grid-column: 1 / -1; grid-row: 3; justify-self: end; opacity: 1; }
+}

@@ -4,6 +4,8 @@ const { spawn } = require('node:child_process');
 const { resolve } = require('node:path');
 const { mkdirSync, readFileSync } = require('node:fs');
 const fixture = require('../src/demo/tideMemory.json');
+// This suite exercises visitor-created relationships independently of the DB presets.
+fixture.characters = fixture.characters.map(character => ({ ...character, relationships: [] }));
 const isDemo = (process.env.PARITY_MODE || 'demo') === 'demo';
 const mode = isDemo ? 'demo' : 'full';
 const base = process.env.PARITY_URL || `http://127.0.0.1:5186${isDemo ? '/noval-agent/' : '/'}`;
@@ -92,7 +94,7 @@ const boardKey = `${storageKey('novel-agent-character-board')}:${isDemo ? 'brows
     assert.equal((await readBoard()).nodes[first.id].state.location, '旧书院');
     if (process.env.BOARD_ARTIFACT_DIR) { await page.getByRole('complementary', { name: '人物详情' }).evaluate(element => { element.scrollTop = 0; }); mkdirSync(process.env.BOARD_ARTIFACT_DIR, { recursive: true }); await page.screenshot({ path: resolve(process.env.BOARD_ARTIFACT_DIR, `inspector-${mode}-${width}.png`) }); }
     await page.getByLabel('上传人物头像').setInputFiles({ name: 'avatar.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aC2kAAAAASUVORK5CYII=', 'base64') });
-    await page.getByRole('img', { name: '人物头像' }).waitFor(); await saved(); assert.ok((await readBoard()).nodes[first.id].avatar.startsWith('data:image/jpeg;base64,'));
+    await page.getByRole('complementary', { name: '人物详情' }).getByRole('img', { name: `${first.name}人物头像`, exact: true }).waitFor(); await saved(); assert.ok((await readBoard()).nodes[first.id].avatar.startsWith('data:image/jpeg;base64,'));
     const beforeClose = await transform(); await button('关闭人物详情').click(); assert.equal(await transform(), beforeClose); await button('适应画布').click();
     const box = await node.boundingBox();
     if (width === 390) {
@@ -156,11 +158,32 @@ const boardKey = `${storageKey('novel-agent-character-board')}:${isDemo ? 'brows
      assert.ok(remapped.edges.some(edge => edge.source === 'server-board-character' && edge.label === '保护'));
      await button('关闭人物详情').click();
     }
+    const previousEdges = (await readBoard()).edges.length;
+    const preset = { targetId: second.id, kind: 'ally', label: '数据库保存的搭档', notes: '一起核对被改动的值日表', directed: false };
+    Object.assign(data.characters.find(character => character.id === second.id), { avatar: 'book/images/characters.webp#cell=0,1,1' });
+    Object.assign(data.characters.find(character => character.id === first.id), { relationships: [preset] });
+    await page.evaluate(({ key, firstId, secondId, preset }) => {
+     const stored = JSON.parse(localStorage.getItem(key));
+     stored.state.characters.find(character => character.id === firstId).relationships = [preset];
+     stored.state.characters.find(character => character.id === secondId).avatar = 'book/images/characters.webp#cell=0,1,1';
+     localStorage.setItem(key, JSON.stringify(stored));
+    }, { key: storageKey('novel-agent-storage'), firstId: first.id, secondId: second.id, preset });
+    await page.reload(); await saved();
+    assert.equal((await readBoard()).edges.length, previousEdges + 1);
+    const presetButton = page.getByRole('button', { name: /编辑关系：.*数据库保存的搭档/ });
+    await presetButton.waitFor();
+    const portrait = button(`查看人物：${second.name}`).getByRole('img', { name: `${second.name}人物头像`, exact: true });
+    await portrait.locator('img').evaluate(image => image.decode());
+    assert.ok((await portrait.getAttribute('style')).includes(`${isDemo ? '/noval-agent/' : '/'}book/images/characters.webp`));
+    await presetButton.click(); assert.equal(await page.getByLabel('关系备注').inputValue(), preset.notes);
+    await button('删除关系').click(); await saved(); await page.reload(); await saved();
+    assert.equal(await page.getByRole('button', { name: /编辑关系：.*数据库保存的搭档/ }).count(), 0);
+    assert.equal((await readBoard()).edges.length, previousEdges);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     assert.deepEqual(errors, []);
     if (isDemo) assert.deepEqual(requests, []);
     if (process.env.BOARD_ARTIFACT_DIR) { mkdirSync(process.env.BOARD_ARTIFACT_DIR, { recursive: true }); await button('适应画布').click(); await page.screenshot({ path: resolve(process.env.BOARD_ARTIFACT_DIR, `${mode}-${width}.png`) }); }
-    results.push(`${width}px: graph, single-tap directional links, double-tap drawer without viewport jumps, negative-coordinate drag/reload, relation CRUD, editable state, local avatar, pointer drag, keyboard move, zoom/search, export, reload, preserved list${isDemo ? '' : ', server ID remap preserves saved and draft state'}`);
+    results.push(`${width}px: graph, single-tap directional links, double-tap drawer without viewport jumps, negative-coordinate drag/reload, relation CRUD, editable state, local avatar, pointer drag, keyboard move, zoom/search, export, reload, preserved list, saved relationship seed/deletion persistence, atlas portrait under base path${isDemo ? '' : ', server ID remap preserves saved and draft state'}`);
    } finally { await context.close(); }
   }
   console.log(JSON.stringify({ mode, url: base, results }));

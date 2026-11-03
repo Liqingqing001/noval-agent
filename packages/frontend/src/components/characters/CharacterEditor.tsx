@@ -9,6 +9,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { Character } from '@/types';
+import { CharacterPortrait } from './CharacterPortrait';
+import { characterAvatar } from '@/lib/characterBoard';
+import { useNovelStore } from '@/stores/novelStore';
 
 interface CharacterEditorProps {
   character: Character | null;
@@ -36,9 +39,14 @@ export function CharacterEditor({
   const [appearance, setAppearance] = useState('');
   const [description, setDescription] = useState('');
   const [role, setRole] = useState<Character['role']>('supporting');
+  const [avatar, setAvatar] = useState<string>();
+  const [avatarError, setAvatarError] = useState('');
+  const characters = useNovelStore(state => state.characters);
 
   // 初始化表单
   useEffect(() => {
+    setAvatar(character?.avatar);
+    setAvatarError('');
     if (character) {
       setName(character.name);
       setAliases(character.aliases?.join('、') || '');
@@ -73,6 +81,8 @@ export function CharacterEditor({
       appearance: appearance.trim(),
       description: description.trim(),
       role,
+      avatar,
+      relationships: character?.relationships || [],
     });
 
     onOpenChange(false);
@@ -88,6 +98,14 @@ export function CharacterEditor({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          <div className="flex items-center gap-4">
+            <CharacterPortrait avatar={avatar} name={name || '人物'} className="shrink-0" />
+            <div className="space-y-2 text-sm">
+              <label className="cursor-pointer text-primary">上传人物头像<input aria-label="编辑人物头像" type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={async event => { const file = event.target.files?.[0]; event.target.value = ''; if (!file) return; try { setAvatar(await characterAvatar(file)); setAvatarError(''); } catch (error) { setAvatarError(error instanceof Error ? error.message : '头像读取失败'); } }} /></label>
+              <p className="text-xs text-muted-foreground">头像随人物档案保存；支持 5 MiB 以内的 PNG、JPEG、WebP。</p>
+              {avatarError && <p role="alert" className="text-xs text-destructive">{avatarError}</p>}
+            </div>
+          </div>
           {/* 姓名 */}
           <div className="space-y-2">
             <label className="text-sm font-medium">
@@ -173,6 +191,14 @@ export function CharacterEditor({
               className="w-full min-h-[60px] px-3 py-2 text-sm border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-ring bg-background"
             />
           </div>
+          {!!character?.relationships?.length && <div className="space-y-2 rounded-lg border p-3">
+            <p className="text-sm font-medium">人物关系</p>
+            {character.relationships.map((relation, index) => <div key={`${relation.targetId}-${index}`} className="text-sm">
+              <p><span className="font-medium">{characters.find(item => item.id === relation.targetId)?.name || '关联人物'}</span> · {relation.label}</p>
+              {relation.notes && <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{relation.notes}</p>}
+            </div>)}
+            <p className="text-xs text-muted-foreground">人物画布展示这些已保存的关系，可在画布中补充和调整当前浏览器的关系记录。</p>
+          </div>}
         </div>
 
         <DialogFooter>

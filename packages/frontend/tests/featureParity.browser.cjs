@@ -38,11 +38,11 @@ const key = name => isDemo ? `${name}-demo-v1` : name;
             apiProvider: 'custom', protocol: 'openai', baseUrl: 'https://model.example.test/v1', apiKey: 'TEST_PLACEHOLDER', authMode: 'bearer', model: 'test-model',
             temperature: .7, sendTemperature: false, maxTokens: 8192, timeoutSeconds: 30, tokenParameter: 'auto', stream: false, extraBody: '', extraHeaders: '', profiles: {},
           } }));
+          if (!isDemo || !localStorage.getItem(key('novel-agent-storage'))) localStorage.setItem(key('novel-agent-storage'), JSON.stringify({ state: { ...fixture, sessions: [], currentNovelId: fixture.novels[0].id, currentChapterId: fixture.chapters[0].id, currentView: 'chapters' } }));
           if (!isDemo) {
             localStorage.setItem('novel-agent-migrated', 'true');
             localStorage.setItem('novel-agent-auth-token', 'TEST_PLACEHOLDER');
             localStorage.setItem('novel-agent-auth', JSON.stringify({ state: { isAuthenticated: true, user: { id: 'test-user', nickname: '测试用户', email: 'test@example.test' } } }));
-            localStorage.setItem('novel-agent-storage', JSON.stringify({ state: { ...fixture, sessions: [], currentNovelId: fixture.novels[0].id, currentChapterId: fixture.chapters[0].id, currentView: 'chapters' } }));
           }
         }, { fixture, isDemo });
         await page.route('https://model.example.test/**', async route => {
@@ -69,6 +69,7 @@ const key = name => isDemo ? `${name}-demo-v1` : name;
         });
         await page.goto(base);
         await page.locator('.tiptap').waitFor();
+        assert.equal(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).state.currentNovelId, key('novel-agent-storage')), fixture.novels[0].id);
         const nav = page.getByRole('navigation', { name: '工作区切换' });
         if (width < 1280) await nav.getByRole('button', { name: 'AI 助手', exact: true }).click();
         for (const label of ['生成大纲', '优化大纲', '续写章节', '续写一章', '续写三章', '检查章节']) {

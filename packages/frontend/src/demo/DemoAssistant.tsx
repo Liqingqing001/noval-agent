@@ -3,17 +3,20 @@ import { Bot, Play, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNovelStore } from '@/stores/novelStore';
 import { readManuscript, paragraphText } from '@/lib/manuscript';
-import sample from './tideMemory.json';
+import sample from './library.json';
 
 export function DemoAssistant({ onNavigate }: { onNavigate?: () => void }) {
   const [length, setLength] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const setView = useNovelStore(state => state.setCurrentView);
+  const novelId = useNovelStore(state => state.currentNovelId);
+  const novel = sample.novels.find(item => item.id === novelId) || sample.novels[0];
   const navigate = (view: Parameters<typeof setView>[0]) => { setView(view); onNavigate?.(); };
-  const chapter = sample.chapters[0];
+  const chapter = sample.chapters.find(item => item.novelId === novel.id);
   const text = useMemo(() => readManuscript(chapter?.content || '').map(paragraphText).join('\n\n'), [chapter?.content]);
   const finished = length >= text.length;
+  useEffect(() => { setLength(0); setPlaying(false); setExpanded(false); }, [novel.id]);
   useEffect(() => {
     if (!playing || finished) return;
     const timer = setInterval(() => setLength(value => Math.min(text.length, value + 40)), 45);
@@ -23,7 +26,7 @@ export function DemoAssistant({ onNavigate }: { onNavigate?: () => void }) {
     <div className="flex items-center gap-2 border-b p-4 font-medium"><Bot className="h-5 w-5 text-primary" />AI 创作助手</div>
     <div className="flex-1 space-y-4 overflow-y-auto p-4">
       <div className="rounded-xl border bg-card p-4 text-sm leading-relaxed">
-        <p className="font-medium">查看完整作品，再配置模型</p><p className="mt-2 text-muted-foreground">左侧已载入从项目数据库导出的《潮汐替人记得》完整案例。人物、世界观、大纲和四十章正文都在产品面板中，可以编辑和导出。</p>
+        <p className="font-medium">查看完整作品，再配置模型</p><p className="mt-2 text-muted-foreground">书架已载入从项目数据库导出的《晚自习后，别回头》和《潮汐替人记得》。每本均有完整人物、世界观、五卷大纲和四十章正文，可以编辑和导出；当前回放《{novel.title}》。</p>
         <p className="mt-2 text-xs text-muted-foreground">下面只回放数据库已保存的章节《{chapter?.title}》已有文字，不调用模型、不消耗 API 额度，也不会覆盖正文。</p>
       </div>
       <Button className="w-full" onClick={() => { setLength(0); setExpanded(false); setPlaying(true); }} disabled={playing && !finished}><Play className="h-4 w-4" />{playing && !finished ? '示例回放中…' : '回放已有章节（非实时生成）'}</Button>

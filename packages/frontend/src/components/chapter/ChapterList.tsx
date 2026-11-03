@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { Plus, Trash2, Edit3, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNovelStore } from '@/stores/novelStore';
+import { chapterTitleText } from '@/lib/chapterTitle';
 
 interface ChapterListProps {
   onSelectChapter: (id: string) => void;
@@ -133,7 +134,7 @@ export function ChapterList({ onSelectChapter, selectedChapterId, width = 288 }:
                     <span className={selectedChapterId === chapter.id ? 'font-medium text-primary' : ''}>{getChapterLabel(index)}</span>
                     <span className="tabular-nums">{chapter.wordCount.toLocaleString()} 字</span>
                   </span>
-                  <span className="chapter-entry-title block break-words pr-12 text-sm font-medium leading-6">{chapter.title}</span>
+                  <span className="chapter-entry-title block break-words pr-12 text-sm font-medium leading-6">{chapterTitleText(chapter.title)}</span>
                 </button>
                 <div className="chapter-actions absolute bottom-3 right-2 flex items-center gap-0.5">
                   <Button variant="ghost" size="icon" className="h-6 w-6 rounded-md text-muted-foreground hover:text-primary" aria-label={`重命名章节：${chapter.title}`} title="重命名章节"

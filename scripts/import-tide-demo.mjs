@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve, isAbsolute } from 'node:path';
-import { createHash, randomBytes } from 'node:crypto';
+import { dated, hanCount, sha256, bareChapterTitle, characterRecords, readNovelSnapshot, importNovelRecords, assertNovelSnapshot } from './demo-library.mjs';
 import { PrismaClient } from '@prisma/client';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -9,15 +9,9 @@ const bookRoot = resolve(projectRoot, 'packages/frontend/public/book');
 export const TIDE_NOVEL_ID = 'case-tide-remembers';
 export const DEFAULT_DATABASE_URL = `file:${resolve(projectRoot, 'packages/backend/prisma/dev.db')}`;
 export const DEFAULT_SNAPSHOT = resolve(projectRoot, 'packages/frontend/src/demo/tideMemory.json');
-const timestamp = new Date('2026-11-03T00:00:00.000Z');
-const dated = () => ({ createdAt: timestamp, updatedAt: timestamp });
 const chapterId = number => `case-tide-chapter-${String(number).padStart(2, '0')}`;
 const volumeId = number => `case-tide-volume-${number}`;
 const plotId = number => `case-tide-plot-${String(number).padStart(2, '0')}`;
-const publicId = value => value?.replace(/^case-tide-/, 'demo-tide-');
-const hanCount = text => (text.match(/\p{Script=Han}/gu) || []).length;
-const sha256 = value => createHash('sha256').update(value).digest('hex');
-
 /** Authoritative authored files -> records. This function does not write a database or fixture. */
 export async function buildTideRecords() {
   const setting = JSON.parse(await readFile(resolve(bookRoot, 'setting.json'), 'utf8'));
@@ -28,19 +22,15 @@ export async function buildTideRecords() {
     if (sha256(text.trim() + '\n') !== item.sha256) throw Error(`章节 ${item.id} 与正文清单校验不一致。`);
     const content = text.replace(/^# .*\r?\n/, '').trim();
     if (hanCount(content) !== item.hanCount) throw Error(`章节 ${item.id} 字数与清单不一致。`);
-    chapters.push({ id: chapterId(index + 1), novelId: TIDE_NOVEL_ID, title: item.title, content, wordCount: item.hanCount, sequence: index, ...dated() });
+    chapters.push({ id: chapterId(index + 1), novelId: TIDE_NOVEL_ID, title: bareChapterTitle(item.title), content, wordCount: item.hanCount, sequence: index, ...dated() });
   }
   if (chapters.length !== 40 || chapters.reduce((n, item) => n + item.wordCount, 0) !== 60720 || !chapters.at(-1).content.endsWith('——全文完——')) throw Error('案例正文必须是四十章、60,720 汉字并已完本。');
   const novel = { id: TIDE_NOVEL_ID, title: setting.title, cover: 'book/images/cover.webp', wordCount: manifest.hanCount, status: 'completed', genre: setting.genre, summary: setting.description, lastOpenedChapterId: chapters[0].id, ...dated() };
   const appearances = [1, 1, 3, 2, 1, 1, 4, 12];
   const aliases = [[], [], ['许姐'], [], ['小雾的母亲'], ['周叔'], [], []];
-  const characters = setting.characters.map((item, index) => ({
-    id: `case-tide-character-${index + 1}`, novelId: TIDE_NOVEL_ID, name: item.name, aliases: JSON.stringify(aliases[index] || []),
-    description: `身份：${item.role}\n目标：${item.desire}\n人物局限：${item.flaw}\n成长弧线：${item.arc}`,
-    appearance: item.detail, personality: item.flaw, background: item.arc, firstAppearanceChapterId: chapterId(appearances[index] || 1), role: index < 4 ? 'protagonist' : 'supporting', sequence: index,
-  }));
+  const characters = characterRecords(setting, TIDE_NOVEL_ID, 'case-tide', chapterId, { aliases, appearances, protagonists: 4 });
   const categories = ['地理与社会', '核心机制', '制度与历史', '工程体系', '技术边界', '社会规则'];
-  const worldSettings = setting.world.map((item, index) => ({ id: `case-tide-world-${index + 1}`, novelId: TIDE_NOVEL_ID, category: categories[index] || '世界设定', title: item.title, content: item.text }));
+  const worldSettings = setting.world.map((item, index) => ({ id: `case-tide-world-${index + 1}`, novelId: TIDE_NOVEL_ID, category: item.category || categories[index] || '世界设定', title: item.title, content: item.content || item.text }));
   worldSettings.push(
     { id: 'case-tide-world-timeline', novelId: TIDE_NOVEL_ID, category: '历史时间线', title: '海城事件时间线', content: setting.timeline.map(item => `### ${item.time}\n\n${item.event}`).join('\n\n') },
     { id: 'case-tide-world-visuals', novelId: TIDE_NOVEL_ID, category: '视觉设定', title: '人物视觉设定', content: '![《潮汐替人记得》主要人物群像](book/images/characters.webp)\n\n左起：林雾、沈砚、许照、陆苗。\n\n四位人物形象采用与书封一致的海港、铜制仪器和记忆灯视觉语言。图像是 AI 生成的文学插画，人物经历以正文为准。' },
@@ -68,67 +58,8 @@ export async function buildTideRecords() {
   return { novel, chapters, characters, worldSettings, plotCards, foreshadowings };
 }
 
-/** Select only publishable business fields. No User relation or account fields are read here. */
-export async function readTideSnapshot(prisma) {
-  const record = await prisma.novel.findUnique({ where: { id: TIDE_NOVEL_ID }, select: {
-    id: true, title: true, cover: true, wordCount: true, status: true, genre: true, summary: true, lastOpenedChapterId: true, createdAt: true, updatedAt: true,
-    chapters: { orderBy: [{ sequence: 'asc' }, { id: 'asc' }], select: { id: true, novelId: true, title: true, content: true, wordCount: true, sequence: true, createdAt: true, updatedAt: true } },
-    characters: { orderBy: [{ sequence: 'asc' }, { id: 'asc' }], select: { id: true, novelId: true, name: true, aliases: true, description: true, appearance: true, personality: true, background: true, firstAppearanceChapterId: true, role: true, sequence: true } },
-    worldSettings: { orderBy: { id: 'asc' }, select: { id: true, novelId: true, category: true, title: true, content: true } },
-    plotCards: { orderBy: { id: 'asc' }, select: { id: true, novelId: true, type: true, title: true, summary: true, sequence: true, volumeId: true, chapterId: true, status: true, statusMode: true, createdAt: true, updatedAt: true } },
-    foreshadowings: { orderBy: { id: 'asc' }, select: { id: true, novelId: true, title: true, description: true, plantedChapterId: true, resolvedChapterId: true, plantedPlotCardId: true, resolvedPlotCardId: true, status: true, createdAt: true, updatedAt: true } },
-  } });
-  if (!record) throw Error('数据库中尚无《潮汐替人记得》，请先执行导入。');
-  const { chapters, characters, worldSettings, plotCards, foreshadowings, ...novel } = record;
-  const clean = value => {
-    if (value instanceof Date) return value.getTime();
-    if (Array.isArray(value)) return value.map(clean);
-    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== null).map(([key, item]) => [key, key === 'aliases' ? JSON.parse(item) : key === 'id' || key.endsWith('Id') ? publicId(item) : clean(item)]));
-    return value;
-  };
-  return clean({ novels: [novel], chapters, characters, worldSettings, plotCards, foreshadowings });
-}
-
-export async function importTideRecords(prisma, records, ownerId) {
-  return prisma.$transaction(async transaction => {
-    const existing = await transaction.novel.findUnique({ where: { id: TIDE_NOVEL_ID }, select: { title: true, userId: true } });
-    if (existing && existing.title !== records.novel.title) throw Error('示例 ID 已被其他作品使用，拒绝覆盖。');
-    let owner = existing?.userId || ownerId;
-    if (ownerId && !(await transaction.user.findUnique({ where: { id: ownerId }, select: { id: true } }))) throw Error('指定的 owner-id 不存在。');
-    if (!owner) {
-      const users = await transaction.user.findMany({ select: { id: true }, take: 2 });
-      if (users.length > 1) throw Error('存在多个用户，请显式传入 --owner-id，避免写入错误账号。');
-      if (users.length === 1) owner = users[0].id;
-      else {
-        // Intentionally not a bcrypt credential: this account cannot log in with any password.
-        const passwordHash = `!disabled:${sha256(randomBytes(64))}`;
-        owner = 'case-tide-example-owner';
-        await transaction.user.create({ data: { id: owner, email: 'tide-example@novel-agent.invalid', nickname: '潮汐示例资料', passwordHash, ...dated() } });
-      }
-    }
-    await transaction.novel.upsert({ where: { id: TIDE_NOVEL_ID }, create: { ...records.novel, userId: owner }, update: records.novel });
-    const models = { chapters: 'chapter', characters: 'character', worldSettings: 'worldSetting', plotCards: 'plotCard', foreshadowings: 'foreshadowing' };
-    for (const [key, model] of Object.entries(models)) {
-      for (const row of records[key]) {
-        const occupied = await transaction[model].findUnique({ where: { id: row.id }, select: { novelId: true } });
-        if (occupied && occupied.novelId !== TIDE_NOVEL_ID) throw Error(`示例子记录 ${row.id} 被其他作品占用，拒绝覆盖。`);
-        await transaction[model].upsert({ where: { id: row.id }, create: row, update: row });
-      }
-      await transaction[model].deleteMany({ where: { novelId: TIDE_NOVEL_ID, id: { notIn: records[key].map(row => row.id) } } });
-    }
-    return owner;
-  }, { timeout: 30000 });
-}
-
-function assertSnapshot(snapshot, records) {
-  if (snapshot.novels.length !== 1 || snapshot.chapters.length !== 40 || snapshot.characters.length !== 8 || snapshot.worldSettings.length !== 9 || snapshot.plotCards.length !== 45 || snapshot.foreshadowings.length !== 8) throw Error('数据库业务表记录数量与案例不一致。');
-  if (snapshot.novels[0].wordCount !== 60720 || snapshot.chapters.reduce((n, item) => n + item.wordCount, 0) !== 60720) throw Error('数据库正文字数不一致。');
-  for (const [index, chapter] of snapshot.chapters.entries()) if (chapter.content !== records.chapters[index].content || chapter.title !== records.chapters[index].title || chapter.wordCount !== hanCount(chapter.content)) throw Error(`数据库章节 ${index + 1} 内容或字数不一致。`);
-  const ids = new Set(Object.values(snapshot).flat().map(item => item.id));
-  for (const rows of Object.values(snapshot)) for (const row of rows) for (const [key, value] of Object.entries(row)) if (key === 'id' && !value.startsWith('demo-tide-') || key.endsWith('Id') && !ids.has(value)) throw Error(`公开快照关系异常：${key}`);
-  if (snapshot.plotCards.filter(row => row.type === 'chapter' && row.chapterId && row.status === 'completed').length !== 40) throw Error('章节大纲未完整关联已完成章节。');
-  if (/"(?:userId|email|passwordHash|apiKey|token|agentPrompt|sessions)"\s*:/.test(JSON.stringify(snapshot))) throw Error('公开快照包含非公开字段。');
-}
+export async function readTideSnapshot(prisma) { return readNovelSnapshot(prisma, TIDE_NOVEL_ID); }
+export async function importTideRecords(prisma, records, ownerId) { return importNovelRecords(prisma, records, ownerId); }
 
 export async function runTideImport(options = {}) {
   const databaseUrl = options.databaseUrl || process.env.DATABASE_URL || DEFAULT_DATABASE_URL;
@@ -139,7 +70,7 @@ export async function runTideImport(options = {}) {
     const records = await buildTideRecords();
     if (!options.check) await importTideRecords(prisma, records, options.ownerId);
     const snapshot = await readTideSnapshot(prisma);
-    assertSnapshot(snapshot, records);
+    assertNovelSnapshot(snapshot, records);
     const serialized = JSON.stringify(snapshot, null, 2) + '\n';
     if (options.check) {
       if (await readFile(snapshotPath, 'utf8') !== serialized) throw Error('已提交的公开快照与当前数据库不一致，请重新导出。');

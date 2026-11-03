@@ -12,6 +12,7 @@ import { foreshadowingsApi } from '@/api/foreshadowings';
 import { resolveChapter } from '@/lib/chapterSelection';
 import { outlineProgressUpdates } from '@/lib/outlineProgress';
 import { remapCharacterBoards, removeCharacterFromBoards } from '@/stores/characterBoardStore';
+import { parseCharacterRelationships } from '@/lib/characterProfiles';
 
 interface NovelState {
   // Current selection
@@ -340,6 +341,8 @@ export const useNovelStore = create<NovelState>()(
               appearance: saved.appearance || undefined,
               personality: saved.personality || undefined,
               background: saved.background || undefined,
+              avatar: saved.avatar || undefined,
+              relationships: parseCharacterRelationships(saved.relationships),
               firstAppearanceChapterId: saved.firstAppearanceChapterId || undefined,
               role: (saved.role as Character['role']) || 'supporting',
               sequence: saved.sequence || 0,
@@ -361,7 +364,7 @@ export const useNovelStore = create<NovelState>()(
       },
       deleteCharacter: (id) => {
         const novelId = get().characters.find(character => character.id === id)?.novelId;
-        set((state) => ({ characters: state.characters.filter((c) => c.id !== id) }));
+        set((state) => ({ characters: state.characters.filter((c) => c.id !== id).map(character => character.relationships?.some(relation => relation.targetId === id) ? { ...character, relationships: character.relationships.filter(relation => relation.targetId !== id) } : character) }));
         if (novelId) removeCharacterFromBoards(novelId, id);
         if (isCloudEnabled() && !id.startsWith('temp-')) {
           charactersApi.remove(id).catch((err) => console.error('云端删除角色失败:', err));

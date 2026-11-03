@@ -31,8 +31,8 @@ test('database import preserves unrelated records, is idempotent, and exports on
     assert.equal(first.novels[0].title, '潮汐替人记得');
     assert.equal(first.novels[0].wordCount, 60720);
     assert.equal(first.chapters.length, 40);
-    assert.equal(first.characters.length, 8);
-    assert.equal(first.worldSettings.length, 9);
+    assert.equal(first.characters.length, records.characters.length);
+    assert.equal(first.worldSettings.length, records.worldSettings.length);
     assert.equal(first.plotCards.length, 45);
     assert.equal(first.foreshadowings.length, 8);
     assert.equal(first.chapters.at(-1).sequence, 39);

@@ -85,6 +85,8 @@ model Character {
   appearance               String?
   personality              String?
   background               String?
+  avatar                   String?
+  relationships            String  @default("[]") // 显式人物关系 JSON 数组，targetId 指向同书角色
   firstAppearanceChapterId String?
   role                     String  @default("supporting") // protagonist | supporting | minor
   sequence                 Int     @default(0)

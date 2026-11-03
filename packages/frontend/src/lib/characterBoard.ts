@@ -6,7 +6,7 @@ export interface CharacterSnapshot {
 }
 export interface CharacterNode { position?: BoardPoint; avatar?: string; state?: CharacterSnapshot }
 export interface CharacterEdge { id: string; source: string; target: string; label: string; kind: 'family' | 'ally' | 'rival' | 'other'; directed: boolean; notes: string }
-export interface CharacterBoardData { version: 1; nodes: Record<string, CharacterNode>; edges: CharacterEdge[] }
+export interface CharacterBoardData { version: 1; nodes: Record<string, CharacterNode>; edges: CharacterEdge[]; seededRelationshipIds?: string[] }
 export const emptySnapshot = (): CharacterSnapshot => ({ life: 'unknown', location: '', condition: '', goal: '', inventory: '', notes: '', asOfChapterId: '' });
 export const emptyBoard = (): CharacterBoardData => ({ version: 1, nodes: {}, edges: [] });
 export const defaultPosition = (index: number, count = 16): BoardPoint => { const columns = Math.min(40, Math.max(4, Math.ceil(Math.sqrt(count)))); return { x: 100 + index % columns * 210, y: 90 + Math.floor(index / columns) * 190 }; };
@@ -28,11 +28,32 @@ export function validateCharacterBoard(raw: unknown): CharacterBoardData {
     }
   }
   const ids = new Set<string>();
+  if (data.seededRelationshipIds !== undefined && (!Array.isArray(data.seededRelationshipIds) || data.seededRelationshipIds.length > 5000 || data.seededRelationshipIds.some(id => typeof id !== 'string'))) throw new Error('人物预设关系记录格式错误。');
   for (const edge of data.edges) {
     if (!edge || typeof edge.id !== 'string' || ids.has(edge.id) || typeof edge.source !== 'string' || typeof edge.target !== 'string' || edge.source === edge.target || typeof edge.label !== 'string' || !edge.label.trim() || edge.label.length > 40 || typeof edge.notes !== 'string' || edge.notes.length > 500 || !['family', 'ally', 'rival', 'other'].includes(edge.kind) || typeof edge.directed !== 'boolean') throw new Error('关系记录格式错误。');
     ids.add(edge.id);
   }
   return data;
+}
+
+/** Seed explicit DB relationships once. Remember removed presets so local edits survive reloads. */
+export function seedCharacterRelationships(data: CharacterBoardData, characters: { id: string; relationships?: { targetId: string; kind: CharacterEdge['kind']; label: string; notes?: string; directed?: boolean }[] }[]): CharacterBoardData {
+  const characterIds = new Set(characters.map(character => character.id));
+  const seeded = new Set(data.seededRelationshipIds || []);
+  const additions: CharacterEdge[] = [];
+  for (const character of characters) for (const relation of character.relationships || []) {
+    if (relation.targetId === character.id || !characterIds.has(relation.targetId)) continue;
+    const directed = relation.directed ?? false;
+    const pair = directed ? [character.id, relation.targetId] : [character.id, relation.targetId].sort();
+    const id = `preset:${JSON.stringify([pair, relation.kind, relation.label, directed])}`;
+    if (seeded.has(id)) continue;
+    seeded.add(id);
+    if (data.edges.some(edge => edge.source === character.id && edge.target === relation.targetId && edge.label === relation.label
+      || !directed && !edge.directed && edge.source === relation.targetId && edge.target === character.id && edge.label === relation.label)) continue;
+    additions.push({ id, source: character.id, target: relation.targetId, label: relation.label, kind: relation.kind, directed, notes: relation.notes || '' });
+  }
+  if (!additions.length && seeded.size === (data.seededRelationshipIds?.length || 0)) return data;
+  return { ...data, edges: [...data.edges, ...additions], seededRelationshipIds: [...seeded] };
 }
 
 export function remapBoardCharacter(data: CharacterBoardData, oldId: string, newId: string): CharacterBoardData {

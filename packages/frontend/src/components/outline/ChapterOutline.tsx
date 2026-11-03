@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Plus, Pencil, Trash2, Check, Clock, Filter, BookOpen, AlertTriangle, ChevronDown, ChevronRight, RefreshCw, Info } from 'lucide-react';
 import { useNovelStore } from '@/stores/novelStore';
 import { cn } from '@/lib/utils';
+import { chapterTitleText } from '@/lib/chapterTitle';
 import type { PlotCard as PlotCardType } from '@/types';
 
 interface ChapterOutlineProps {
@@ -350,7 +351,7 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
                             <span className="text-sm font-bold text-muted-foreground w-8">{idx + 1}</span>
                             <div className="flex-1 min-w-0">
                               <div className="outline-chapter-title flex items-center gap-2">
-                                <h4 className="font-medium truncate">{card.title}</h4>
+                                <h4 className="font-medium truncate">{chapterTitleText(card.title)}</h4>
                                 <span className={cn(
                                   'text-xs px-2 py-0.5 rounded-full border flex items-center gap-1 shrink-0',
                                   statusConfig[card.status].color
@@ -402,7 +403,7 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
                           <span className="text-sm font-bold text-muted-foreground w-8">{idx + 1}</span>
                           <div className="flex-1 min-w-0">
                             <div className="outline-chapter-title flex items-center gap-2">
-                              <h4 className="font-medium truncate">{card.title}</h4>
+                              <h4 className="font-medium truncate">{chapterTitleText(card.title)}</h4>
                               <span className={cn(
                                 'text-xs px-2 py-0.5 rounded-full border flex items-center gap-1 shrink-0',
                                 statusConfig[card.status].color
@@ -460,7 +461,7 @@ export function ChapterOutline({ onEditCard, onCreateCard, onCreateVolume, onEdi
                     <span className="text-sm font-bold text-muted-foreground w-8">{originalIndex + 1}</span>
                     <div className="flex-1 min-w-0">
                       <div className="outline-chapter-title flex items-center gap-2 mb-2">
-                        <h3 className="font-medium truncate">{card.title}</h3>
+                        <h3 className="font-medium truncate">{chapterTitleText(card.title)}</h3>
                         <span className={cn(
                           'text-xs px-2 py-0.5 rounded-full border flex items-center gap-1 shrink-0',
                           statusConfig[card.status].color

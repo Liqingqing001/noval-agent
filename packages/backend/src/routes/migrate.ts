@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { authMiddleware } from '../middlewares/auth.js';
+import { characterAliases, characterAvatarValue, characterRelationships } from '../lib/characterProfileData.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -67,22 +68,37 @@ router.post('/import', async (req, res, next) => {
       }
 
       // 3. 角色
+      const characterIdMap = new Map<string, string>();
       for (const ch of characters) {
         const newNovelId = novelIdMap.get(ch.novelId);
         if (!newNovelId) continue;
-        await tx.character.create({
+        const created = await tx.character.create({
           data: {
             novelId: newNovelId,
             name: ch.name,
-            aliases: typeof ch.aliases === 'string' ? ch.aliases : JSON.stringify(ch.aliases || []),
+            aliases: characterAliases(ch.aliases || []),
             description: ch.description || '',
             appearance: ch.appearance,
             personality: ch.personality,
             background: ch.background,
+            avatar: characterAvatarValue(ch.avatar ?? null),
+            role: ch.role || 'supporting',
+            sequence: ch.sequence ?? 0,
             firstAppearanceChapterId: ch.firstAppearanceChapterId,
           },
         });
+        characterIdMap.set(ch.id, created.id);
         counts.characters++;
+      }
+      for (const ch of characters) {
+        const id = characterIdMap.get(ch.id);
+        if (!id) continue;
+        const relationships = characterRelationships(ch.relationships || []).flatMap(relation => {
+          const targetId = characterIdMap.get(relation.targetId);
+          if (!targetId || targetId === id || !characters.some(target => target.id === relation.targetId && target.novelId === ch.novelId)) return [];
+          return [{ ...relation, targetId }];
+        });
+        if (relationships.length) await tx.character.update({ where: { id }, data: { relationships: JSON.stringify(relationships) } });
       }
 
       // 4. 世界观

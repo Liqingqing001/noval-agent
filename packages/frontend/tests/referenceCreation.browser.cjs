@@ -169,13 +169,14 @@ const draft = '星光越过海面，新的观测记录在此展开。'.repeat(35
         await page.getByLabel('参考导出内容', { exact: true }).selectOption('draft');
         // Same-title conflicts stop, preview is explicit, successful imports are idempotent.
         await button('预览导入小说').click();
+        await page.getByLabel('参考导入目标作品', { exact: true }).selectOption(fixture.novels[0].id);
         await page.getByLabel('参考导入章节标题', { exact: true }).fill(fixture.chapters[0].title);
         await button('确认新增一章').click(); await waitIdle();
         assert.equal((await novelState()).chapters.length, before.chapters.length);
         await page.getByLabel('参考导入章节标题', { exact: true }).fill('海岛观测');
         await button('确认新增一章').click(); await page.getByRole('dialog').waitFor({ state: 'hidden' });
         await page.waitForFunction(({ key, count }) => JSON.parse(localStorage.getItem(key)).state.chapters.length === count, { key: key('novel-agent-storage'), count: before.chapters.length + 1 });
-        await button('预览导入小说').click(); await button('确认新增一章').click(); await page.getByRole('dialog').waitFor({ state: 'hidden' });
+        await button('预览导入小说').click(); await page.getByLabel('参考导入目标作品', { exact: true }).selectOption(fixture.novels[0].id); await button('确认新增一章').click(); await page.getByRole('dialog').waitFor({ state: 'hidden' });
         assert.equal((await novelState()).chapters.length, before.chapters.length + 1);
         // Failed/cancelled reanalysis keeps the earlier report and draft.
         responseMode = 'invalid'; await button('重新分析（再次调用）').click(); await waitIdle();

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canvasPosition, defaultPosition, edgeGeometry, emptyBoard, emptySnapshot, remapBoardCharacter, validateCharacterBoard } from '../src/lib/characterBoard.ts';
+import { canvasPosition, defaultPosition, edgeGeometry, emptyBoard, emptySnapshot, remapBoardCharacter, seedCharacterRelationships, validateCharacterBoard } from '../src/lib/characterBoard.ts';
+import { parseCharacterRelationships, resolveCharacterPortrait } from '../src/lib/characterProfiles.ts';
 
 test('board positions retain negative and distant coordinates without a world boundary', () => {
   assert.deepEqual(defaultPosition(4), { x: 100, y: 280 });
@@ -35,4 +36,39 @@ test('curved relationships have finite geometry and distinct labels for parallel
   const first = edgeGeometry(a, b, -40), second = edgeGeometry(a, b, 40);
   assert.notEqual(first.path, second.path); assert.notDeepEqual(first.label, second.label);
   assert.ok(!edgeGeometry(a, a).path.includes('NaN'));
+});
+
+test('explicit saved relationships seed once and preserve local edits, removals and node state', () => {
+  const relation = { targetId: 'b', kind: 'ally', label: '同桌', notes: '彼此保留座位', directed: false };
+  const characters = [{ id: 'a', relationships: [relation, { ...relation, targetId: 'missing' }] }, { id: 'b', relationships: [{ ...relation, targetId: 'a' }] }];
+  const board = emptyBoard(); board.nodes.a = { state: { ...emptySnapshot(), goal: '归还笔记' } };
+  const seeded = seedCharacterRelationships(board, characters);
+  assert.equal(seeded.edges.length, 1);
+  assert.equal(seeded.edges[0].notes, '彼此保留座位');
+  assert.equal(seeded.nodes.a.state.goal, '归还笔记');
+  assert.equal(seedCharacterRelationships(seeded, characters), seeded);
+  const edited = { ...seeded, edges: [{ ...seeded.edges[0], label: '搭档' }] };
+  assert.equal(seedCharacterRelationships(edited, characters), edited);
+  const removed = { ...seeded, edges: [] };
+  assert.equal(seedCharacterRelationships(removed, characters), removed);
+  const manual = { ...emptyBoard(), edges: [{ id: 'visitor', source: 'a', target: 'b', ...relation, notes: '访客备注' }] };
+  assert.equal(seedCharacterRelationships(manual, characters).edges.length, 1);
+  assert.equal(validateCharacterBoard(seeded), seeded);
+});
+
+test('portrait atlas paths honor Pages base, retain cell geometry and reject invalid cell references', () => {
+  assert.deepEqual(resolveCharacterPortrait('school/images/portraits.webp#cell=11,4,3', '/noval-agent/'), { src: '/noval-agent/school/images/portraits.webp', cell: { index: 11, columns: 4, rows: 3 } });
+  assert.equal(resolveCharacterPortrait('/book/images/portraits.webp#cell=0,4,2', '/noval-agent/').src, '/noval-agent/book/images/portraits.webp');
+  assert.equal(resolveCharacterPortrait('https://example.com/portrait.png', '/noval-agent/').src, 'https://example.com/portrait.png');
+  assert.equal(resolveCharacterPortrait('school/portraits.webp#cell=12,4,3'), null);
+  assert.equal(resolveCharacterPortrait('school/portraits.webp#cell=0,0,3'), null);
+  assert.equal(resolveCharacterPortrait('../outside.webp'), null);
+  assert.equal(resolveCharacterPortrait('//example.com/pixel.png'), null);
+});
+
+test('DB relationship JSON normalizes defensively without guessing from prose', () => {
+  const relation = { targetId: 'other', kind: 'family', label: '姐妹', notes: '共同生活' };
+  assert.deepEqual(parseCharacterRelationships(JSON.stringify([relation])), [relation]);
+  assert.deepEqual(parseCharacterRelationships('[invalid'), []);
+  assert.deepEqual(parseCharacterRelationships([{ targetName: '顾夏', kind: 'friend', label: '友人' }, { ...relation, directed: 'yes' }]), []);
 });

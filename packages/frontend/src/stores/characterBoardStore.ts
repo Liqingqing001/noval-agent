@@ -1,8 +1,9 @@
 import { createStore } from 'zustand/vanilla';
 import { storageKey } from '@/lib/runtime';
 import { readReferenceWorkspace, writeReferenceWorkspace } from '@/lib/referencePersistence';
-import { emptyBoard, remapBoardCharacter, validateCharacterBoard } from '@/lib/characterBoard';
+import { emptyBoard, remapBoardCharacter, seedCharacterRelationships, validateCharacterBoard } from '@/lib/characterBoard';
 import type { CharacterBoardData, CharacterNode, CharacterEdge } from '@/lib/characterBoard';
+import type { Character } from '@/types';
 
 interface BoardState {
   data: CharacterBoardData; ready: boolean; saving: boolean; error: string; remaps: Record<string, string>;
@@ -14,6 +15,7 @@ interface BoardState {
   remap: (oldId: string, newId: string) => void;
   flush: () => Promise<void>;
   retry: () => void;
+  seedRelationships: (characters: Character[]) => void;
 }
 const boards = new Map<string, { novelId: string; store: ReturnType<typeof makeStore> }>();
 
@@ -42,6 +44,7 @@ function makeStore(key: string) {
       remap: (oldId, newId) => { if (!get().ready) { void loaded.then(() => { if (get().ready) get().remap(oldId, newId); }).catch(() => {}); return; } set({ remaps: { ...get().remaps, [oldId]: newId } }); const data = get().data; if (data.nodes[oldId] || data.edges.some(edge => edge.source === oldId || edge.target === oldId)) commit(remapBoardCharacter(data, oldId, newId)); },
       flush: async () => { for (;;) { const write = pending; try { await write; } catch (error) { if (write === pending) throw error; } if (write === pending) return; } },
       retry: () => commit(get().data),
+      seedRelationships: characters => { if (!get().ready) return; const data = seedCharacterRelationships(get().data, characters); if (data !== get().data) commit(data); },
     };
   });
   loaded = (async () => {

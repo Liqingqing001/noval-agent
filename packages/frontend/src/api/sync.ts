@@ -10,6 +10,7 @@ import { worldSettingsApi } from '@/api/worldSettings';
 import { plotCardsApi } from '@/api/plotCards';
 import { foreshadowingsApi } from '@/api/foreshadowings';
 import { migrateApi } from '@/api/migrate';
+import { parseCharacterRelationships } from '@/lib/characterProfiles';
 
 function normalizePlotCard(p: any) {
   return {
@@ -115,6 +116,8 @@ export async function fetchAllFromBackend(options: { preserveLocalIfRemoteEmpty?
   const frontendCharacters = allCharacters.map((c: any) => ({
     ...c,
     aliases: typeof c.aliases === 'string' ? JSON.parse(c.aliases || '[]') : c.aliases,
+    avatar: c.avatar || undefined,
+    relationships: parseCharacterRelationships(c.relationships),
   }));
 
   // 4. 填充到 store。只有该类资源成功拉取时才覆盖本地，避免失败时误清空。

@@ -10,6 +10,8 @@ export interface Character {
   appearance: string | null;
   personality: string | null;
   background: string | null;
+  avatar: string | null;
+  relationships: string; // JSON 字符串，显式关系以 targetId 关联同书角色
   firstAppearanceChapterId: string | null;
   role: string | null;
   sequence: number | null;
