@@ -166,12 +166,16 @@ test('cancellation propagates to fetch and errors are readable', async t => {
 
 test('request timeout covers response body processing', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
+  let started;
+  const fetching = new Promise(resolve => { started = resolve; });
   t.mock.method(globalThis, 'fetch', async (_url, init) => new Response(new ReadableStream({
     start(controller) {
       init.signal.addEventListener('abort', () => controller.error(new DOMException('aborted', 'AbortError')));
+      started();
     },
   }), { headers: { 'content-type': 'text/event-stream' } }));
   const pending = new ModelService(config({ timeoutSeconds: 5 })).generate({ messages });
+  await fetching;
   t.mock.timers.tick(5000);
   await assert.rejects(pending, /请求超时/);
 });

@@ -71,6 +71,13 @@ export interface Message {
   content: string;
   timestamp: number;
   agentType?: string;
+  generation?: {
+    status: 'running' | 'succeeded' | 'failed' | 'cancelled' | 'interrupted';
+    requestMessageId: string;
+    callId?: string;
+    retryOf?: string;
+    reviewCount?: number;
+  };
   syncStatus?: {
     state: 'pending' | 'success' | 'warning' | 'error' | 'partial';
     message: string;

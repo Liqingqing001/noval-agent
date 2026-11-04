@@ -20,6 +20,6 @@ export interface ReferenceProject {
   analysisCache?: Record<string, ReferenceCache>;
   style: string; methods: string; brief: ReferenceBrief;
   outline: string; confirmedContext?: string; draft?: ReferenceDraft;
-  lastAttempt?: { stage: string; text: string; error: string; at: number };
+  lastAttempt?: { stage: string; text: string; error: string; at: number; callId?: string };
   imports: Array<{ hash: string; novelId: string; chapterId: string }>;
 }

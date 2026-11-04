@@ -1,5 +1,8 @@
 import { apiRoot, endpoint, isModelConfigured, normalizeConfig, parseJsonObject, validateConfig } from '../lib/modelConfig';
 import type { ModelConfig } from '../lib/modelConfig';
+import { countOutputCharacters, estimateTextTokens } from '../lib/modelUsage';
+import type { UsageContext, UsageErrorCode, UsageSource, UsageTokens } from '../lib/modelUsage';
+import { useUsageStore } from '../stores/usageStore';
 
 export interface ChatMessage { role: 'system' | 'user' | 'assistant'; content: string }
 export type GenerationPhase = 'connecting' | 'waiting' | 'reasoning' | 'streaming' | 'non-streaming';
@@ -8,6 +11,9 @@ export interface GenerateOptions {
   signal?: AbortSignal;
   onStream?: (content: string) => void;
   onProgress?: (phase: GenerationPhase) => void;
+  usageContext?: UsageContext & { operation?: string };
+  onCallId?: (id: string) => void;
+  onBudgetWarning?: (warning: string) => void;
 }
 type Json = Record<string, unknown>;
 const object = (value: unknown): Json => value && typeof value === 'object' && !Array.isArray(value) ? value as Json : {};
@@ -66,12 +72,13 @@ export function buildRequestBody(config: ModelConfig, messages: ChatMessage[], s
 }
 
 // Incremental SSE framing: UTF-8, CR/LF, comments, multiline data and an unterminated final event.
-export async function consumeSSE(response: Response, onEvent: (data: string, event: string) => boolean | void): Promise<void> {
+export async function consumeSSE(response: Response, onEvent: (data: string, event: string) => boolean | void, options?: { complete?: () => boolean; graceMs?: number; signal?: AbortSignal }): Promise<void> {
   const reader = response.body?.getReader();
   if (!reader) throw new Error('服务没有返回可读取的响应流');
   const decoder = new TextDecoder();
   let buffer = '', event = '', data: string[] = [];
   let stopped = false;
+  let completionDeadline: number | undefined;
   const dispatch = () => {
     if (data.length) stopped = onEvent(data.join('\n'), event) === false;
     data = []; event = '';
@@ -96,7 +103,27 @@ export async function consumeSSE(response: Response, onEvent: (data: string, eve
   };
   try {
     while (!stopped) {
-      const { done, value } = await reader.read();
+      // Accounting trailers are optional after confirmed completion. A connection
+      // timeout during this short grace period must not discard finished writing.
+      if (options?.signal?.aborted && options.complete?.()) break;
+      options?.signal?.throwIfAborted();
+      if (options?.complete?.() && completionDeadline === undefined) completionDeadline = Date.now() + (options.graceMs ?? 150);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const remaining = completionDeadline === undefined ? undefined : completionDeadline - Date.now();
+      if (remaining !== undefined && remaining <= 0) break;
+      const read = reader.read();
+      let chunk: ReadableStreamReadResult<Uint8Array> | null;
+      try {
+        chunk = remaining === undefined ? await read : await Promise.race([
+          read,
+          new Promise<null>(resolve => { timer = setTimeout(() => resolve(null), remaining); }),
+        ]).finally(() => { if (timer) clearTimeout(timer); });
+      } catch (error) {
+        if (options?.complete?.()) break;
+        throw error;
+      }
+      if (chunk === null) break;
+      const { done, value } = chunk;
       buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
       drain(done);
       if (done) break;
@@ -112,21 +139,24 @@ function providerError(value: Json): string {
   return string(error.message) || string(value.message) || string(value.error);
 }
 
+class ModelRequestError extends Error {
+  constructor(message: string, readonly usageCode: UsageErrorCode) { super(message); this.name = 'ModelRequestError'; }
+}
+
 function checkResult(value: Json, protocol: ModelConfig['protocol']): void {
   if (value.error || value.type === 'error' || ['response.failed', 'response.incomplete'].includes(string(value.type))) {
     const response = object(value.response);
-    throw new Error(providerError(value) || providerError(response) || '模型生成未完成，请调整输出上限或附加参数后重试');
+    throw new ModelRequestError(providerError(value) || providerError(response) || '模型生成未完成，请调整输出上限或附加参数后重试', 'request_failed');
   }
   const choice = object(array(value.choices)[0]);
   const candidate = object(array(value.candidates)[0]);
   const reason = string(choice.finish_reason) || string(candidate.finishReason) || string(value.stop_reason);
-  if (['length', 'MAX_TOKENS', 'max_tokens'].includes(reason) || value.status === 'incomplete') throw new Error('已达到输出 Tokens 上限，内容未完成；请提高上限或缩短请求');
-  if (['content_filter', 'SAFETY', 'RECITATION', 'BLOCKLIST', 'PROHIBITED_CONTENT'].includes(reason) || object(value.promptFeedback).blockReason) throw new Error('模型服务拦截了本次内容，请修改请求后重试');
-  if (protocol === 'responses' && value.status === 'failed') throw new Error(providerError(value) || '模型生成失败');
+  if (['length', 'MAX_TOKENS', 'max_tokens'].includes(reason) || value.status === 'incomplete') throw new ModelRequestError('已达到输出 Tokens 上限，内容未完成；请提高上限或缩短请求', 'output_limit');
+  if (['content_filter', 'SAFETY', 'RECITATION', 'BLOCKLIST', 'PROHIBITED_CONTENT'].includes(reason) || object(value.promptFeedback).blockReason) throw new ModelRequestError('模型服务拦截了本次内容，请修改请求后重试', 'provider_rejected');
+  if (protocol === 'responses' && value.status === 'failed') throw new ModelRequestError(providerError(value) || '模型生成失败', 'request_failed');
 }
 
 function responseText(value: Json, protocol: ModelConfig['protocol']): string {
-  checkResult(value, protocol);
   if (protocol === 'anthropic') return textParts(value.content);
   if (protocol === 'gemini') return textParts(object(object(array(value.candidates)[0]).content).parts);
   if (protocol === 'responses') return string(value.output_text) || array(value.output)
@@ -135,9 +165,63 @@ function responseText(value: Json, protocol: ModelConfig['protocol']): string {
   return textParts(message.content) || string(message.refusal);
 }
 
+const tokenCount = (value: unknown): number | undefined => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : undefined;
+
+/** Provider counters are cumulative. Cached/reasoning subsets are not added twice. */
+function reportedUsage(value: Json, protocol: ModelConfig['protocol']): Partial<UsageTokens> {
+  const usage = protocol === 'gemini' ? object(value.usageMetadata)
+    : protocol === 'responses' ? object(value.usage || object(value.response).usage)
+    : protocol === 'anthropic' ? object(value.usage || object(value.message).usage) : object(value.usage);
+  let inputTokens: number | undefined, outputTokens: number | undefined, totalTokens: number | undefined;
+  if (protocol === 'gemini') {
+    inputTokens = tokenCount(usage.promptTokenCount);
+    const visible = tokenCount(usage.candidatesTokenCount), thoughts = tokenCount(usage.thoughtsTokenCount);
+    if (visible !== undefined || thoughts !== undefined) outputTokens = (visible || 0) + (thoughts || 0);
+    totalTokens = tokenCount(usage.totalTokenCount);
+  } else if (protocol === 'anthropic') {
+    const ordinary = tokenCount(usage.input_tokens), created = tokenCount(usage.cache_creation_input_tokens), cached = tokenCount(usage.cache_read_input_tokens);
+    if (ordinary !== undefined || created !== undefined || cached !== undefined) inputTokens = (ordinary || 0) + (created || 0) + (cached || 0);
+    outputTokens = tokenCount(usage.output_tokens);
+    totalTokens = tokenCount(usage.total_tokens);
+  } else {
+    inputTokens = tokenCount(protocol === 'responses' ? usage.input_tokens : usage.prompt_tokens);
+    outputTokens = tokenCount(protocol === 'responses' ? usage.output_tokens : usage.completion_tokens);
+    totalTokens = tokenCount(usage.total_tokens);
+  }
+  if (inputTokens !== undefined && outputTokens === undefined && totalTokens !== undefined && totalTokens >= inputTokens) outputTokens = totalTokens - inputTokens;
+  if (outputTokens !== undefined && inputTokens === undefined && totalTokens !== undefined && totalTokens >= outputTokens) inputTokens = totalTokens - outputTokens;
+  return { ...(inputTokens === undefined ? {} : { inputTokens }), ...(outputTokens === undefined ? {} : { outputTokens }), ...(totalTokens === undefined ? {} : { totalTokens }) };
+}
+
+function mergeUsage(previous: Partial<UsageTokens>, next: Partial<UsageTokens>): Partial<UsageTokens> {
+  const merged = { ...previous };
+  for (const key of ['inputTokens', 'outputTokens', 'totalTokens'] as const) if (next[key] !== undefined) merged[key] = Math.max(previous[key] || 0, next[key]);
+  return merged;
+}
+
+function settledUsage(reported: Partial<UsageTokens>, estimatedInputTokens: number, content: string, dispatched: boolean): { usage: UsageTokens; usageSource: UsageSource } {
+  if (!dispatched) return { usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, usageSource: 'estimated' };
+  const inputTokens = reported.inputTokens ?? estimatedInputTokens;
+  const outputTokens = reported.outputTokens ?? estimateTextTokens(content);
+  return {
+    usage: { inputTokens, outputTokens, totalTokens: Math.max(inputTokens + outputTokens, reported.totalTokens || 0) },
+    usageSource: reported.inputTokens !== undefined && reported.outputTokens !== undefined ? 'reported' : Object.keys(reported).length ? 'mixed' : 'estimated',
+  };
+}
+
+function outputLimit(config: ModelConfig, body: Json): number | undefined {
+  const value = config.protocol === 'gemini' ? object(body.generationConfig).maxOutputTokens
+    : config.protocol === 'responses' ? body.max_output_tokens
+    : config.protocol === 'anthropic' ? body.max_tokens : body.max_completion_tokens ?? body.max_tokens;
+  const limit = tokenCount(value);
+  const requestedChoices = config.protocol === 'gemini' ? object(body.generationConfig).candidateCount : config.protocol === 'openai' ? body.n : undefined;
+  if (requestedChoices !== undefined && (tokenCount(requestedChoices) === undefined || !Number.isInteger(requestedChoices) || Number(requestedChoices) < 1)) return undefined;
+  return limit === undefined ? undefined : Math.min(Number.MAX_SAFE_INTEGER, limit * (tokenCount(requestedChoices) || 1));
+}
+
 export class ModelService {
   readonly config: ModelConfig;
-  constructor(config: ModelConfig) { this.config = normalizeConfig(config); }
+  constructor(config: ModelConfig, private readonly usageLedger: Pick<typeof useUsageStore, 'getState'> = useUsageStore) { this.config = normalizeConfig(config); }
   isConfigured(): boolean { return isModelConfigured(this.config); }
 
   private async connection<T>(requireModel: boolean, signal: AbortSignal | undefined, action: (signal: AbortSignal) => Promise<T>): Promise<T> {
@@ -158,7 +242,7 @@ export class ModelService {
       if (this.config.apiKey) message = message.split(this.config.apiKey).join('[密钥已隐藏]');
       // Do not retain raw upstream errors as causes: they can echo credentials or private URLs.
       // eslint-disable-next-line preserve-caught-error
-      throw new Error(message);
+      throw new ModelRequestError(message, timedOut ? 'timeout' : controller.signal.aborted ? 'cancelled' : error instanceof ModelRequestError ? error.usageCode : error instanceof TypeError ? 'network_error' : 'request_failed');
     } finally { clearTimeout(timeout); signal?.removeEventListener('abort', abort); }
   }
 
@@ -174,73 +258,136 @@ export class ModelService {
         404: '地址、模型 ID 或协议不匹配；模型列表接口也可能未实现',
         429: '请求过于频繁或账户额度不足',
       };
-      throw new Error(`HTTP ${response.status}：${hints[response.status] || '模型服务暂时不可用'}${detail ? `（${detail.slice(0, 500)}）` : ''}`);
+      throw new ModelRequestError(`HTTP ${response.status}：${hints[response.status] || '模型服务暂时不可用'}${detail ? `（${detail.slice(0, 500)}）` : ''}`, 'request_failed');
     }
     return response;
   }
 
   async generate(options: GenerateOptions): Promise<string> {
-    return this.connection(true, options.signal, async signal => {
-      const { config } = this;
-      let phase: GenerationPhase | undefined;
-      const progress = (next: GenerationPhase) => {
-        if (phase !== next) { phase = next; options.onProgress?.(next); }
-      };
-      progress('connecting');
-      const response = await this.fetchResponse(endpoint(config, 'chat'), { method: 'POST', signal,
-        body: JSON.stringify(buildRequestBody(config, options.messages, config.stream)) });
-      let content = '';
-      const mime = response.headers.get('content-type') || '';
-      if (!config.stream || mime.includes('application/json')) {
-        progress('non-streaming');
-        content = responseText(object(await response.json()), config.protocol);
-        if (content) options.onStream?.(content);
-      } else {
-        progress('waiting');
-        if (mime.includes('text/html')) throw new Error('该地址返回了网页，请填写模型 API 地址');
-        let terminal = false;
-        await consumeSSE(response, (data, event) => {
-          if (data.trim() === '[DONE]') { terminal = true; return false; }
-          let value: Json;
-          try { value = object(JSON.parse(data)); } catch { throw new Error('模型服务返回了无效的 SSE JSON 数据，请检查协议'); }
-          // Some compatible servers only set the SSE event field, not the JSON type.
-          if (!value.type && event) value.type = event;
-          checkResult(value, config.protocol);
-          const choiceDelta = object(object(array(value.choices)[0]).delta);
-          const reasoning = choiceDelta.reasoning_content || choiceDelta.reasoning ||
-            ['thinking_delta', 'reasoning_delta'].includes(string(object(value.delta).type)) ||
-            string(value.type).startsWith('response.reasoning') ||
-            array(object(object(array(value.candidates)[0]).content).parts).some(part => object(part).thought);
-          if (!content && reasoning) progress('reasoning');
-          let delta = '';
-          if (config.protocol === 'openai') {
-            const choice = object(array(value.choices)[0]);
-            delta = textParts(object(choice.delta).content);
-            if (choice.finish_reason) terminal = true;
-          } else if (config.protocol === 'responses') {
-            if (value.type === 'response.output_text.delta') delta = string(value.delta);
-            if (value.type === 'response.completed') {
-              checkResult(object(value.response), config.protocol);
-              if (!content) delta = responseText(object(value.response), config.protocol);
-              terminal = true;
-            }
-          } else if (config.protocol === 'anthropic') {
-            if (value.type === 'content_block_delta' && object(value.delta).type === 'text_delta') delta = string(object(value.delta).text);
-            if (value.type === 'message_delta') checkResult(object(value.delta), config.protocol);
-            if (value.type === 'message_stop') terminal = true;
-          } else {
-            delta = textParts(object(object(array(value.candidates)[0]).content).parts);
-            if (object(array(value.candidates)[0]).finishReason) terminal = true;
-          }
-          if (delta) { content += delta; progress('streaming'); options.onStream?.(content); }
-          // A provider can keep its HTTP connection open after the semantic finish event.
-          if (terminal) return false;
-        });
-        if (!terminal) throw new Error('响应流意外结束，生成未确认完成，请重试');
-      }
-      if (!content.trim()) throw new Error('模型未返回正文；请确认选择的是文本生成模型，并检查推理预算或输出上限');
-      return content;
+    const { config } = this;
+    const errors = validateConfig(config, true);
+    if (errors.length) throw new Error(errors[0]);
+    const body = buildRequestBody(config, options.messages, config.stream);
+    // Native OpenAI/DeepSeek document this option. Leave arbitrary compatible
+    // gateways unchanged because unsupported stream_options can reject a request.
+    if (config.stream && config.protocol === 'openai' &&
+      ((config.apiProvider === 'openai' && new URL(config.baseUrl).hostname === 'api.openai.com') ||
+      (config.apiProvider === 'deepseek' && new URL(config.baseUrl).hostname === 'api.deepseek.com'))) {
+      body.stream_options = { include_usage: true, ...object(body.stream_options) };
+    }
+    // Only counts leave this scope. The ledger never receives request text, URLs or credentials.
+    const estimatedInputTokens = estimateTextTokens(JSON.stringify(body)) + 16;
+    const safe = (value: string | undefined) => config.apiKey && value ? value.split(config.apiKey).join('[密钥已隐藏]') : value;
+    const context = options.usageContext;
+    const call = await this.usageLedger.getState().beginCall({
+      provider: config.apiProvider, protocol: config.protocol, model: safe(config.model) || '', operation: context?.operation,
+      context: { novelId: safe(context?.novelId), sessionId: safe(context?.sessionId), sourceId: safe(context?.sourceId), retryOf: safe(context?.retryOf) },
+      estimatedInputTokens, outputTokenLimit: outputLimit(config, body),
     });
+    const notify = (warning: string) => { try { options.onBudgetWarning?.(warning); } catch { /* A status notification must not discard writing. */ } };
+    try { options.onCallId?.(call.id); } catch { /* A metadata notification must not issue a second request. */ }
+    if (call.warning) notify(call.warning);
+    if (call.blockedReason) throw new ModelRequestError(call.blockedReason, 'budget_blocked');
+
+    let content = '', dispatched = false, reported: Partial<UsageTokens> = {}, lastPublished = 0;
+    const snapshot = () => ({ outputCharacters: countOutputCharacters(content), ...settledUsage(reported, estimatedInputTokens, content, dispatched), dispatched });
+    const publish = (force = false) => {
+      if (!force && Date.now() - lastPublished < 120) return;
+      lastPublished = Date.now();
+      void this.usageLedger.getState().updateCall(call.id, snapshot()).catch(() => { /* Store exposes persistence errors; final text remains available. */ });
+    };
+    const collect = (value: Json) => {
+      const next = reportedUsage(value, config.protocol);
+      if (Object.keys(next).length) { reported = mergeUsage(reported, next); publish(true); }
+    };
+    const finish = async (status: 'succeeded' | 'failed' | 'cancelled', errorCode?: UsageErrorCode) => {
+      try { await this.usageLedger.getState().finishCall(call.id, { status, errorCode, ...snapshot() }); }
+      catch { notify('本次文字仍已保留，但调用记录未能保存；请到“调用与预算”检查并备份记录。'); }
+    };
+    try {
+      const result = await this.connection(true, options.signal, async signal => {
+        let phase: GenerationPhase | undefined;
+        const progress = (next: GenerationPhase) => {
+          if (phase !== next) { phase = next; options.onProgress?.(next); }
+        };
+        const emit = (text: string) => { content = text; publish(); options.onStream?.(content); };
+        progress('connecting');
+        signal.throwIfAborted();
+        await this.usageLedger.getState().updateCall(call.id, { dispatched: true });
+        signal.throwIfAborted();
+        dispatched = true;
+        const response = await this.fetchResponse(endpoint(config, 'chat'), { method: 'POST', signal, body: JSON.stringify(body) });
+        const mime = response.headers.get('content-type') || '';
+        if (!config.stream || mime.includes('application/json')) {
+          progress('non-streaming');
+          const value = object(await response.json());
+          collect(value);
+          const text = responseText(value, config.protocol);
+          if (text) emit(text);
+          checkResult(value, config.protocol);
+        } else {
+          progress('waiting');
+          if (mime.includes('text/html')) throw new ModelRequestError('该地址返回了网页，请填写模型 API 地址', 'invalid_response');
+          let terminal = false, completionError: unknown;
+          await consumeSSE(response, (data, event) => {
+            if (data.trim() === '[DONE]') { terminal = true; return false; }
+            let value: Json;
+            try { value = object(JSON.parse(data)); } catch {
+              if (terminal) return; // A malformed accounting trailer cannot invalidate completed text.
+              throw new ModelRequestError('模型服务返回了无效的 SSE JSON 数据，请检查协议', 'invalid_response');
+            }
+            if (!value.type && event) value.type = event;
+            collect(value);
+            // OpenAI-compatible usage may arrive in a choices:[] trailer after finish_reason.
+            // Accept accounting only after completion; never append a second choice or retry.
+            if (terminal) return;
+            const choiceDelta = object(object(array(value.choices)[0]).delta);
+            const reasoning = choiceDelta.reasoning_content || choiceDelta.reasoning ||
+              ['thinking_delta', 'reasoning_delta'].includes(string(object(value.delta).type)) ||
+              string(value.type).startsWith('response.reasoning') ||
+              array(object(object(array(value.candidates)[0]).content).parts).some(part => object(part).thought);
+            if (!content && reasoning) progress('reasoning');
+            let delta = '';
+            if (config.protocol === 'openai') {
+              const choice = object(array(value.choices)[0]);
+              delta = textParts(object(choice.delta).content);
+              if (choice.finish_reason) terminal = true;
+            } else if (config.protocol === 'responses') {
+              if (value.type === 'response.output_text.delta') delta = string(value.delta);
+              if (value.type === 'response.completed') { if (!content) delta = responseText(object(value.response), config.protocol); terminal = true; }
+            } else if (config.protocol === 'anthropic') {
+              if (value.type === 'content_block_delta' && object(value.delta).type === 'text_delta') delta = string(object(value.delta).text);
+              if (value.type === 'message_stop') terminal = true;
+            } else {
+              delta = textParts(object(object(array(value.candidates)[0]).content).parts);
+              if (object(array(value.candidates)[0]).finishReason) terminal = true;
+            }
+            if (delta) { progress('streaming'); emit(content + delta); }
+            // Save the final partial text/usage before reporting truncation or provider rejection.
+            try { checkResult(value, config.protocol); }
+            catch (error) {
+              // A truncated OpenAI completion can still have a usage-only trailer.
+              // Retain the rejection while collecting its bounded accounting tail.
+              if (terminal && config.protocol === 'openai') completionError = error;
+              else throw error;
+            }
+            if (config.protocol === 'responses' && value.type === 'response.completed') checkResult(object(value.response), config.protocol);
+            if (config.protocol === 'anthropic' && value.type === 'message_delta') checkResult(object(value.delta), config.protocol);
+            if (terminal && config.protocol !== 'openai') return false;
+          }, config.protocol === 'openai' ? { complete: () => terminal, graceMs: 150, signal } : { signal });
+          if (completionError) throw completionError;
+          if (!terminal) throw new ModelRequestError('响应流意外结束，生成未确认完成，请重试', 'invalid_response');
+        }
+        if (!content.trim()) throw new ModelRequestError('模型未返回正文；请确认选择的是文本生成模型，并检查推理预算或输出上限', 'invalid_response');
+        return content;
+      });
+      await finish('succeeded');
+      return result;
+    } catch (error) {
+      const code = error instanceof ModelRequestError ? error.usageCode : options.signal?.aborted ? 'cancelled' : 'request_failed';
+      await finish(code === 'cancelled' ? 'cancelled' : 'failed', code);
+      throw error;
+    }
   }
 
   async listModels(signal?: AbortSignal): Promise<string[]> {
@@ -277,7 +424,7 @@ export class ModelService {
   async testConnection(signal?: AbortSignal): Promise<{ text: string; milliseconds: number }> {
     const started = Date.now();
     // Use the actual writing configuration; lowering the budget can break reasoning-only models.
-    const text = await this.generate({ messages: [{ role: 'user', content: 'Reply with only OK.' }], signal });
+    const text = await this.generate({ messages: [{ role: 'user', content: 'Reply with only OK.' }], signal, usageContext: { operation: '连接测试' } });
     return { text, milliseconds: Date.now() - started };
   }
 }

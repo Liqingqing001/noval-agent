@@ -13,6 +13,7 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { isModelConfigured } from '@/lib/modelConfig';
 import { BookOpen, Library, Bot } from 'lucide-react';
 import { flushActiveEditor } from '@/lib/editorEvents';
+import { OPEN_USAGE_EVENT } from '@/lib/usageNavigation';
 import '@/styles/workspace.css';
 import '@/styles/emerald-court.css';
 import '@/styles/mobile-workspace.css';
@@ -65,6 +66,16 @@ function App() {
     flushActiveEditor();
     setMobilePanel(panel);
   };
+
+  useEffect(() => {
+    const openUsage = () => {
+      flushActiveEditor();
+      useNovelStore.getState().setCurrentView('settings');
+      setMobilePanel('content');
+    };
+    window.addEventListener(OPEN_USAGE_EVENT, openUsage);
+    return () => window.removeEventListener(OPEN_USAGE_EVENT, openUsage);
+  }, []);
 
   // 首次加载：尝试获取当前用户
   useEffect(() => {

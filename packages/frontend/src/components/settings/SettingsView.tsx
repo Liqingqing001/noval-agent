@@ -6,14 +6,24 @@ import { ModelService } from '@/services/modelService';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { UsageBudgetPanel } from './UsageBudgetPanel';
 import { Check, ExternalLink, Eye, EyeOff, Loader2, Plug, Save, Server } from 'lucide-react';
-import { IS_DEMO } from '@/lib/runtime';
+import { IS_DEMO, storageKey } from '@/lib/runtime';
 
 const controlClass = 'flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm';
 const textAreaClass = 'w-full min-h-24 rounded-md border border-input bg-background p-3 font-mono text-sm';
 
 export function SettingsView() {
   const settings = useSettingsStore();
+  const [section, setSection] = useState(() => {
+    const key = storageKey('novel-agent-settings-section');
+    try {
+      const requested = sessionStorage.getItem(key);
+      sessionStorage.removeItem(key);
+      return requested === 'usage' ? 'usage' : 'config';
+    } catch { return 'config'; }
+  });
   const [provider, setProvider] = useState<APIProvider>(settings.apiProvider);
   const [drafts, setDrafts] = useState<Partial<Record<APIProvider, ModelConfig>>>(() => ({
     ...settings.profiles, [settings.apiProvider]: normalizeConfig(settings),
@@ -31,6 +41,14 @@ export function SettingsView() {
   try { requestUrl = endpoint(draft, 'chat'); } catch { /* Display validation below. */ }
 
   useEffect(() => () => { requestRef.current?.abort(); requestRef.current = null; }, []);
+  useEffect(() => {
+    const openUsage = () => {
+      try { sessionStorage.removeItem(storageKey('novel-agent-settings-section')); } catch { /* The event also works without browser storage. */ }
+      setSection('usage');
+    };
+    window.addEventListener('novel-agent-open-usage', openUsage);
+    return () => window.removeEventListener('novel-agent-open-usage', openUsage);
+  }, []);
 
   const update = <K extends keyof ModelConfig>(key: K, value: ModelConfig[K]) => {
     setDrafts(previous => ({ ...previous, [provider]: { ...draft, [key]: value } }));
@@ -83,13 +101,20 @@ export function SettingsView() {
   };
 
   return (
-    <div className="h-full overflow-y-auto p-6">
-      <div className="max-w-3xl mx-auto space-y-6 pb-10">
+    <div className="h-full overflow-y-auto p-4 sm:p-6">
+      <div className="min-w-0 max-w-3xl mx-auto space-y-6 pb-10">
         <div>
           <h2 className="text-2xl font-semibold">模型设置</h2>
           <p className="mt-2 text-sm text-muted-foreground">选择服务商 → 配置地址与密钥 → 选择模型 → 测试连接 → 保存并启用</p>
-          <p className="mt-2 text-xs text-muted-foreground">当前启用：{API_PRESETS[settings.apiProvider]?.name ?? '自定义'} / {settings.model || '尚未选择模型'}</p>
+          <p className="mt-2 break-all text-xs text-muted-foreground">当前启用：{API_PRESETS[settings.apiProvider]?.name ?? '自定义'} / {settings.model || '尚未选择模型'}</p>
         </div>
+        <Tabs value={section} onValueChange={setSection}>
+          <TabsList className="grid w-full grid-cols-2" aria-label="设置分类">
+            <TabsTrigger value="config">模型配置</TabsTrigger>
+            <TabsTrigger value="usage">调用与预算</TabsTrigger>
+          </TabsList>
+          <TabsContent value="usage" className="mt-5"><UsageBudgetPanel /></TabsContent>
+          <TabsContent value="config" className="mt-5 space-y-6">
         <details className="rounded-lg border bg-card p-4">
           <summary className="cursor-pointer text-sm font-medium">使用教程：离线 / 在线，从零创作一本小说</summary>
           <p className="mt-3 break-words text-sm leading-7 text-muted-foreground">
@@ -218,6 +243,8 @@ export function SettingsView() {
           <p>测试会发送少量文本并可能产生 API 费用。网页订阅通常不等于 API 额度。第三方服务需允许当前网页来源的 CORS；本地模型需开启服务。无法连接时请检查网络、浏览器限制和服务日志。</p>
           <p>支持以上四种协议的文本模型；云平台签名认证、工具调用、图片和语音接口不在本模块范围。模型可用性以账号权限和连接测试为准。</p>
         </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

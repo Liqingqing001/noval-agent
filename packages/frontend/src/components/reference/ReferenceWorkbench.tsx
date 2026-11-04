@@ -20,6 +20,7 @@ import type { ReferenceProject } from '@/types/reference';
 type Stage = 'analysis' | 'outline' | 'draft';
 const control = 'w-full min-w-0 rounded-md border bg-background px-3 py-2 text-sm';
 const stageNames = { analysis: '分析文章', outline: '生成新提纲', draft: '生成新稿' };
+const stageOperations = { analysis: '参考分析', outline: '参考提纲', draft: '参考新稿' };
 
 export function ReferenceWorkbench() {
   const userId = useAuthStore(state => state.user?.id);
@@ -36,6 +37,7 @@ export function ReferenceWorkbench() {
   const [tab, setTab] = useState<'source' | 'report' | 'style' | 'create'>('source');
   const [busy, setBusy] = useState<Stage | 'import' | 'export' | null>(null);
   const [notice, setNotice] = useState('');
+  const [budgetWarning, setBudgetWarning] = useState('');
   const [liveText, setLiveText] = useState('');
   const [unsavedResult, setUnsavedResult] = useState('');
   const [focusParagraph, setFocusParagraph] = useState('');
@@ -66,7 +68,7 @@ export function ReferenceWorkbench() {
   const job = useRef<{ controller: AbortController; id: string; stage: Stage } | null>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; job.current?.controller.abort(); }; }, [workspace]);
   useEffect(() => { if (tab === 'source' && focusParagraph) document.getElementById(`reference-${focusParagraph}`)?.scrollIntoView({ block: 'center' }); }, [tab, focusParagraph, sourcePage]);
-  useEffect(() => { setSourcePage(0); setReportPage(0); setBatchConsent(false); setAnalysisProgress(''); }, [currentId]);
+  useEffect(() => { setSourcePage(0); setReportPage(0); setBatchConsent(false); setAnalysisProgress(''); setBudgetWarning(''); }, [currentId]);
   useEffect(() => { setBatchConsent(false); }, [project?.selection, settings.model, settings.baseUrl, settings.maxTokens]);
 
   const safely = (action: () => void) => { try { action(); } catch (error) { setNotice(error instanceof Error ? error.message : '操作未保存，请重试。'); } };
@@ -99,8 +101,9 @@ export function ReferenceWorkbench() {
     // Project updates are immutable. Do not clone the entire book and all cached reports on click.
     const snapshot = project, controller = new AbortController();
     const request = { controller, id: snapshot.id, stage }; job.current = request;
-    flushSync(() => { setBusy(stage); setLiveText(''); setUnsavedResult(''); setNotice(''); setAnalysisProgress(''); setRequestPhase('准备分析范围'); });
-    let partial = '';
+    flushSync(() => { setBusy(stage); setLiveText(''); setUnsavedResult(''); setNotice(''); setBudgetWarning(''); setAnalysisProgress(''); setRequestPhase('准备分析范围'); });
+    let partial = '', lastCallId: string | undefined;
+    let retryOf = !force && snapshot.lastAttempt?.stage === stageNames[stage] ? snapshot.lastAttempt.callId : undefined;
     try {
       await new Promise<void>(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
       if (controller.signal.aborted) return;
@@ -122,6 +125,9 @@ export function ReferenceWorkbench() {
         setRequestPhase('连接模型服务');
         let lastPaint = 0;
         const content = await new ModelService(settings).generate({ signal: controller.signal, messages,
+        usageContext: { operation: stageOperations[stage], novelId: currentNovelId || undefined, sourceId: snapshot.id, retryOf },
+        onCallId: callId => { lastCallId = callId; retryOf = undefined; },
+        onBudgetWarning: warning => { if (mounted.current && job.current === request) setBudgetWarning(warning); },
         onProgress: phase => { if (mounted.current && job.current === request) setRequestPhase(({ connecting: '连接模型服务', waiting: '请求已发出，等待模型', reasoning: '模型推理中，尚未返回正文', streaming: '正在接收分析文字', 'non-streaming': '等待非流式完整结果' })[phase]); },
         onStream: text => { partial = text.slice(0, 100000); if (text.length > 100000) controller.abort(); if (mounted.current && job.current === request && Date.now() - lastPaint >= 100) { lastPaint = Date.now(); setLiveText(partial); } },
         });
@@ -163,7 +169,7 @@ export function ReferenceWorkbench() {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : '请求未完成';
-      try { workspace.getState().update(snapshot.id, { lastAttempt: { stage: stageNames[stage], text: partial, error: message, at: Date.now() } }); await workspace.getState().flush(); }
+      try { workspace.getState().update(snapshot.id, { lastAttempt: { stage: stageNames[stage], text: partial, error: message, at: Date.now(), callId: lastCallId } }); await workspace.getState().flush(); }
       catch { if (mounted.current) setUnsavedResult(partial); }
       if (mounted.current) setNotice(message);
     } finally {
@@ -226,6 +232,7 @@ export function ReferenceWorkbench() {
       {saveError && <div role="alert" className="rounded-lg border p-3 text-sm">{saveError}<Button variant="outline" className="ml-2" onClick={() => safely(() => { const item = workspace.getState().projects.find(item => item.id === currentId); if (item) workspace.getState().update(item.id, {}); })}>重试保存</Button></div>}
       {warning && <div role="alert" className="rounded-lg border p-3 text-sm">{warning}<Button variant="outline" className="mt-2" disabled={!ready || saving} onClick={() => { if (confirm('明确清空无法读取的参考工作台数据？这不会删除小说。')) safely(() => workspace.getState().resetUnreadable()); }}>清空无法读取的参考数据</Button></div>}
       {notice && <p role="status" className="rounded-lg border bg-primary/5 p-3 text-sm leading-relaxed break-words">{notice}</p>}
+      {budgetWarning && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-relaxed break-words text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">{budgetWarning}</p>}
       {unsavedResult && <label className="block rounded-lg border p-3 text-sm">本次结果尚未保存，请先复制备份再离开<textarea aria-label="尚未保存的结果" readOnly className={`${control} mt-2 min-h-48`} value={unsavedResult} /></label>}
       {busy && <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border p-3 text-sm"><span>{busy === 'import' ? '正在本机保存…' : busy === 'export' ? '正在生成文件…' : `${stageNames[busy]} · ${requestPhase} · 已等待 ${elapsed} 秒 · 已收到 ${liveText.length.toLocaleString()} 字符`}</span>{job.current && <Button variant="outline" size="sm" onClick={() => job.current?.controller.abort()}>取消当前调用</Button>}</div>}
       {analysisProgress && <p role="status" className="text-sm leading-relaxed">{analysisProgress}</p>}

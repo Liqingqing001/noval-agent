@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Bot, Send, Sparkles, User, AlertCircle, Settings2, X, Check, Trash2, Info, HelpCircle, Download, Layers } from 'lucide-react';
+import { Bot, Send, Sparkles, User, AlertCircle, Settings2, X, Check, Trash2, Info, HelpCircle, Download, Layers, ReceiptText, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNovelStore } from '@/stores/novelStore';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -15,6 +15,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { timelineContext, writingRequirement } from '@/lib/writingContext';
 import { autoSyncContent, hasSyncableContent } from '@/lib/autoSync';
+import { completedGenerationHistory, generationOperation, generationRetry, interruptedGenerations } from '@/lib/generationRetry';
+import { openUsageSettings } from '@/lib/usageNavigation';
 
 // Markdown options are static at each call site; history text does not change on stream updates.
 const MemoMarkdown = memo(ReactMarkdown, (previous, next) => previous.children === next.children);
@@ -82,16 +84,21 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
   const [generationStartedAt, setGenerationStartedAt] = useState(0);
   const streamTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [budgetWarning, setBudgetWarning] = useState('');
   const [showPromptDialog, setShowPromptDialog] = useState(false);
   const [promptText, setPromptText] = useState('');
   const [slashCommandHint, setSlashCommandHint] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const streamingContentRef = useRef('');
   const generationRef = useRef<AbortController | null>(null);
+  const activeReplyIdRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
   const inputSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentNovelId = useNovelStore((state) => state.currentNovelId);
   useEffect(() => () => generationRef.current?.abort(), [currentNovelId]);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; generationRef.current?.abort(); }; }, []);
+  useEffect(() => { setError(null); setBudgetWarning(''); }, [currentNovelId]);
   const allSessions = useNovelStore((state) => state.sessions);
   const addSession = useNovelStore((state) => state.addSession);
   const updateSession = useNovelStore((state) => state.updateSession);
@@ -163,6 +170,13 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
 
   const messages = useMemo(() => activeSession?.messages || [], [activeSession?.messages]);
   const syncableMessageIds = useMemo(() => new Set(messages.filter(message => message.role === 'assistant' && message.syncStatus?.state !== 'partial' && hasSyncableContent(message.content)).map(message => message.id)), [messages]);
+  const retryableMessageIds = useMemo(() => new Set(activeSession && currentNovelId ? messages.filter(message => generationRetry([activeSession], currentNovelId, activeSession.id, message.id)).map(message => message.id) : []), [activeSession, currentNovelId, messages]);
+
+  useEffect(() => {
+    if (!activeSession || generationRef.current) return;
+    const recovered = interruptedGenerations(activeSession.messages);
+    if (recovered !== activeSession.messages) updateSession(activeSession.id, { messages: recovered });
+  }, [activeSession, isLoading, updateSession]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -451,14 +465,26 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
     return true;
   }, [activeSession, messages, apiProvider, model, temperature, maxTokens, apiKey, currentNovel, updateSession, getTrimmedMessages]);
 
-  const handleSend = useCallback(async (content?: string, reviewCount?: number) => {
-    const sendContent = content || input.trim();
-    if (!sendContent || !currentNovelId || isLoading) return;
+  const handleSend = useCallback(async (content?: string, reviewCount?: number, retry?: { sessionId: string; failedMessageId: string }) => {
+    if (!currentNovelId || isLoading || generationRef.current || useNovelStore.getState().currentNovelId !== currentNovelId) return;
+    const retryRequest = retry ? generationRetry(useNovelStore.getState().sessions, currentNovelId, retry.sessionId, retry.failedMessageId) : null;
+    if (retry && !retryRequest) { setError('原请求已不存在，或已切换作品，请在当前作品重新输入需求。'); return; }
+    const sendContent = retryRequest?.content || content || input.trim();
+    const requestedReviewCount = retryRequest?.reviewCount ?? reviewCount;
+    if (!sendContent) return;
+
+    // Keep a typed draft during a shortcut or explicit retry. A budget rejection also keeps it.
+    const clearInputDraft = () => {
+      if (content || retry) return;
+      if (inputSaveTimeoutRef.current) clearTimeout(inputSaveTimeoutRef.current);
+      inputSaveTimeoutRef.current = null;
+      setInput('');
+      localStorage.removeItem(INPUT_DRAFT_KEY);
+    };
 
     // 检查是否为斜杠命令
     if (sendContent.startsWith('/')) {
-      setInput('');
-      localStorage.removeItem(INPUT_DRAFT_KEY);
+      clearInputDraft();
       handleSlashCommand(sendContent);
       return;
     }
@@ -469,11 +495,10 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
     }
 
     setError(null);
-    setInput('');
-    localStorage.removeItem(INPUT_DRAFT_KEY);
+    setBudgetWarning('');
 
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       role: 'user',
       content: sendContent,
       timestamp: Date.now(),
@@ -487,7 +512,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
     enhancedContent += getCharactersContext();    // 人物设定
     enhancedContent += getWorldContext();         // 世界观设定
     enhancedContent += getChaptersContext();      // 章节列表
-    enhancedContent += getPreviousChaptersContent(reviewCount ?? 3);
+    enhancedContent += getPreviousChaptersContent(requestedReviewCount ?? 3);
     enhancedContent += timelineContext(chapters);
     if (currentChapter) {
       enhancedContent += `\n\n【当前编辑章节】\n${currentChapter.title}\n字数: ${currentChapter.wordCount}`;
@@ -508,7 +533,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
       enhancedContent += `\n\n【再次提醒：必须遵守的用户自定义要求】\n${currentNovel.agentPrompt}\n请严格遵守以上要求！`;
     }
 
-    let sessionId = activeSession?.id;
+    let sessionId = retry?.sessionId || activeSession?.id;
     if (!sessionId) {
       const newSession = addSession({
         novelId: currentNovelId,
@@ -519,9 +544,22 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
       sessionId = newSession.id;
     }
 
-    // 更新消息列表
-    const updatedMessages = [...messages, userMessage];
-    updateSession(sessionId, { messages: updatedMessages });
+    const generation = new AbortController();
+    generationRef.current = generation;
+    const replyId = crypto.randomUUID();
+    activeReplyIdRef.current = replyId;
+    let generationMetadata: NonNullable<Message['generation']> = {
+      status: 'running', requestMessageId: userMessage.id,
+      ...(retryRequest?.retryOf ? { retryOf: retryRequest.retryOf } : {}),
+      ...(requestedReviewCount === undefined ? {} : { reviewCount: requestedReviewCount }),
+    };
+    // Save the original request and one reply slot before networking, so reload can recover it.
+    const history = useNovelStore.getState().sessions.find(session => session.id === sessionId && session.novelId === currentNovelId)?.messages || [];
+    updateSession(sessionId, { messages: [...history, userMessage, {
+      id: replyId, role: 'assistant', content: '', timestamp: Date.now(), agentType: activeAgent,
+      generation: generationMetadata,
+      syncStatus: { state: 'partial', message: '调用尚未完成，收到的文字会暂存；未完成内容不会自动同步。' },
+    }] });
 
     setIsLoading(true);
     setGenerationPhase('connecting');
@@ -530,14 +568,27 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
     streamingContentRef.current = '';
 
     const deepseek = new DeepSeekService();
-    const generation = new AbortController();
-    generationRef.current = generation;
+    let received = '', settled = false, lastSnapshot = 0, inputCleared = false;
+    const visible = () => mountedRef.current && generationRef.current === generation && useNovelStore.getState().currentNovelId === currentNovelId;
+    const updateReply = (patch: Partial<Message>) => {
+      const latest = useNovelStore.getState().sessions.find(session => session.id === sessionId && session.novelId === currentNovelId);
+      if (latest?.messages.some(message => message.id === replyId)) updateSession(sessionId, { messages: latest.messages.map(message => message.id === replyId ? { ...message, ...patch, generation: generationMetadata } : message) });
+    };
+    const finishPartial = () => {
+      if (settled) return;
+      settled = true;
+      const cancelled = generation.signal.aborted;
+      generationMetadata = { ...generationMetadata, status: cancelled ? 'cancelled' : 'failed' };
+      updateReply({ content: received || (cancelled ? '本次调用已停止，尚未收到正文。' : '本次请求未完成，尚未收到可保留的正文。'),
+        syncStatus: { state: 'partial', message: cancelled ? '已停止生成，已收到的文字仍保留，未自动同步。' : '回复未完成，已保留收到的文字，未自动同步。' } });
+    };
 
     try {
       await new Promise(resolve => setTimeout(resolve, 50));
+      generation.signal.throwIfAborted();
 
       // 使用压缩后的消息列表发送请求
-      const trimmedMessages = getTrimmedMessages(messages);
+      const trimmedMessages = getTrimmedMessages(completedGenerationHistory(history));
 
       // 在 system prompt 中提示 AI 使用选项格式
       let enhancedSystemPrompt = AGENT_CONFIGS[activeAgent].systemPrompt;
@@ -553,6 +604,9 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
 
       await deepseek.chatStream({
         signal: generation.signal,
+        usageContext: { operation: generationOperation(sendContent), novelId: currentNovelId, sessionId, retryOf: retryRequest?.retryOf },
+        onCallId: callId => { generationMetadata = { ...generationMetadata, callId }; updateReply({}); },
+        onBudgetWarning: warning => { if (visible()) setBudgetWarning(warning); },
         messages: [
           { role: 'system', content: enhancedSystemPrompt },
           ...trimmedMessages.map((m) => ({ role: m.role as 'system' | 'user' | 'assistant', content: m.content })),
@@ -560,10 +614,16 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
         ],
         agentType: activeAgent,
         onProgress: (phase) => {
-          if (generationRef.current === generation) setGenerationPhase(phase);
+          if (visible()) {
+            if (!inputCleared) { clearInputDraft(); inputCleared = true; }
+            setGenerationPhase(phase);
+          }
         },
         onStream: (content) => {
-          if (generationRef.current !== generation) return;
+          received = content;
+          // A throttled snapshot also survives a refresh; completion/error always saves the tail.
+          if (!lastSnapshot || Date.now() - lastSnapshot >= 1000) { lastSnapshot = Date.now(); updateReply({ content }); }
+          if (!visible()) return;
           const first = !streamingContentRef.current;
           streamingContentRef.current = content;
           if (first) setStreamingContent(content);
@@ -573,51 +633,53 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
           }, 80);
         },
         onError: (err) => {
-          const partial = streamingContentRef.current;
-          if (partial) {
-            const latest = useNovelStore.getState().sessions.find(s => s.id === sessionId);
-            if (latest) updateSession(sessionId, { messages: [...latest.messages, {
-              id: crypto.randomUUID(), role: 'assistant', content: partial, timestamp: Date.now(), agentType: activeAgent,
-              syncStatus: { state: 'partial', message: '回复未完成，已保留收到的文字，未自动同步。' },
-            }] });
-          }
-          if (useNovelStore.getState().currentNovelId === currentNovelId) setError(err);
+          finishPartial();
+          if (visible() && !generation.signal.aborted) setError(err);
         },
         onComplete: async (finalContent) => {
+          received = finalContent;
+          if (generation.signal.aborted) { finishPartial(); return; }
+          settled = true;
+          generationMetadata = { ...generationMetadata, status: 'succeeded' };
           if (streamTimerRef.current) clearTimeout(streamTimerRef.current);
           streamTimerRef.current = null;
           streamingContentRef.current = '';
           const aiMessage: Message = {
-            id: crypto.randomUUID(), role: 'assistant', content: finalContent, timestamp: Date.now(), agentType: activeAgent,
+            id: replyId, role: 'assistant', content: finalContent, timestamp: Date.now(), agentType: activeAgent,
+            generation: generationMetadata, syncStatus: undefined,
             ...(hasSyncableContent(finalContent) ? { syncStatus: { state: 'pending' as const, message: '正在写入本地面板…' } } : {}),
           };
-          const latest = useNovelStore.getState().sessions.find(s => s.id === sessionId);
+          const latest = useNovelStore.getState().sessions.find(s => s.id === sessionId && s.novelId === currentNovelId);
           if (!latest) return;
-          updateSession(sessionId, { messages: [...latest.messages, aiMessage] });
-          setStreamingContent('');
+          updateReply(aiMessage);
+          if (visible()) setStreamingContent('');
           // Let the completed reply paint before synchronous parsing/storage work.
           await new Promise<void>(resolve => setTimeout(resolve, 16));
           if (aiMessage.syncStatus) {
             let status: NonNullable<Message['syncStatus']>;
-            if (generation.signal.aborted) status = { state: 'warning', message: '自动同步已取消，可检查回复后重新同步。' };
+            if (generation.signal.aborted || useNovelStore.getState().currentNovelId !== currentNovelId) status = { state: 'warning', message: '自动同步已取消，可检查回复后重新同步。' };
             else {
               try { status = syncFeedback(autoSyncContent(finalContent, currentNovelId)); }
               catch { status = { state: 'error', message: '同步未完成，可能有部分内容已写入；请检查面板后重试。' }; }
             }
-            const current = useNovelStore.getState().sessions.find(s => s.id === sessionId);
+            const current = useNovelStore.getState().sessions.find(s => s.id === sessionId && s.novelId === currentNovelId);
             if (current) updateSession(sessionId, { messages: current.messages.map(m => m.id === aiMessage.id ? { ...m, syncStatus: status } : m) });
           }
         },
       });
     } catch (err) {
-      if (useNovelStore.getState().currentNovelId === currentNovelId) setError(err instanceof Error ? err.message : '请求失败');
+      finishPartial();
+      if (visible() && !generation.signal.aborted) setError(err instanceof Error ? err.message : '请求失败');
     } finally {
-      if (streamTimerRef.current) clearTimeout(streamTimerRef.current);
-      streamTimerRef.current = null;
-      setIsLoading(false);
-      setStreamingContent('');
-      streamingContentRef.current = '';
-      generationRef.current = null;
+      if (!settled) finishPartial();
+      if (generationRef.current === generation) {
+        if (streamTimerRef.current) clearTimeout(streamTimerRef.current);
+        streamTimerRef.current = null;
+        generationRef.current = null;
+        activeReplyIdRef.current = null;
+        streamingContentRef.current = '';
+        if (mountedRef.current) { setIsLoading(false); setStreamingContent(''); }
+      }
     }
   }, [input, currentNovelId, isLoading, modelConfigured, currentChapter, activeAgent, activeSession, messages, addSession, updateSession, getOutlineContext, getCharactersContext, getWorldContext, getTrimmedMessages, getChaptersContext, getPreviousChaptersContent, chapters, getCreationStage, currentNovel, handleSlashCommand]);
 
@@ -635,11 +697,15 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
     <div className="flex h-full min-h-0 flex-col overflow-hidden border-l bg-muted/40">
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between p-4 border-b">
-        <div className="flex items-center gap-2">
-          <Bot className="h-5 w-5 text-primary" />
-          <span className="font-semibold">AI助手</span>
-          <span className="text-xs text-muted-foreground">· {currentNovel?.title}</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <Bot className="h-5 w-5 shrink-0 text-primary" />
+          <span className="shrink-0 font-semibold">AI助手</span>
+          <span className="truncate text-xs text-muted-foreground">· {currentNovel?.title}</span>
         </div>
+        <div className="ml-2 flex shrink-0 items-center gap-1">
+        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground" onClick={openUsageSettings} aria-label="调用与预算" title="调用记录与预算">
+          <ReceiptText className="h-4 w-4" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"
@@ -653,6 +719,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
         >
           <Settings2 className="h-4 w-4" />
         </Button>
+        </div>
       </div>
 
       {/* API Key Warning */}
@@ -715,7 +782,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
           </div>
         ) : (
           <div className="space-y-4">
-            {messages.map((message) => (
+            {messages.filter(message => !isLoading || message.id !== activeReplyIdRef.current).map((message) => (
               message.role === 'system' ? (
                 // 系统消息：居中显示，带信息图标
                 <div key={message.id} className="flex justify-center">
@@ -758,6 +825,12 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
                     {syncableMessageIds.has(message.id) && (
                       <Button variant="ghost" size="sm" className="self-start h-7 text-xs" disabled={isLoading} onClick={() => retrySync(message)}>重新同步到面板</Button>
                     )}
+                    {retryableMessageIds.has(message.id) && activeSession && <div className="space-y-1">
+                      <Button variant="outline" size="sm" className="h-7 text-xs" disabled={isLoading || !modelConfigured} onClick={() => void handleSend(undefined, undefined, { sessionId: activeSession.id, failedMessageId: message.id })}>
+                        <RotateCcw className="mr-1 h-3 w-3" />重试本次请求
+                      </Button>
+                      <p className="text-xs leading-relaxed text-muted-foreground">使用原需求和当前模型、作品上下文重新调用，可能再次计费；上次的部分文字保留。</p>
+                    </div>}
                   </div>
                 </div>
               )
@@ -786,6 +859,8 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
           </div>
         )}
       </div>
+
+      {budgetWarning && <div role="status" className="shrink-0 border-t border-amber-200 bg-amber-50 px-4 py-2 text-xs leading-relaxed text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">{budgetWarning}<button type="button" className="ml-2 underline underline-offset-2" onClick={openUsageSettings}>查看调用与预算</button></div>}
 
       {/* Error */}
       {error && (
@@ -879,8 +954,6 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
                   // Enter: 发送消息
                   e.preventDefault();
                   handleSend();
-                  // 发送后清空 draft
-                  localStorage.removeItem(INPUT_DRAFT_KEY);
                 }
               }
             }}
@@ -890,7 +963,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
             className="flex-1 px-3 py-2 text-sm bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 resize-none overflow-hidden min-h-[36px] max-h-[120px]"
           />
           {isLoading && <Button variant="outline" onClick={() => generationRef.current?.abort()} className="self-end">停止生成</Button>}
-          <Button size="icon" onClick={() => { handleSend(); localStorage.removeItem(INPUT_DRAFT_KEY); }} disabled={!input.trim() || !modelConfigured || isLoading} className="self-end">
+          <Button size="icon" aria-label="发送需求" onClick={() => void handleSend()} disabled={!input.trim() || !modelConfigured || isLoading} className="self-end">
             <Send className="h-4 w-4" />
           </Button>
         </div>
