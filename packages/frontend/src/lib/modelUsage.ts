@@ -78,7 +78,7 @@ export function usageSummary(data: UsageData, now = Date.now(), currency: UsageC
 
 const providers = new Set(['deepseek', 'openai', 'anthropic', 'gemini', 'qwen', 'zhipu', 'moonshot', 'siliconflow', 'tencent', 'ollama', 'lmstudio', 'custom']);
 const protocols = new Set(['openai', 'responses', 'anthropic', 'gemini']);
-const operations = new Set(['文本生成', '创作对话', '生成大纲', '优化大纲', '续写章节', '续写一章', '续写三章', '检查章节', '参考分析', '参考提纲', '参考新稿', '连接测试', '续写回复', '重试请求']);
+const operations = new Set(['文本生成', '创作对话', '生成大纲', '优化大纲', '续写章节', '续写一章', '续写三章', '检查章节', '参考分析', '参考提纲', '参考新稿', '连接测试', '续写回复', '重试请求', '全书检查', '人物时间线']);
 const errorCodes = new Set<UsageErrorCode>(['budget_blocked', 'cancelled', 'timeout', 'request_failed', 'invalid_response', 'interrupted', 'storage_failed', 'output_limit', 'provider_rejected', 'network_error']);
 export const cleanUsageErrorCode = (code: unknown): UsageErrorCode | undefined => errorCodes.has(code as UsageErrorCode) ? code as UsageErrorCode : undefined;
 export const usageCount = (value: unknown, fallback = 0): number => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(Math.min(value, Number.MAX_SAFE_INTEGER)) : fallback;

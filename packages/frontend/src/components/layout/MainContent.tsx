@@ -1,10 +1,11 @@
 import { lazy, Suspense, useState, useMemo, useCallback, useEffect } from 'react';
-import { BookOpen, Pencil, Download, GripVertical, Star, Users, User, List, ChevronLeft, Send } from 'lucide-react';
+import { BookOpen, Pencil, Download, GripVertical, Star, Users, User, List, ChevronLeft, Send, ListChecks } from 'lucide-react';
 import { useNovelStore } from '@/stores/novelStore';
 import { ChapterList } from '@/components/chapter/ChapterList';
 import { ChapterEditor } from '@/components/editor/ChapterEditor';
 import { ExportDialog } from '@/components/editor/ExportDialog';
 import { flushActiveEditor } from '@/lib/editorEvents';
+import { openReview } from '@/lib/reviewNavigation';
 import { SettingsView } from '@/components/settings/SettingsView';
 import { OutlineView } from '@/components/outline/OutlineView';
 import { CharacterEditor } from '@/components/characters/CharacterEditor';
@@ -16,6 +17,7 @@ import type { ViewType, Character, WorldSetting } from '@/types';
 const STORAGE_KEY_CHAPTER_LIST = 'novel-agent-chapter-list-width';
 const ReferenceWorkbench = lazy(() => import('@/components/reference/ReferenceWorkbench').then(module => ({ default: module.ReferenceWorkbench })));
 const CharacterBoard = lazy(() => import('@/components/characters/CharacterBoard').then(module => ({ default: module.CharacterBoard })));
+const ReviewWorkbench = lazy(() => import('@/components/review/ReviewWorkbench').then(module => ({ default: module.ReviewWorkbench })));
 
 const getDefaultChapterListWidth = () => {
   const saved = localStorage.getItem(STORAGE_KEY_CHAPTER_LIST);
@@ -97,6 +99,8 @@ export function MainContent({ currentView, onOpenPublication }: MainContentProps
   // Render different views based on currentView
   const renderContent = () => {
     switch (currentView) {
+      case 'review':
+        return <Suspense fallback={<p className="p-4 text-sm">正在载入创作检查…</p>}><ReviewWorkbench key={currentNovelId} /></Suspense>;
       case 'reference':
         return <Suspense fallback={<p className="p-4 text-sm">正在载入参考创作…</p>}><ReferenceWorkbench /></Suspense>;
       case 'outline':
@@ -173,6 +177,7 @@ export function MainContent({ currentView, onOpenPublication }: MainContentProps
               )}
             </div>
             <div className="publication-header-actions flex shrink-0 gap-2">
+            <button type="button" onClick={() => openReview()} className="review-header-button flex shrink-0 items-center gap-2 rounded-xl border border-primary/20 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10" aria-label="创作检查" title="版本历史、全书一致性检查、人物状态时间线"><ListChecks className="h-4 w-4" /><span>检查</span></button>
             <button type="button" onClick={onOpenPublication} className="flex shrink-0 items-center gap-2 rounded-xl border border-primary/20 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10" title="选择平台、查看 AI 政策并准备投稿"><Send className="h-4 w-4" />发布</button>
             <button
               onClick={() => { flushActiveEditor(); setExportOpen(true); }}
@@ -185,7 +190,7 @@ export function MainContent({ currentView, onOpenPublication }: MainContentProps
             </div>
           </div>
           {/* 简介：只在 outline 视图不显示（因为 OutlineView 自己会显示） */}
-          {novel?.summary && currentView !== 'outline' && (
+          {novel?.summary && currentView !== 'outline' && currentView !== 'review' && (
             <div className="manuscript-summary px-6 pb-3">
               <p className="text-sm text-muted-foreground line-clamp-2 italic">
                 "{novel.summary}"

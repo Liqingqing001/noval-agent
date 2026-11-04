@@ -13,6 +13,8 @@ import { resolveChapter } from '@/lib/chapterSelection';
 import { outlineProgressUpdates } from '@/lib/outlineProgress';
 import { remapCharacterBoards, removeCharacterFromBoards } from '@/stores/characterBoardStore';
 import { parseCharacterRelationships } from '@/lib/characterProfiles';
+import { captureChapterHistory, remapChapterHistory, remapNovelHistory, chapterHistoryNamespace } from '@/stores/chapterHistoryStore';
+import { remapTimelineChapter, remapTimelineCharacter, remapTimelineNovel } from '@/stores/timelineStore';
 
 interface NovelState {
   // Current selection
@@ -168,6 +170,7 @@ export const useNovelStore = create<NovelState>()(
 
       // Novel actions
       addNovel: (novel) => {
+        const historyNamespace = chapterHistoryNamespace();
         const newNovel: Novel = {
           ...novel,
           id: generateId(),
@@ -179,6 +182,8 @@ export const useNovelStore = create<NovelState>()(
         // 云端同步：登录状态下异步创建，并用服务端 id 替换本地临时 id
         if (isCloudEnabled()) {
           novelsApi.create(novel as any).then(({ novel: saved }) => {
+            remapNovelHistory(newNovel.id, saved.id, historyNamespace);
+            remapTimelineNovel(newNovel.id, saved.id);
             const mapped: Novel = {
               ...saved,
               status: saved.status as Novel['status'],
@@ -232,6 +237,7 @@ export const useNovelStore = create<NovelState>()(
 
       // Chapter actions
       addChapter: (chapter) => {
+        const historyNamespace = chapterHistoryNamespace();
         const newChapter: Chapter = {
           ...chapter,
           id: generateId(),
@@ -263,6 +269,8 @@ export const useNovelStore = create<NovelState>()(
               updatedAt: toTimestamp(saved.updatedAt),
             };
             const linkedCards = get().plotCards.filter(card => card.chapterId === newChapter.id);
+            remapChapterHistory(chapter.novelId, newChapter.id, saved.id, historyNamespace);
+            remapTimelineChapter(newChapter.id, saved.id, chapter.novelId);
             set((state) => ({
               chapters: state.chapters.map((c) => c.id === newChapter.id ? mapped : c),
               plotCards: state.plotCards.map(card => card.chapterId === newChapter.id ? { ...card, chapterId: mapped.id } : card),
@@ -277,6 +285,8 @@ export const useNovelStore = create<NovelState>()(
         return newChapter;
       },
       updateChapter: (id, updates) => {
+        const previous = get().chapters.find(chapter => chapter.id === id);
+        if (previous && ((updates.title !== undefined && updates.title !== previous.title) || (updates.content !== undefined && updates.content !== previous.content))) captureChapterHistory(previous);
         set((state) => {
           const newChapters = state.chapters.map((c) =>
             c.id === id ? { ...c, ...updates, updatedAt: Date.now() } : c
@@ -302,6 +312,7 @@ export const useNovelStore = create<NovelState>()(
         }
       },
       deleteChapter: (id) => {
+        captureChapterHistory(get().chapters.find(chapter => chapter.id === id), 'before-delete', '删除章节前');
         const novelId = get().chapters.find(chapter => chapter.id === id)?.novelId;
         set((state) => {
           const chapter = state.chapters.find(c => c.id === id);
@@ -334,6 +345,7 @@ export const useNovelStore = create<NovelState>()(
         set((state) => ({ characters: [...state.characters, newCharacter] }));
         if (isCloudEnabled() && !character.novelId.startsWith('temp-')) {
           charactersApi.create(character.novelId, character as any).then(({ character: saved }) => {
+            remapTimelineCharacter(newCharacter.id, saved.id, character.novelId);
             const mapped: Character = {
               ...saved,
               aliases: typeof saved.aliases === 'string' ? JSON.parse(saved.aliases || '[]') : saved.aliases,

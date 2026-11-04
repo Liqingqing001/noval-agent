@@ -4,13 +4,17 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import HardBreak from '@tiptap/extension-hard-break';
 import { closeHistory } from '@tiptap/pm/history';
-import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Quote, Undo, Redo } from 'lucide-react';
+import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Quote, Undo, Redo, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useNovelStore } from '@/stores/novelStore';
 import { toEditorHtml } from '@/lib/textModification';
 import { compactEditorDocument, EDITOR_PREFERENCES_KEY, readEditorPreferences } from '@/lib/editorPreferences';
 import { FLUSH_EDITOR_EVENT } from '@/lib/editorEvents';
+import { openReview } from '@/lib/reviewNavigation';
+import { getChapterHistoryStore, chapterHistoryNamespace } from '@/stores/chapterHistoryStore';
+import { useAuthStore } from '@/stores/authStore';
+import { useStore } from 'zustand';
 import { EditorPreferences } from './EditorPreferences';
 import type { CSSProperties } from 'react';
 import './editor.css';
@@ -20,6 +24,10 @@ interface ChapterEditorProps {
 }
 
 export function ChapterEditor({ chapterId }: ChapterEditorProps) {
+  const userId = useAuthStore(state => state.user?.id);
+  const historyStore = useMemo(() => getChapterHistoryStore(chapterHistoryNamespace()), [userId]);
+  const historyError = useStore(historyStore, state => state.error);
+  const historySaving = useStore(historyStore, state => state.saving);
   const [wordCount, setWordCount] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [preferences, setPreferences] = useState(readEditorPreferences);
@@ -29,6 +37,13 @@ export function ChapterEditor({ chapterId }: ChapterEditorProps) {
   const lastSavedContentRef = useRef('');
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedChapterRef = useRef<{ id: string; content: string } | null>(null);
+  useEffect(() => {
+    const protectUnsavedHistory = (event: BeforeUnloadEvent) => {
+      if (pendingSaveRef.current || historyStore.getState().saving || historyStore.getState().error) { event.preventDefault(); event.returnValue = ''; }
+    };
+    window.addEventListener('beforeunload', protectUnsavedHistory);
+    return () => window.removeEventListener('beforeunload', protectUnsavedHistory);
+  }, [historyStore]);
 
   const allChapters = useNovelStore((state) => state.chapters);
   const updateChapter = useNovelStore((state) => state.updateChapter);
@@ -266,13 +281,16 @@ export function ChapterEditor({ chapterId }: ChapterEditorProps) {
           editor.commands.setContent(compact, { emitUpdate: true });
           editor.view.dispatch(closeHistory(editor.state.tr));
         }}>整理空行</Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="查看章节版本历史" title="章节版本历史" onClick={() => { flushPendingSave(); openReview('history'); }}><History className="h-4 w-4" /></Button>
         </div>
         <div className="editor-toolbar-spacer min-w-1 flex-1" />
         <EditorPreferences value={preferences} onChange={setPreferences} />
         <span title="正文自动保存到本机，Ctrl+S 可立即保存" role="status" className={`editor-save-status whitespace-nowrap px-1 text-xs font-medium ${isSaving ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
-          {isSaving ? '保存中...' : '已保存'}
+          {isSaving ? '保存中...' : historySaving ? '历史保存中...' : '已保存'}
         </span>
       </div>
+
+      {historyError && <div role="alert" className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs leading-relaxed text-amber-900">章节历史尚未保存：{historyError}<button className="ml-2 underline" onClick={() => { flushPendingSave(); openReview('history'); }}>查看并导出备份</button></div>}
 
       {/* Editor Content - 带渐变绿色背景 */}
       <div className="min-h-0 flex-1 overflow-y-auto manuscript-background px-4 scrollbar-thin">
@@ -305,7 +323,7 @@ export function ChapterEditor({ chapterId }: ChapterEditorProps) {
         <span className="editor-last-edit text-green-500/70 dark:text-green-400/70">
           最后编辑：{new Date(chapter.updatedAt).toLocaleString()}
         </span>
-        <span className="editor-mobile-save" role="status" title={`最后编辑：${new Date(chapter.updatedAt).toLocaleString()}`}>{isSaving ? '保存中...' : '已保存'}</span>
+        <span className="editor-mobile-save" role="status" title={`最后编辑：${new Date(chapter.updatedAt).toLocaleString()}`}>{isSaving ? '保存中...' : historySaving ? '历史保存中...' : '已保存'}</span>
       </div>
     </div>
   );

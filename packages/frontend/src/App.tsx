@@ -14,6 +14,7 @@ import { isModelConfigured } from '@/lib/modelConfig';
 import { BookOpen, Library, Bot } from 'lucide-react';
 import { flushActiveEditor } from '@/lib/editorEvents';
 import { OPEN_USAGE_EVENT } from '@/lib/usageNavigation';
+import { OPEN_REVIEW_EVENT } from '@/lib/reviewNavigation';
 import '@/styles/workspace.css';
 import '@/styles/emerald-court.css';
 import '@/styles/mobile-workspace.css';
@@ -73,8 +74,17 @@ function App() {
       useNovelStore.getState().setCurrentView('settings');
       setMobilePanel('content');
     };
+    const openReview = () => {
+      flushActiveEditor();
+      useNovelStore.getState().setCurrentView('review');
+      setMobilePanel('content');
+    };
     window.addEventListener(OPEN_USAGE_EVENT, openUsage);
-    return () => window.removeEventListener(OPEN_USAGE_EVENT, openUsage);
+    window.addEventListener(OPEN_REVIEW_EVENT, openReview);
+    return () => {
+      window.removeEventListener(OPEN_USAGE_EVENT, openUsage);
+      window.removeEventListener(OPEN_REVIEW_EVENT, openReview);
+    };
   }, []);
 
   // 首次加载：尝试获取当前用户

@@ -7,6 +7,8 @@
     "packages/*"
   ],
   "scripts": {
+    "test:review": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/chapterHistory.test.mjs packages/frontend/tests/bookConsistency.test.mjs packages/frontend/tests/consistencyStore.test.mjs packages/frontend/tests/characterTimeline.test.mjs",
+    "test:review-browser": "node packages/frontend/tests/writingReview.browser.cjs",
     "test:usage": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/usageLedger.test.mjs packages/frontend/tests/modelUsage.test.mjs packages/frontend/tests/generationRetry.test.mjs",
     "test:usage-browser": "node packages/frontend/tests/usageBudget.browser.cjs",
     "test:interactions": "node packages/frontend/tests/workspaceInteractions.browser.cjs",

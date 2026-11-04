@@ -51,6 +51,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:usage
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:review
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:sync
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:writing
@@ -80,6 +82,8 @@ jobs:
           npm run build
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:usage-browser
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:review-browser
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node packages/frontend/tests/featureParity.browser.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -111,6 +115,8 @@ jobs:
         run: npm run test:mobile-space
       - name: Verify same creative features in public demo
         run: |
+          npm run test:review-browser
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:usage-browser
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node packages/frontend/tests/featureParity.browser.cjs

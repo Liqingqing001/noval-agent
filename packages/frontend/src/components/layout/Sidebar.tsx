@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, BookOpen, FileText, Users, Globe, Settings, Trash2, Pencil, Sparkles, LogOut, Cloud, ImagePlus, Send, MoreHorizontal, Eye, ImageOff } from 'lucide-react';
+import { Plus, BookOpen, FileText, Users, Globe, Settings, Trash2, Pencil, Sparkles, LogOut, Cloud, ImagePlus, Send, MoreHorizontal, Eye, ImageOff, ListChecks } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ContextActionMenu, useContextActionMenu } from '@/components/ui/ContextActionMenu';
 import { ImagePreview } from '@/components/ui/ImagePreview';
@@ -119,6 +119,7 @@ export function Sidebar({ currentView, onLogout, onNavigate, onOpenPublication }
     { id: 'chapters', icon: BookOpen, label: '章节' },
     { id: 'characters', icon: Users, label: '人物' },
     { id: 'world', icon: Globe, label: '世界观' },
+    { id: 'review', icon: ListChecks, label: '创作检查' },
     { id: 'reference', icon: FileText, label: '参考创作' },
     { id: 'settings', icon: Settings, label: '设置' },
   ];
