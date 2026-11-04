@@ -5,17 +5,21 @@ export interface CharacterSnapshot {
   asOfChapterId: string;
 }
 export interface CharacterNode { position?: BoardPoint; avatar?: string; state?: CharacterSnapshot }
-export interface CharacterEdge { id: string; source: string; target: string; label: string; kind: 'family' | 'ally' | 'rival' | 'other'; directed: boolean; notes: string }
+export interface CharacterEdge { id: string; source: string; target: string; label: string; kind: 'family' | 'ally' | 'rival' | 'other'; directed: boolean; notes: string; bend?: BoardPoint }
 export interface CharacterBoardData { version: 1; nodes: Record<string, CharacterNode>; edges: CharacterEdge[]; seededRelationshipIds?: string[] }
 export const emptySnapshot = (): CharacterSnapshot => ({ life: 'unknown', location: '', condition: '', goal: '', inventory: '', notes: '', asOfChapterId: '' });
 export const emptyBoard = (): CharacterBoardData => ({ version: 1, nodes: {}, edges: [] });
 export const defaultPosition = (index: number, count = 16): BoardPoint => { const columns = Math.min(40, Math.max(4, Math.ceil(Math.sqrt(count)))); return { x: 100 + index % columns * 210, y: 90 + Math.floor(index / columns) * 190 }; };
 
-/** A display-only neighborhood: retain the person even when isolated, excluding peer-to-peer lines. */
-export function characterFocusGraph<T extends { id: string }>(characters: T[], edges: CharacterEdge[], focusId: string | null) {
+/** Display-only filters: retain isolated people and never rewrite saved data. */
+export function characterFocusGraph<T extends { id: string }>(characters: T[], edges: CharacterEdge[], focusId: string | null, counterpartId?: string | null) {
   const ids = new Set(characters.map(character => character.id));
   const validEdges = edges.filter(edge => ids.has(edge.source) && ids.has(edge.target));
   if (!focusId || !ids.has(focusId)) return { characters, edges: validEdges };
+  if (counterpartId && counterpartId !== focusId && ids.has(counterpartId)) return {
+    characters: characters.filter(character => character.id === focusId || character.id === counterpartId),
+    edges: validEdges.filter(edge => edge.source === focusId && edge.target === counterpartId || edge.source === counterpartId && edge.target === focusId),
+  };
   const focusedEdges = validEdges.filter(edge => edge.source === focusId || edge.target === focusId);
   const visibleIds = new Set([focusId, ...focusedEdges.flatMap(edge => [edge.source, edge.target])]);
   return { characters: characters.filter(character => visibleIds.has(character.id)), edges: focusedEdges };
@@ -24,6 +28,22 @@ export const canvasPosition = (point: BoardPoint): BoardPoint => {
   if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) throw new Error('人物位置必须是有限坐标。');
   return { x: point.x, y: point.y };
 };
+export const MAX_CHARACTER_EDGE_BEND = 100000;
+/** Manual control offsets remain finite and bounded even in imported boards. */
+export function validateEdgeBend(point: BoardPoint): BoardPoint {
+  if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y) || Math.abs(point.x) > MAX_CHARACTER_EDGE_BEND || Math.abs(point.y) > MAX_CHARACTER_EDGE_BEND) throw new Error('关系线位置必须是有效范围内的有限坐标。');
+  return { x: point.x, y: point.y };
+}
+
+/** Change one curve without rewriting relation order, content or node state. */
+export function setCharacterEdgeBend(data: CharacterBoardData, id: string, bend: BoardPoint | undefined): CharacterBoardData {
+  const edge = data.edges.find(item => item.id === id);
+  if (!edge) throw new Error('这条人物关系已不存在。');
+  const next = { ...edge };
+  if (bend === undefined) delete next.bend;
+  else next.bend = validateEdgeBend(bend);
+  return { ...data, edges: data.edges.map(item => item.id === id ? next : item) };
+}
 
 export function validateCharacterBoard(raw: unknown): CharacterBoardData {
   const data = raw as CharacterBoardData;
@@ -41,6 +61,7 @@ export function validateCharacterBoard(raw: unknown): CharacterBoardData {
   if (data.seededRelationshipIds !== undefined && (!Array.isArray(data.seededRelationshipIds) || data.seededRelationshipIds.length > 5000 || data.seededRelationshipIds.some(id => typeof id !== 'string'))) throw new Error('人物预设关系记录格式错误。');
   for (const edge of data.edges) {
     if (!edge || typeof edge.id !== 'string' || ids.has(edge.id) || typeof edge.source !== 'string' || typeof edge.target !== 'string' || edge.source === edge.target || typeof edge.label !== 'string' || !edge.label.trim() || edge.label.length > 40 || typeof edge.notes !== 'string' || edge.notes.length > 500 || !['family', 'ally', 'rival', 'other'].includes(edge.kind) || typeof edge.directed !== 'boolean') throw new Error('关系记录格式错误。');
+    if (edge.bend !== undefined) validateEdgeBend(edge.bend);
     ids.add(edge.id);
   }
   return data;
@@ -73,13 +94,32 @@ export function remapBoardCharacter(data: CharacterBoardData, oldId: string, new
   return { ...data, nodes, edges: data.edges.map(edge => ({ ...edge, source: edge.source === oldId ? newId : edge.source, target: edge.target === oldId ? newId : edge.target })).filter(edge => edge.source !== edge.target) };
 }
 
-export function edgeGeometry(source: BoardPoint, target: BoardPoint, offset = 0) {
+export function edgeGeometry(source: BoardPoint, target: BoardPoint, offset = 0, manualBend?: BoardPoint) {
+  canvasPosition(source); canvasPosition(target);
+  if (!Number.isFinite(offset)) throw new Error('关系线偏移必须是有限数值。');
   const a = { x: source.x + 60, y: source.y + 40 }, b = { x: target.x + 60, y: target.y + 40 };
-  const dx = b.x - a.x, dy = b.y - a.y, length = Math.hypot(dx, dy) || 1;
+  // A fixed normal keeps parallel curves selectable even when two nodes overlap.
+  const coincident = a.x === b.x && a.y === b.y;
+  const dx = coincident ? 1 : b.x - a.x, dy = coincident ? 0 : b.y - a.y, length = Math.hypot(dx, dy);
   const start = { x: a.x + dx / length * 38, y: a.y + dy / length * 38 };
   const end = { x: b.x - dx / length * 38, y: b.y - dy / length * 38 };
-  const control = { x: (a.x + b.x) / 2 - dy / length * offset, y: (a.y + b.y) / 2 + dx / length * offset };
-  return { path: `M ${start.x} ${start.y} Q ${control.x} ${control.y} ${end.x} ${end.y}`, label: { x: (start.x + 2 * control.x + end.x) / 4, y: (start.y + 2 * control.y + end.y) / 4 } };
+  const bend = manualBend === undefined ? { x: -dy / length * offset, y: dx / length * offset } : validateEdgeBend(manualBend);
+  const control = { x: (a.x + b.x) / 2 + bend.x, y: (a.y + b.y) / 2 + bend.y };
+  return { path: `M ${start.x} ${start.y} Q ${control.x} ${control.y} ${end.x} ${end.y}`, label: { x: (start.x + 2 * control.x + end.x) / 4, y: (start.y + 2 * control.y + end.y) / 4 }, control, bend };
+}
+
+/** Convert the desired world-space curve midpoint into its saved control offset. */
+export function edgeBendFromLabel(source: BoardPoint, target: BoardPoint, label: BoardPoint): BoardPoint {
+  canvasPosition(source); canvasPosition(target); canvasPosition(label);
+  const clamp = (value: number) => Math.max(-MAX_CHARACTER_EDGE_BEND, Math.min(MAX_CHARACTER_EDGE_BEND, value));
+  return { x: clamp(2 * (label.x - (source.x + target.x) / 2 - 60)), y: clamp(2 * (label.y - (source.y + target.y) / 2 - 40)) };
+}
+
+/** UI pointer movement arrives in screen pixels; canvas scale must be positive. */
+export function draggedEdgeBend(source: BoardPoint, target: BoardPoint, startLabel: BoardPoint, screenDelta: BoardPoint, scale: number): BoardPoint {
+  if (!Number.isFinite(scale) || scale <= 0) throw new Error('画布缩放比例无效。');
+  canvasPosition(screenDelta);
+  return edgeBendFromLabel(source, target, { x: startLabel.x + screenDelta.x / scale, y: startLabel.y + screenDelta.y / scale });
 }
 
 export function characterEdgePaths(edges: CharacterEdge[], positions: Record<string, BoardPoint>) {
@@ -88,7 +128,7 @@ export function characterEdgePaths(edges: CharacterEdge[], positions: Record<str
   return [...groups.values()].flatMap(group => group.flatMap((edge, index) => {
     if (!positions[edge.source] || !positions[edge.target]) return [];
     const offset = ((index - (group.length - 1) / 2) * 85 + 24) * (edge.source < edge.target ? 1 : -1);
-    return [{ edge, ...edgeGeometry(positions[edge.source], positions[edge.target], offset) }];
+    return [{ edge, ...edgeGeometry(positions[edge.source], positions[edge.target], offset, edge.bend), automaticOffset: offset }];
   }));
 }
 

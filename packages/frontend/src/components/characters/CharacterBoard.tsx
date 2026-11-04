@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from 'zustand';
-import { Plus, Minus, Maximize, Network, X, Pencil, Trash2, ImagePlus, Download, Expand, Focus, Image, MoreHorizontal, History } from 'lucide-react';
+import { Plus, Minus, Maximize, Network, X, Pencil, Download, Expand, Focus, Image, MoreHorizontal, History, Move, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ContextActionMenu, useContextActionMenu } from '@/components/ui/ContextActionMenu';
 import { ImagePreview } from '@/components/ui/ImagePreview';
 import { CharacterEditor } from './CharacterEditor';
 import { CharacterPortrait } from './CharacterPortrait';
+import { CharacterInspector } from './CharacterInspector';
 import { useNovelStore } from '@/stores/novelStore';
 import { useAuthStore } from '@/stores/authStore';
 import { characterBoardStore } from '@/stores/characterBoardStore';
-import { canvasPosition, characterAvatar, defaultPosition, edgeGeometry, characterEdgePaths, emptySnapshot, characterFocusGraph } from '@/lib/characterBoard';
+import { canvasPosition, characterAvatar, defaultPosition, edgeGeometry, characterEdgePaths, emptySnapshot, characterFocusGraph, draggedEdgeBend } from '@/lib/characterBoard';
 import type { BoardPoint, CharacterEdge, CharacterSnapshot } from '@/lib/characterBoard';
 import type { Character } from '@/types';
 import { beginBoardPinch, moveBoardPinch } from '@/lib/boardGestures';
@@ -36,6 +37,11 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
   const chapters = useMemo(() => allChapters.filter(item => item.novelId === novelId).sort((a, b) => a.sequence - b.sequence), [allChapters, novelId]);
   const [query, setQuery] = useState('');
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [counterpartId, setCounterpartId] = useState<string | null>(null);
+  const [focusPositions, setFocusPositions] = useState<Record<string, BoardPoint>>({});
+  const [showAllLabels, setShowAllLabels] = useState(false);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [movingEdges, setMovingEdges] = useState<Record<string, BoardPoint>>({});
   const [focusRelationsOpen, setFocusRelationsOpen] = useState(false);
   const focusListTrigger = useRef<HTMLButtonElement>(null);
   const overview = useRef<{ view: { x: number; y: number; scale: number }; query: string } | null>(null);
@@ -46,6 +52,7 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
   const [previewCharacter, setPreviewCharacter] = useState<Character | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const [profileTrail, setProfileTrail] = useState<string[]>([]);
   const [state, setState] = useState<CharacterSnapshot>(emptySnapshot);
   const [dirty, setDirty] = useState(false);
   const [notice, setNotice] = useState('');
@@ -69,7 +76,7 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
   const clearTap = () => { if (pendingTap.current) window.clearTimeout(pendingTap.current.timer); pendingTap.current = null; };
   const cancelLink = () => { clearTap(); linkSourceRef.current = null; setLinkSource(null); setLinkPoint(null); };
   useEffect(() => () => clearTap(), []);
-  const pointer = useRef<{ pointerId: number; id?: string; x: number; y: number; origin: BoardPoint; moved: boolean; position?: BoardPoint } | null>(null);
+  const pointer = useRef<{ pointerId: number; id?: string; edgeId?: string; edgeLabel?: BoardPoint; edgeSource?: BoardPoint; edgeTarget?: BoardPoint; edgeBefore?: string; edgeScale?: number; bend?: BoardPoint; x: number; y: number; origin: BoardPoint; moved: boolean; position?: BoardPoint } | null>(null);
   const touchPoints = useRef(new Map<number, BoardPoint>());
   const pinch = useRef<BoardPinch | null>(null);
   const multiTouch = useRef(false);
@@ -79,7 +86,8 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
   const byId = new Map(characters.map(character => [character.id, character]));
   const focusedId = focusId && (remaps[focusId] || focusId);
   const focusPerson = characters.find(character => character.id === focusedId);
-  const focusedGraph = useMemo(() => characterFocusGraph(characters, data.edges, focusedId), [characters, data.edges, focusedId]);
+  const counterpart = counterpartId ? characters.find(character => character.id === (remaps[counterpartId] || counterpartId) && character.id !== focusedId) : undefined;
+  const focusedGraph = useMemo(() => characterFocusGraph(characters, data.edges, focusedId, counterpart?.id), [characters, data.edges, focusedId, counterpart?.id]);
   const focusedRelations = useMemo(() => {
     const groups = new Map<string, { character: Character; edges: CharacterEdge[] }>();
     if (!focusPerson) return [];
@@ -95,21 +103,32 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
   }, [focusPerson, focusedGraph.edges, characters]);
   const visible = useMemo(() => (focusPerson ? [focusPerson, ...focusedGraph.characters.filter(character => character.id !== focusPerson.id)] : characters.filter(character => `${character.name} ${(Array.isArray(character.aliases) ? character.aliases : []).join(' ')}`.toLowerCase().includes(query.toLowerCase()))).slice(0, 500), [characters, query, focusedGraph.characters, focusPerson]);
   const visibleIds = new Set(visible.map(character => character.id));
-  const positions = Object.fromEntries(characters.map((character, index) => [character.id, moving[character.id] || data.nodes[character.id]?.position || defaultPosition(index, characters.length)]));
+  const displayLayout = useMemo(() => {
+    if (!focusPerson) return {} as Record<string, BoardPoint>;
+    if (counterpart) return { [focusPerson.id]: { x: 80, y: 130 }, [counterpart.id]: { x: 510, y: 130 } };
+    const peers = focusedGraph.characters.filter(character => character.id !== focusPerson.id);
+    const radius = Math.max(230, peers.length * 42), center = radius + 80;
+    return Object.fromEntries([[focusPerson.id, { x: center, y: center }], ...peers.map((character, index) => {
+      const angle = index / Math.max(1, peers.length) * Math.PI * 2 - Math.PI / 2;
+      return [character.id, { x: center + Math.cos(angle) * radius, y: center + Math.sin(angle) * radius }];
+    })]) as Record<string, BoardPoint>;
+  }, [focusPerson?.id, counterpart?.id, focusedGraph.characters]);
+  const positions = Object.fromEntries(characters.map((character, index) => [character.id, moving[character.id] || (focusPerson ? focusPositions[character.id] || displayLayout[character.id] : undefined) || data.nodes[character.id]?.position || defaultPosition(index, characters.length)]));
   positionsRef.current = positions;
   const edges = focusedGraph.edges.filter(edge => visibleIds.has(edge.source) && visibleIds.has(edge.target));
-  const edgeViews = characterEdgePaths(edges, positions);
+  const edgeViews = characterEdgePaths(edges.map(item => movingEdges[item.id] ? { ...item, bend: movingEdges[item.id] } : item), positions);
+  const selectedEdge = edges.find(item => item.id === selectedEdgeId);
   const safe = (action: () => void) => { try { action(); } catch (error) { setNotice(error instanceof Error ? error.message : '操作未完成'); } };
   const cancelPointerForViewAction = () => {
     if (!pointer.current && !touchPoints.current.size) return;
-    cancelLink(); pointer.current = null; setMoving({}); pinch.current = null;
+    cancelLink(); pointer.current = null; setMoving({}); setMovingEdges({}); pinch.current = null;
     multiTouch.current = touchPoints.current.size > 0;
     ignoreTouchClickUntil.current = performance.now() + 500;
   };
 
   const fit = () => {
     const element = viewport.current;
-    const points = visible.map(character => positionsRef.current[character.id]);
+    const points = [...visible.map(character => positionsRef.current[character.id]), ...edgeViews.flatMap(item => item.edge.bend ? [item.label, item.control] : [])];
     if (!element || !points.length) return;
     cancelPointerForViewAction();
     const minX = Math.min(...points.map(p => p.x)), minY = Math.min(...points.map(p => p.y));
@@ -132,31 +151,39 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
     element.addEventListener('wheel', wheel, { passive: false });
     const observer = new ResizeObserver(() => { if (!touched.current) fit(); }); observer.observe(element);
     return () => { element.removeEventListener('wheel', wheel); observer.disconnect(); };
-  }, [ready, characters.length, query, focusedId]);
-  useEffect(() => { if (ready && !touched.current) fit(); }, [ready, characters.length, query, focusedId]);
+  }, [ready, characters.length, query, focusedId, counterpart?.id]);
+  useEffect(() => { if (ready && !touched.current) fit(); }, [ready, characters.length, query, focusedId, counterpart?.id, focusPositions]);
+  useEffect(() => { if (selectedEdgeId && !edges.some(item => item.id === selectedEdgeId)) setSelectedEdgeId(null); }, [selectedEdgeId, edges]);
+  useEffect(() => { setFocusPositions({}); }, [focusedId, counterpart?.id]);
   useEffect(() => { if (selected && remaps[selected]) setSelected(remaps[selected]); else if (selected && !current) { setSelected(null); setDirty(false); } }, [selected, current, remaps]);
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented || edgeOpen || profileOpen || focusRelationsOpen || previewCharacter) return;
-      if (pendingTap.current || linkSourceRef.current) { event.preventDefault(); cancelLink(); }
+      if (pointer.current?.edgeId) { event.preventDefault(); pointer.current = null; setMovingEdges({}); }
+      else if (pendingTap.current || linkSourceRef.current) { event.preventDefault(); cancelLink(); }
+      else if (selectedEdgeId) { setSelectedEdgeId(null); }
       else if (expanded) { touched.current = false; setExpanded(false); }
     };
     window.addEventListener('keydown', escape);
     return () => window.removeEventListener('keydown', escape);
-  }, [expanded, edgeOpen, profileOpen, focusRelationsOpen, previewCharacter]);
+  }, [expanded, edgeOpen, profileOpen, focusRelationsOpen, previewCharacter, selectedEdgeId]);
 
-  const openCharacter = (id: string | null) => {
+  const openCharacter = (id: string | null, navigation: 'root' | 'forward' | 'back' = 'root') => {
     if (dirty && !confirm('当前人物状态还没有保存，放弃本次编辑？')) return false;
+    if (navigation === 'forward' && current && id !== current.id) setProfileTrail(previous => [...previous, current.id]);
+    else if (navigation === 'back') setProfileTrail(previous => previous.slice(0, -1));
+    else setProfileTrail([]);
     setSelected(id); setState(id ? data.nodes[id]?.state || emptySnapshot() : emptySnapshot()); setDirty(false);
     touched.current = true;
     cancelLink();
     return true;
   };
   const returnToAll = () => {
+    cancelPointerForViewAction();
     cancelLink();
     const previous = overview.current;
     overview.current = null;
-    setFocusId(null);
+    setFocusId(null); setCounterpartId(null); setFocusPositions({}); setSelectedEdgeId(null);
     if (previous) { touched.current = true; setQuery(previous.query); setView(previous.view); }
     else touched.current = false;
   };
@@ -164,13 +191,22 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
     const resolved = store.getState().remaps[id] || id;
     if (!byId.has(resolved) || current && !openCharacter(null)) return;
     if (!focusPerson) overview.current = { view: { ...viewRef.current }, query };
+    cancelPointerForViewAction();
     cancelLink();
     touched.current = false;
-    setQuery(''); setFocusId(resolved);
+    setQuery(''); setFocusId(resolved); setCounterpartId(null); setSelectedEdgeId(null);
   };
-  useEffect(() => { overview.current = null; touched.current = false; setFocusId(null); setQuery(''); }, [novelId]);
+  const focusPair = (source: string, target: string) => {
+    source = store.getState().remaps[source] || source;
+    target = store.getState().remaps[target] || target;
+    if (!byId.has(source) || !byId.has(target) || source === target || current && !openCharacter(null)) return;
+    if (!focusPerson) overview.current = { view: { ...viewRef.current }, query };
+    cancelPointerForViewAction(); cancelLink(); touched.current = false;
+    setQuery(''); setFocusId(source); setCounterpartId(target); setSelectedEdgeId(null);
+  };
+  useEffect(() => { overview.current = null; touched.current = false; setFocusId(null); setCounterpartId(null); setSelectedEdgeId(null); setProfileTrail([]); setQuery(''); }, [novelId]);
   useEffect(() => { if (focusId && !focusPerson) returnToAll(); }, [focusId, focusPerson]);
-  useEffect(() => { setFocusRelationsOpen(false); }, [focusedId]);
+  useEffect(() => { setFocusRelationsOpen(false); }, [focusedId, counterpart?.id]);
   const menuCharacter = menuCharacterId ? byId.get(remaps[menuCharacterId] || menuCharacterId) : undefined;
   const resolveId = (id: string) => store.getState().remaps[id] || id;
   singleTapRef.current = id => {
@@ -229,8 +265,17 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
   };
   const finishPointer = (cancel = false) => {
     const active = pointer.current; pointer.current = null;
-    if (active?.id && active.moved && !cancel) safe(() => store.getState().editNode(store.getState().remaps[active.id!] || active.id!, { position: active.position || positionsRef.current[active.id!] }));
-    setMoving({});
+    if (active?.edgeId && active.moved && active.bend && !cancel) {
+      const latest = store.getState().data.edges.find(item => item.id === active.edgeId);
+      if (!latest || JSON.stringify(latest) !== active.edgeBefore) setNotice('关系在拖动期间已变化，本次连线移动未保存。');
+      else safe(() => store.getState().moveEdge(active.edgeId!, active.bend));
+    }
+    if (active?.id && active.moved && !cancel) {
+      const id = store.getState().remaps[active.id] || active.id, position = active.position || positionsRef.current[id];
+      if (focusPerson) setFocusPositions(previous => ({ ...previous, [id]: position }));
+      else safe(() => store.getState().editNode(id, { position }));
+    }
+    setMoving({}); setMovingEdges({});
   };
   const localTouches = (): BoardTouchPoint[] => {
     const bounds = viewport.current?.getBoundingClientRect();
@@ -244,14 +289,14 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
     // Keep the whole gesture locked until the final finger leaves. A remaining
     // finger must not suddenly drag a person or complete a pending tap.
     pointer.current = null;
-    setMoving({});
+    setMoving({}); setMovingEdges({});
     pinch.current = beginBoardPinch(viewRef.current, localTouches());
     if (!touchPoints.current.size) multiTouch.current = false;
     return true;
   };
   useEffect(() => {
     touchPoints.current.clear(); pinch.current = null; multiTouch.current = false;
-    pointer.current = null; ignoreTouchClickUntil.current = 0; setMoving({}); clearTap();
+    pointer.current = null; ignoreTouchClickUntil.current = 0; setMoving({}); setMovingEdges({}); clearTap();
     return () => { touchPoints.current.clear(); pinch.current = null; multiTouch.current = false; pointer.current = null; };
   }, [novelId]);
 
@@ -260,30 +305,33 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
       <div className="character-board-heading">
         <h2 className="mr-auto font-semibold">人物关系画布</h2>
         <Button size="sm" className="character-board-primary-action" aria-label="添加人物" title="添加人物" onClick={() => { cancelLink(); setProfile(null); setProfileOpen(true); }}><Plus /><span>添加人物</span></Button>
-        <Button size="sm" variant="outline" className="character-board-primary-action" aria-label="添加关系" title="添加关系" disabled={!ready || characters.length < 2} onClick={() => { cancelLink(); const source = current?.id || focusPerson?.id || characters[0]?.id || ''; setEdge({ ...newEdge(), source, target: characters.find(character => character.id !== source)?.id || '' }); setEdgeOpen(true); }}><Network /><span>添加关系</span></Button>
+        <Button size="sm" variant="outline" className="character-board-primary-action" aria-label="添加关系" title="添加关系" disabled={!ready || characters.length < 2} onClick={() => { cancelLink(); const source = current?.id || focusPerson?.id || characters[0]?.id || ''; setEdge({ ...newEdge(), source, target: counterpart?.id || characters.find(character => character.id !== source)?.id || '' }); setEdgeOpen(true); }}><Network /><span>添加关系</span></Button>
         <Button size="sm" variant="outline" className="character-board-tools-trigger" aria-label="更多工具" aria-haspopup="menu" aria-expanded={toolbarMenu.menuProps.open} title="更多工具与操作说明" onClick={event => { cancelLink(); toolbarMenu.openAtElement(event.currentTarget); }}><MoreHorizontal /><span>更多工具</span></Button>
       </div>
       <div className="character-board-filters">
-        <input aria-label="搜索画布人物" placeholder="搜索人物或别名" className={input} value={query} onChange={event => { if (focusPerson) { overview.current = null; setFocusId(null); cancelLink(); } touched.current = false; setQuery(event.target.value); }} />
+        <input aria-label="搜索画布人物" placeholder="搜索人物或别名" className={input} value={query} onChange={event => { cancelPointerForViewAction(); if (focusPerson) { overview.current = null; setFocusId(null); setCounterpartId(null); cancelLink(); } touched.current = false; setQuery(event.target.value); }} />
         <label className="character-focus-controls"><Focus size={15} aria-hidden="true" /><span>聚焦</span><select aria-label="只看一个人的关系" className="rounded-lg border bg-background px-2 text-sm" value={focusPerson?.id || ''} onChange={event => event.target.value ? focusCharacter(event.target.value) : returnToAll()}><option value="">全部人物</option>{characters.map(character => <option key={character.id} value={character.id}>{character.name}</option>)}</select></label>
       </div>
+      {focusPerson && <label className="character-pair-controls"><span>关系对象</span><select aria-label="只看两个人的关系" className="rounded-lg border bg-background px-2 text-sm" value={counterpart?.id || ''} onChange={event => { cancelPointerForViewAction(); cancelLink(); touched.current = false; setSelectedEdgeId(null); setCounterpartId(event.target.value || null); }}><option value="">所有关联人物</option>{characters.filter(character => character.id !== focusPerson.id).map(character => <option key={character.id} value={character.id}>{character.name}</option>)}</select></label>}
       <div className="character-board-navigation">
         <div className="character-board-zoom-controls">
           <Button size="icon" variant="outline" aria-label="缩小画布" title="缩小" onClick={() => zoom(.8)}><Minus /></Button><span aria-label="画布缩放比例" className="character-board-zoom-ratio">{Math.round(view.scale * 100)}%</span><Button size="icon" variant="outline" aria-label="放大画布" title="放大" onClick={() => zoom(1.25)}><Plus /></Button><Button size="icon" variant="outline" aria-label="适应画布" title="显示全部人物" onClick={fit}><Maximize /></Button><Button size="icon" variant="outline" aria-label={expanded ? "收起人物画布" : "展开人物画布"} title={expanded ? "退出专注（Esc）" : "展开为专注画布"} onClick={() => { touched.current = false; setExpanded(value => !value); }}><Expand /></Button><Button size="icon" variant="outline" aria-label="导出人物关系与状态" title="导出人物关系与状态（JSON）" disabled={!ready} onClick={() => { const url = URL.createObjectURL(new Blob(['\uFEFF', JSON.stringify({ novelId, characters: characters.map(({ id, name }) => ({ id, name })), ...data, nodes: Object.fromEntries(Object.entries(data.nodes).filter(([id]) => byId.has(id))), edges: data.edges.filter(edge => byId.has(edge.source) && byId.has(edge.target)) }, null, 2)], { type: 'application/json;charset=utf-8' })); const anchor = document.createElement('a'); anchor.href = url; anchor.download = '人物关系与状态.json'; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }}><Download /></Button>
         </div>
         <p role="status" className="character-board-status">{ready && !saving && !error && <span className="sr-only">画布已就绪 · </span>}{!ready ? '加载中…' : saving ? '保存中…' : error ? '未保存' : `${characters.length} 人 · ${data.edges.filter(edge => byId.has(edge.source) && byId.has(edge.target)).length} 关系`}</p>
       </div>
-      {focusPerson && <div role="status" data-character-focus={focusPerson.id} className="character-focus-banner"><span className="character-focus-summary"><strong>{focusPerson.name}</strong> · {Math.max(0, visible.length - 1)} 人 / {edges.length} 条关系</span><Button ref={focusListTrigger} size="sm" variant="outline" aria-label="查看关系清单" onClick={() => setFocusRelationsOpen(true)}><span className="character-board-wide-label">查看关系清单</span><span className="character-board-short-label" aria-hidden="true">关系清单</span></Button><Button size="sm" variant="ghost" aria-label="返回全部关系" onClick={returnToAll}><span className="character-board-wide-label">返回全部关系</span><span className="character-board-short-label" aria-hidden="true">返回全部</span></Button></div>}
+      {focusPerson && <div role="status" data-character-focus={focusPerson.id} data-character-pair={counterpart ? `${focusPerson.id}:${counterpart.id}` : undefined} className="character-focus-banner"><span className="character-focus-summary"><strong>{focusPerson.name}{counterpart ? ` ↔ ${counterpart.name}` : ''}</strong> · {counterpart ? `${edges.length} 条关系` : `${Math.max(0, visible.length - 1)} 人 / ${edges.length} 条关系`}</span><Button ref={focusListTrigger} size="sm" variant="outline" aria-label="查看关系清单" onClick={() => setFocusRelationsOpen(true)}><span className="character-board-wide-label">查看关系清单</span><span className="character-board-short-label" aria-hidden="true">关系清单</span></Button><Button size="sm" variant="ghost" aria-label="返回全部关系" onClick={returnToAll}><span className="character-board-wide-label">返回全部关系</span><span className="character-board-short-label" aria-hidden="true">返回全部</span></Button></div>}
       {sourceId && byId.has(sourceId) && <div className="character-link-hint text-xs text-primary" aria-live="polite"><span>已选「{byId.get(sourceId)?.name}」，再点一人建立关系</span><button onClick={cancelLink}>取消连线</button></div>}
       {characters.length > 500 && <p className="text-xs text-muted-foreground">最多展示 500 位人物，请用搜索定位其他人物。</p>}
       {(notice || error) && <div role={error ? 'alert' : 'status'} className="character-board-notice text-sm leading-relaxed"><span>{error || notice}</span>{error ? ready && <Button size="sm" variant="outline" onClick={() => safe(() => store.getState().retry())}>重试保存画布</Button> : <button aria-label="关闭画布提示" title="关闭提示" onClick={() => setNotice('')}><X size={14} /></button>}</div>}
     </header>
     <ContextActionMenu {...toolbarMenu.menuProps} label="画布工具" items={[
-      { id: 'layout', label: '自动排布', disabled: !ready, icon: <Maximize size={16} />, onSelect: () => safe(() => { cancelLink(); const nodes = Object.fromEntries(characters.map((character, index) => [character.id, { ...data.nodes[character.id], position: defaultPosition(index, characters.length) }])); store.getState().layout(nodes); touched.current = false; setTimeout(fit, 0); }) },
+      { id: 'layout', label: '自动排布', disabled: !ready, icon: <Maximize size={16} />, onSelect: () => safe(() => { cancelPointerForViewAction(); cancelLink(); if (focusPerson) setFocusPositions({}); else { const nodes = Object.fromEntries(characters.map((character, index) => [character.id, { ...data.nodes[character.id], position: defaultPosition(index, characters.length) }])); store.getState().layout(nodes); } touched.current = false; setTimeout(fit, 0); }) },
+      { id: 'labels', label: showAllLabels ? '精简关系名称' : '显示全部关系名称', icon: <Network size={16} />, onSelect: () => setShowAllLabels(value => !value) },
       { id: 'help', label: '操作说明', icon: <Focus size={16} />, onSelect: () => setHelpOpen(true) },
     ]} />
-    <Dialog open={helpOpen} onOpenChange={setHelpOpen}><DialogContent className="max-h-[85dvh] overflow-y-auto" onEscapeKeyDown={event => event.stopPropagation()}><DialogHeader><DialogTitle>画布操作说明</DialogTitle><DialogDescription>常用操作保持在顶部，画布支持单指拖动、双指缩放。</DialogDescription></DialogHeader><div className="space-y-3 text-sm leading-relaxed"><p>在画布空白处单指拖动可平移；双指张开或捏合可缩放，双指一起移动也能平移。桌面可拖动空白处、使用滚轮，或点顶部的 ± 缩放。“适应画布”会显示全部可见人物。</p><p>拖动头像移动人物；单击头像选择连线起点，再点另一人物填写关系。双击或连续点按两下查看人物详情。右键人物或按 Shift+F10 打开人物菜单，可聚焦此人、预览头像或添加关系。点击空白或按 Escape 取消连线。</p><p>在“聚焦”中选择人物，只查看直接相关的人和连线；“关系清单”提供正常字号的全部关系说明。“返回全部”恢复之前的画布视图。</p><p>键盘 Enter 查看人物，空格选择连线；方向键微调人物位置，按住 Shift 加快移动。更多工具中保留自动排布，顶部下载按钮可导出全部人物关系与状态。</p><p className="text-muted-foreground">头像和预设关系来自人物档案。画布中的头像覆盖、布局、关系调整与状态保存在当前浏览器，不会改写正文。</p></div><DialogFooter><Button variant="outline" onClick={() => setHelpOpen(false)}>返回画布</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={helpOpen} onOpenChange={setHelpOpen}><DialogContent className="max-h-[85dvh] overflow-y-auto" onEscapeKeyDown={event => event.stopPropagation()}><DialogHeader><DialogTitle>画布操作说明</DialogTitle><DialogDescription>常用操作保持在顶部，画布支持单指拖动、双指缩放。</DialogDescription></DialogHeader><div className="space-y-3 text-sm leading-relaxed"><p>在画布空白处单指拖动可平移；双指张开或捏合可缩放，双指一起移动也能平移。桌面可拖动空白处、使用滚轮，或点顶部的 ± 缩放。“适应画布”会显示全部可见人物。</p><p>拖动头像移动人物；单击头像选择连线起点，再点另一人物填写关系。双击或连续点按两下查看人物详情。右键人物或按 Shift+F10 打开人物菜单，可聚焦此人、预览头像或添加关系。点击空白或按 Escape 取消连线。</p><p>在“聚焦”中选择人物，可按放射排布看直接关系；再选“关系对象”只看两个人的全部关系。聚焦和两人视图中的头像移动仅作临时排布，不覆盖总览布局。“返回全部”恢复之前的总览；“关系清单”保留完整说明。</p><p>拖动关系线或选中后的移动手柄，可单独调整这条线；这项调整会保存。关系名称可直接点开编辑，按空格选择移动手柄后，用方向键微调。关系较多时总览会精简名称，可在更多工具中展开。人物可用 Enter 查看、空格连线、方向键移动，按 Shift 加快；顶部下载保留完整关系与状态。</p><p className="text-muted-foreground">头像和预设关系来自人物档案。画布中的头像覆盖、布局、关系调整与状态保存在当前浏览器，不会改写正文。</p></div><DialogFooter><Button variant="outline" onClick={() => setHelpOpen(false)}>返回画布</Button></DialogFooter></DialogContent></Dialog>
     <div className="relative min-h-0 flex-1 overflow-hidden">
+      {selectedEdge && <div className="character-edge-actions" data-selected-edge={selectedEdge.id}><span title={selectedEdge.label}>{selectedEdge.label}</span><button type="button" onClick={() => { setEdge(selectedEdge); setEdgeOpen(true); }}>编辑</button><button type="button" onClick={() => focusPair(selectedEdge.source, selectedEdge.target)}>只看这两人</button><button type="button" aria-label="恢复连线自动位置" onClick={() => safe(() => store.getState().moveEdge(selectedEdge.id, undefined))}><RotateCcw size={13} />自动位置</button><button type="button" aria-label="取消选择关系线" onClick={() => setSelectedEdgeId(null)}><X size={13} /></button></div>}
       <div ref={viewport} className="character-board-viewport absolute inset-0 overflow-hidden" aria-label="人物关系画布" onClickCapture={event => {
         if (performance.now() < ignoreTouchClickUntil.current && (event.detail > 0 || (event.nativeEvent as PointerEvent).pointerType === 'touch')) { event.preventDefault(); event.stopPropagation(); }
       }} onPointerDown={event => {
@@ -294,7 +342,7 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
           if (touchPoints.current.size >= 2 || multiTouch.current) {
             multiTouch.current = true; touched.current = true;
             ignoreTouchClickUntil.current = performance.now() + 500;
-            cancelLink(); pointer.current = null; setMoving({});
+            cancelLink(); pointer.current = null; setMoving({}); setMovingEdges({});
             if (!pinch.current) pinch.current = beginBoardPinch(viewRef.current, localTouches());
             // Also capture a first finger that started on a relationship label.
             // Labels keep their ordinary one-finger click until a pinch begins.
@@ -303,7 +351,18 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
             return;
           }
         }
-        if (multiTouch.current || pointer.current || (event.target as HTMLElement).closest('[data-board-control]')) return;
+        if (multiTouch.current || pointer.current) return;
+        const dragEdgeId = (event.target as Element).closest<HTMLElement>('[data-edge-drag],[data-edge-handle]')?.getAttribute('data-edge-drag') || (event.target as Element).closest<HTMLElement>('[data-edge-handle]')?.getAttribute('data-edge-handle');
+        if (dragEdgeId) {
+          const row = edgeViews.find(item => item.edge.id === dragEdgeId);
+          if (!row) return;
+          cancelLink(); setSelectedEdgeId(dragEdgeId); touched.current = true;
+          pointer.current = { pointerId: event.pointerId, edgeId: dragEdgeId, edgeLabel: row.label, edgeSource: positions[row.edge.source], edgeTarget: positions[row.edge.target], edgeBefore: JSON.stringify(data.edges.find(item => item.id === dragEdgeId)), edgeScale: viewRef.current.scale, x: event.clientX, y: event.clientY, origin: row.label, moved: false };
+          event.currentTarget.setPointerCapture(event.pointerId);
+          event.preventDefault();
+          return;
+        }
+        if ((event.target as Element).closest('[data-board-control]')) return;
         touched.current = true;
         const id = (event.target as HTMLElement).closest<HTMLElement>('[data-character-node]')?.dataset.characterNode;
         pointer.current = { pointerId: event.pointerId, id, x: event.clientX, y: event.clientY, origin: id ? positions[id] : { x: view.x, y: view.y }, moved: false };
@@ -329,14 +388,18 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
         const dx = event.clientX - active.x, dy = event.clientY - active.y;
         if (Math.hypot(dx, dy) < 4 && !active.moved) return;
         active.moved = true; clearTap(); touched.current = true;
-        if (active.id) { active.position = canvasPosition({ x: active.origin.x + dx / viewRef.current.scale, y: active.origin.y + dy / viewRef.current.scale }); setMoving({ [store.getState().remaps[active.id] || active.id]: active.position }); }
+        if (active.edgeId && active.edgeSource && active.edgeTarget && active.edgeLabel) {
+          active.bend = draggedEdgeBend(active.edgeSource, active.edgeTarget, active.edgeLabel, { x: dx, y: dy }, active.edgeScale || viewRef.current.scale);
+          setMovingEdges({ [active.edgeId]: active.bend });
+        }
+        else if (active.id) { active.position = canvasPosition({ x: active.origin.x + dx / viewRef.current.scale, y: active.origin.y + dy / viewRef.current.scale }); setMoving({ [store.getState().remaps[active.id] || active.id]: active.position }); }
         else { const next = { ...viewRef.current, x: active.origin.x + dx, y: active.origin.y + dy }; viewRef.current = next; setView(next); }
       }} onPointerUp={event => {
         if (event.pointerType === 'touch' && finishTouch(event.pointerId)) return;
         if (multiTouch.current) return;
         const active = pointer.current;
         if (!active || event.pointerId !== active.pointerId) return;
-        if (!active.moved) { if (active.id) tapCharacter(active.id, event.clientX, event.clientY); else cancelLink(); }
+        if (!active.moved) { if (active.edgeId) cancelLink(); else if (active.id) tapCharacter(active.id, event.clientX, event.clientY); else { cancelLink(); setSelectedEdgeId(null); } }
         finishPointer();
       }} onPointerCancel={event => {
         if (event.pointerType === 'touch' && finishTouch(event.pointerId)) return;
@@ -349,22 +412,40 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
         if (pointer.current?.pointerId === event.pointerId) finishPointer(true);
       }}>
         <div className="character-board-world" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}>
-          <svg width="1" height="1" className="pointer-events-none absolute left-0 top-0 overflow-visible" aria-hidden="true"><defs>{Object.entries(edgeColors).map(([kind, color]) => <marker key={kind} id={`character-arrow-${kind}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill={color} /></marker>)}</defs>{preview && <path data-link-preview d={preview.path} fill="none" stroke={edgeColors.other} strokeWidth="2.5" strokeDasharray="6 4" markerEnd="url(#character-arrow-other)" />}{edgeViews.map(({ edge: item, ...geometry }) => { return <path key={item.id} data-character-edge={item.id} data-source={item.source} data-target={item.target} d={geometry.path} fill="none" stroke={edgeColors[item.kind]} strokeWidth={selected && item.source !== selected && item.target !== selected ? 1.3 : 2.5} opacity={selected && item.source !== selected && item.target !== selected ? .25 : .8} markerEnd={item.directed ? `url(#character-arrow-${item.kind})` : undefined} />; })}</svg>
-          {edgeViews.map(({ edge: item, ...geometry }) => { return <button key={item.id} data-board-control className="character-edge-label" style={{ left: geometry.label.x, top: geometry.label.y, borderColor: edgeColors[item.kind], color: edgeColors[item.kind] }} aria-label={`编辑关系：${byId.get(item.source)?.name} ${item.label} ${byId.get(item.target)?.name}`} onClick={() => { cancelLink(); setEdge(item); setEdgeOpen(true); }}>{item.label}</button>; })}
-          {visible.map(character => { const node = data.nodes[character.id]; return <button type="button" key={character.id} data-character-node={character.id} disabled={!ready} className={`character-graph-node ${selected === character.id ? 'is-selected' : ''} ${sourceId === character.id ? 'is-link-source' : ''} ${focusedId === character.id ? 'is-focus-person' : ''}`} style={{ left: positions[character.id].x, top: positions[character.id].y }} aria-label={`查看人物：${character.name}`} title="单击连线，双击详情；右键打开人物菜单；Enter 查看，空格连线" aria-pressed={sourceId === character.id} onClick={event => { if (event.detail === 0) openCharacter(character.id); }} onContextMenu={event => { cancelLink(); finishPointer(true); setMenuCharacterId(character.id); characterMenu.onContextMenu(event); }} onKeyDown={event => { if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') { cancelLink(); setMenuCharacterId(character.id); characterMenu.onMenuKeyDown(event); return; } if (event.key === ' ') { event.preventDefault(); clearTap(); singleTapRef.current(character.id); return; } const direction = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key]; if (direction) { event.preventDefault(); const step = event.shiftKey ? 40 : 10; safe(() => store.getState().editNode(character.id, { position: canvasPosition({ x: positions[character.id].x + direction[0] * step, y: positions[character.id].y + direction[1] * step }) })); } }}><CharacterPortrait avatar={node?.avatar || character.avatar} name={character.name} /><strong>{character.name}</strong><span className="text-[11px] text-muted-foreground">{roleNames[character.role || 'supporting']} · {lifeNames[node?.state?.life || 'unknown']}</span>{node?.state?.location && <span className="character-node-location">{node.state.location}</span>}</button>; })}
+          <svg width="1" height="1" className="pointer-events-none absolute left-0 top-0 overflow-visible" aria-hidden="true">
+            <defs>{Object.entries(edgeColors).map(([kind, color]) => <marker key={kind} id={`character-arrow-${kind}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill={color} /></marker>)}</defs>
+            {preview && <path data-link-preview d={preview.path} fill="none" stroke={edgeColors.other} strokeWidth="2.5" strokeDasharray="6 4" markerEnd="url(#character-arrow-other)" />}
+            {edgeViews.map(({ edge: item, ...geometry }) => <g key={item.id}>
+              <path data-character-edge={item.id} data-source={item.source} data-target={item.target} d={geometry.path} fill="none" stroke={edgeColors[item.kind]} strokeWidth={selectedEdgeId === item.id ? 4 : selected && item.source !== selected && item.target !== selected ? 1.3 : 2.5} opacity={selectedEdgeId && selectedEdgeId !== item.id ? .3 : selected && item.source !== selected && item.target !== selected ? .25 : .8} markerEnd={item.directed ? `url(#character-arrow-${item.kind})` : undefined} />
+              <path data-board-control data-edge-drag={item.id} d={geometry.path} fill="none" stroke="transparent" strokeWidth={Math.max(12, 14 / view.scale)} style={{ pointerEvents: 'stroke', cursor: 'move' }} />
+            </g>)}
+          </svg>
+          {edgeViews.map(({ edge: item, ...geometry }) => <div key={item.id}>
+            <button type="button" data-board-control data-edge-label={item.id} className={`character-edge-label ${!showAllLabels && edges.length > 8 && !focusPerson && selectedEdgeId !== item.id ? 'is-compact' : ''}`} style={{ left: geometry.label.x, top: geometry.label.y, borderColor: edgeColors[item.kind], color: edgeColors[item.kind] }} title={`${byId.get(item.source)?.name} · ${item.label} · ${byId.get(item.target)?.name}；空格选择连线，Enter 编辑`} aria-label={`编辑关系：${byId.get(item.source)?.name} ${item.label} ${byId.get(item.target)?.name}`} onKeyDown={event => { if (event.key !== ' ') return; event.preventDefault(); cancelLink(); setSelectedEdgeId(item.id); requestAnimationFrame(() => viewport.current?.querySelector<HTMLButtonElement>('[data-edge-handle]')?.focus({ preventScroll: true })); }} onClick={() => { cancelLink(); setSelectedEdgeId(item.id); setEdge(item); setEdgeOpen(true); }}><span className="character-edge-name">{item.label}</span><span className="character-edge-dot" aria-hidden="true" /></button>
+            {selectedEdgeId === item.id && <button type="button" data-board-control data-edge-handle={item.id} className="character-edge-handle" aria-label={`移动关系线：${byId.get(item.source)?.name} ${item.label} ${byId.get(item.target)?.name}`} title="拖动调整这条关系线；方向键微调" style={{ left: geometry.label.x, top: geometry.label.y + 32 / view.scale, width: 36 / view.scale, height: 36 / view.scale }} onKeyDown={event => {
+              const direction = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+              if (!direction) return;
+              event.preventDefault(); const step = event.shiftKey ? 30 : 8;
+              safe(() => store.getState().moveEdge(item.id, draggedEdgeBend(positions[item.source], positions[item.target], geometry.label, { x: direction[0] * step, y: direction[1] * step }, viewRef.current.scale)));
+            }}><Move style={{ width: 16 / view.scale, height: 16 / view.scale }} /></button>}
+          </div>)}
+
+          {visible.map(character => { const node = data.nodes[character.id]; return <button type="button" key={character.id} data-character-node={character.id} disabled={!ready} className={`character-graph-node ${selected === character.id ? 'is-selected' : ''} ${sourceId === character.id ? 'is-link-source' : ''} ${focusedId === character.id ? 'is-focus-person' : ''}`} style={{ left: positions[character.id].x, top: positions[character.id].y }} aria-label={`查看人物：${character.name}`} title="单击连线，双击详情；右键打开人物菜单；Enter 查看，空格连线" aria-pressed={sourceId === character.id} onClick={event => { if (event.detail === 0) openCharacter(character.id); }} onContextMenu={event => { cancelLink(); finishPointer(true); setMenuCharacterId(character.id); characterMenu.onContextMenu(event); }} onKeyDown={event => { if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') { cancelLink(); setMenuCharacterId(character.id); characterMenu.onMenuKeyDown(event); return; } if (event.key === ' ') { event.preventDefault(); clearTap(); singleTapRef.current(character.id); return; } const direction = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key]; if (direction) { event.preventDefault(); touched.current = true; const step = event.shiftKey ? 40 : 10; const position = canvasPosition({ x: positions[character.id].x + direction[0] * step, y: positions[character.id].y + direction[1] * step }); if (focusPerson) setFocusPositions(previous => ({ ...previous, [character.id]: position })); else safe(() => store.getState().editNode(character.id, { position })); } }}><CharacterPortrait avatar={node?.avatar || character.avatar} name={character.name} /><strong>{character.name}</strong><span className="text-[11px] text-muted-foreground">{roleNames[character.role || 'supporting']} · {lifeNames[node?.state?.life || 'unknown']}</span>{node?.state?.location && <span className="character-node-location">{node.state.location}</span>}</button>; })}
         </div>
+        {focusPerson && <p className="pointer-events-none absolute bottom-2 left-3 right-3 text-[10px] leading-relaxed text-muted-foreground">当前为临时关系排布；移动头像不覆盖总览，调整连线会保存。</p>}
+        {counterpart && !edges.length && <p className="pointer-events-none absolute left-3 right-3 top-3 text-center text-xs text-muted-foreground">这两个人还没有已记录的直接关系，可点“添加关系”补充。</p>}
         {ready && !visible.length && <p className="pointer-events-none absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-muted-foreground">{characters.length ? '没有匹配的人物，清空搜索即可返回。' : '先添加人物，再为他们建立关系。'}</p>}
       </div>
-      {current && <aside aria-label="人物详情" className="character-board-inspector absolute inset-y-0 right-0 overflow-y-auto border-l bg-card p-4 shadow-xl">
-        <div className="mb-3 flex items-center gap-2"><h3 className="min-w-0 flex-1 truncate text-lg font-semibold">{current.name}</h3><Button variant="ghost" size="icon" aria-label="关闭人物详情" onClick={() => openCharacter(null)}><X /></Button></div>
-        <div className="mb-3 flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => focusCharacter(current.id)}><Focus />聚焦此人</Button><Button size="sm" variant="ghost" aria-label="人物更多操作" onClick={event => { cancelLink(); setMenuCharacterId(current.id); characterMenu.openAtElement(event.currentTarget); }}><MoreHorizontal />更多操作</Button></div>
-        <div className="flex items-center gap-3"><CharacterPortrait avatar={data.nodes[current.id]?.avatar || current.avatar} name={current.name} className="shrink-0" previewable /><div className="min-w-0"><p className="text-xs text-muted-foreground">{roleNames[current.role || 'supporting']}</p><label className="mt-2 inline-flex cursor-pointer items-center gap-1 text-xs text-primary"><ImagePlus size={14} />更换头像<input aria-label="上传人物头像" type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={async event => { const file = event.target.files?.[0], id = current.id; event.target.value = ''; if (!file) return; try { const avatar = await characterAvatar(file); store.getState().editNode(store.getState().remaps[id] || id, { avatar }); await store.getState().flush(); setNotice('头像已保存在当前浏览器。'); } catch (error) { setNotice(error instanceof Error ? error.message : '头像读取失败'); } }} /></label></div></div>
-        <div className="mt-3 space-y-2 rounded-lg border p-3 text-sm"><p className="whitespace-pre-wrap break-words">{current.description || '还没有人物简介。'}</p>{current.personality && <p className="break-words">性格：{current.personality}</p>}{current.appearance && <p className="break-words">外貌：{current.appearance}</p>}{current.background && <details><summary className="cursor-pointer">背景经历</summary><p className="mt-2 whitespace-pre-wrap break-words">{current.background}</p></details>}<Button size="sm" variant="outline" onClick={() => { setProfile(current); setProfileOpen(true); }}><Pencil />编辑人物档案</Button></div>
-        <h4 className="mt-5 font-medium">当前状态 {dirty && <span className="text-xs text-amber-700">未保存</span>}</h4><p className="mt-1 text-xs leading-relaxed text-muted-foreground">手动维护的状态快照；可点击保存，切换应用功能时也会保存。不会改写正文或注入 AI 历史上下文。</p>
-        <Button className="mt-3" size="sm" variant="outline" onClick={() => openCharacterTimeline(novelId, current.id)}><History className="h-4 w-4" />查看人物时间线</Button>
-        <div className="mt-3 space-y-3"><label className="block text-sm">截至章节<select aria-label="人物状态截至章节" className={`${input} mt-1`} value={state.asOfChapterId} onChange={event => { setState({ ...state, asOfChapterId: event.target.value }); setDirty(true); }}><option value="">未指定章节（作者当前记录）</option>{state.asOfChapterId && !chapters.some(chapter => chapter.id === state.asOfChapterId) && <option value={state.asOfChapterId}>原关联章节已不存在，待复核</option>}{chapters.map(chapter => <option key={chapter.id} value={chapter.id}>{chapter.title}</option>)}</select></label><label className="block text-sm">生死状态<select aria-label="人物生死状态" className={`${input} mt-1`} value={state.life} onChange={event => { setState({ ...state, life: event.target.value as CharacterSnapshot['life'] }); setDirty(true); }}>{Object.entries(lifeNames).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>{([['location', '当前位置'], ['condition', '伤势与身体状况'], ['goal', '当前目标'], ['inventory', '持有物品'], ['notes', '状态备注']] as const).map(([field, label]) => <label key={field} className="block text-sm">{label}<textarea aria-label={label} rows={field === 'notes' ? 3 : 2} maxLength={2000} className={`${input} mt-1 resize-y`} value={state[field]} onChange={event => { setState({ ...state, [field]: event.target.value }); setDirty(true); }} /></label>)}<Button disabled={!ready || saving} onClick={() => void saveState()}>保存人物状态</Button></div>
-        <h4 className="mt-5 mb-2 font-medium">关联人物</h4>{data.edges.filter(item => item.source === current.id || item.target === current.id).filter(item => byId.has(item.source) && byId.has(item.target)).map(item => <button key={item.id} className="mb-2 block w-full rounded-lg border p-2 text-left text-sm" onClick={() => openCharacter(item.source === current.id ? item.target : item.source)}>{byId.get(item.source)?.name} {item.directed ? '→' : '↔'} {byId.get(item.target)?.name}<span className="block text-xs text-muted-foreground">{item.label}</span>{item.notes && <span className="mt-1 block whitespace-pre-wrap text-xs text-muted-foreground">{item.notes}</span>}</button>)}<Button className="mt-3" size="sm" variant="outline" onClick={() => { if (confirm(`删除人物「${current.name}」及其画布关系？`)) safe(() => { useNovelStore.getState().deleteCharacter(current.id); setSelected(null); setDirty(false); }); }}><Trash2 />删除人物</Button>
-      </aside>}
+      {current && <CharacterInspector character={current} characters={characters} nodes={data.nodes} edges={data.edges} chapters={chapters}
+        state={state} dirty={dirty} ready={ready} saving={saving} onStateChange={next => { setState(next); setDirty(true); }}
+        onClose={() => openCharacter(null)} onFocus={() => focusCharacter(current.id)}
+        onMore={event => { cancelLink(); setMenuCharacterId(current.id); characterMenu.openAtElement(event.currentTarget); }}
+        onUploadAvatar={async file => { const id = current.id; try { const avatar = await characterAvatar(file); store.getState().editNode(store.getState().remaps[id] || id, { avatar }); await store.getState().flush(); setNotice('头像已保存在当前浏览器。'); } catch (error) { setNotice(error instanceof Error ? error.message : '头像读取失败'); } }}
+        onEditProfile={() => { setProfile(current); setProfileOpen(true); }} onTimeline={() => openCharacterTimeline(novelId, current.id)} onSaveState={saveState}
+        onDelete={() => { if (confirm('删除人物「' + current.name + '」及其画布关系？')) safe(() => { useNovelStore.getState().deleteCharacter(current.id); setSelected(null); setDirty(false); setProfileTrail([]); }); }}
+        onNavigate={id => openCharacter(id, 'forward')} onPair={id => focusPair(current.id, id)}
+        backLabel={byId.get(resolveId(profileTrail.at(-1) || ''))?.name} onBack={profileTrail.length ? () => openCharacter(resolveId(profileTrail.at(-1)!), 'back') : undefined}
+      />}
     </div>
     <ContextActionMenu {...characterMenu.menuProps} label={menuCharacter ? '人物操作：' + menuCharacter.name : '人物操作'} items={menuCharacter ? [
       { id: 'focus', label: '聚焦此人', icon: <Focus size={16} />, onSelect: () => focusCharacter(menuCharacter.id) },
@@ -379,6 +460,6 @@ export function CharacterBoard({ novelId }: { novelId: string }) {
       {!focusedRelations.length && <p className="py-6 text-center text-sm text-muted-foreground">此人还没有已记录的直接关系。</p>}
     </div><DialogFooter><Button variant="outline" onClick={() => setFocusRelationsOpen(false)}>返回聚焦画布</Button></DialogFooter></DialogContent></Dialog>
     <CharacterEditor character={profile} open={profileOpen} onOpenChange={setProfileOpen} onSave={saveProfile} />
-    <Dialog open={edgeOpen} onOpenChange={setEdgeOpen}><DialogContent className="max-h-[90dvh] overflow-y-auto"><DialogHeader><DialogTitle>{data.edges.some(item => item.id === edge.id) ? '编辑人物关系' : '添加人物关系'}</DialogTitle><DialogDescription>初始关系来自已保存的人物档案；在此确认的增删改保存在当前浏览器。</DialogDescription></DialogHeader>{(['source', 'target'] as const).map(field => <label key={field} className="text-sm">{field === 'source' ? '起点人物' : '终点人物'}<select aria-label={field === 'source' ? '关系起点人物' : '关系终点人物'} className={`${input} mt-1`} value={edge[field]} onChange={event => setEdge({ ...edge, [field]: event.target.value })}><option value="">请选择人物</option>{characters.map(character => <option key={character.id} value={character.id}>{character.name}</option>)}</select></label>)}<label className="text-sm">关系名称<input aria-label="关系名称" maxLength={40} className={`${input} mt-1`} placeholder="例如：师徒、同盟、怀疑、亲属" value={edge.label} onChange={event => setEdge({ ...edge, label: event.target.value })} /></label><label className="text-sm">关系分类<select aria-label="关系分类" className={`${input} mt-1`} value={edge.kind} onChange={event => setEdge({ ...edge, kind: event.target.value as CharacterEdge['kind'] })}><option value="family">亲属 / 师承</option><option value="ally">同盟 / 友善</option><option value="rival">敌对 / 怀疑</option><option value="other">其他</option></select></label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edge.directed} onChange={event => setEdge({ ...edge, directed: event.target.checked })} />显示方向箭头（不勾选表示双向）</label><label className="text-sm">关系备注<textarea aria-label="关系备注" maxLength={500} className={`${input} mt-1`} value={edge.notes} onChange={event => setEdge({ ...edge, notes: event.target.value })} /></label>{edgeError && <p role="alert" className="text-sm text-destructive">{edgeError}</p>}<DialogFooter>{data.edges.some(item => item.id === edge.id) && <Button variant="outline" onClick={() => safe(() => { store.getState().removeEdge(edge.id); setEdgeOpen(false); })}>删除关系</Button>}<Button disabled={!edge.source || !edge.target || !edge.label.trim() || !ready} onClick={() => void saveEdge()}>保存关系</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={edgeOpen} onOpenChange={setEdgeOpen}><DialogContent className="max-h-[90dvh] overflow-y-auto"><DialogHeader><DialogTitle>{data.edges.some(item => item.id === edge.id) ? '编辑人物关系' : '添加人物关系'}</DialogTitle><DialogDescription>初始关系来自已保存的人物档案；在此确认的增删改保存在当前浏览器。</DialogDescription></DialogHeader>{(['source', 'target'] as const).map(field => <label key={field} className="text-sm">{field === 'source' ? '起点人物' : '终点人物'}<select aria-label={field === 'source' ? '关系起点人物' : '关系终点人物'} className={`${input} mt-1`} value={edge[field]} onChange={event => setEdge({ ...edge, [field]: event.target.value })}><option value="">请选择人物</option>{characters.map(character => <option key={character.id} value={character.id}>{character.name}</option>)}</select></label>)}<label className="text-sm">关系名称<input aria-label="关系名称" maxLength={40} className={`${input} mt-1`} placeholder="例如：师徒、同盟、怀疑、亲属" value={edge.label} onChange={event => setEdge({ ...edge, label: event.target.value })} /></label><label className="text-sm">关系分类<select aria-label="关系分类" className={`${input} mt-1`} value={edge.kind} onChange={event => setEdge({ ...edge, kind: event.target.value as CharacterEdge['kind'] })}><option value="family">亲属 / 师承</option><option value="ally">同盟 / 友善</option><option value="rival">敌对 / 怀疑</option><option value="other">其他</option></select></label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edge.directed} onChange={event => setEdge({ ...edge, directed: event.target.checked })} />显示方向箭头（不勾选表示双向）</label><label className="text-sm">关系备注<textarea aria-label="关系备注" maxLength={500} className={`${input} mt-1`} value={edge.notes} onChange={event => setEdge({ ...edge, notes: event.target.value })} /></label>{edgeError && <p role="alert" className="text-sm text-destructive">{edgeError}</p>}<DialogFooter>{data.edges.some(item => item.id === edge.id) && <Button variant="outline" onClick={() => { setEdgeOpen(false); setSelectedEdgeId(edge.id); requestAnimationFrame(() => viewport.current?.querySelector<HTMLButtonElement>('[data-edge-handle]')?.focus({ preventScroll: true })); }}>调整连线位置</Button>}{data.edges.some(item => item.id === edge.id) && <Button variant="outline" onClick={() => safe(() => { store.getState().removeEdge(edge.id); setEdgeOpen(false); })}>删除关系</Button>}<Button disabled={!edge.source || !edge.target || !edge.label.trim() || !ready} onClick={() => void saveEdge()}>保存关系</Button></DialogFooter></DialogContent></Dialog>
   </div>;
 }

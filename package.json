@@ -17,6 +17,7 @@
     "test:usage-browser": "node packages/frontend/tests/usageBudget.browser.cjs",
     "test:interactions": "node packages/frontend/tests/workspaceInteractions.browser.cjs",
     "test:mobile-board": "node packages/frontend/tests/mobileCharacterBoard.browser.cjs",
+    "test:relations-browser": "node packages/frontend/tests/relationshipEditing.browser.cjs",
     "test:mobile-space": "node packages/frontend/tests/mobileReadingSpace.browser.cjs",
     "demo:import": "node scripts/import-demo-library.mjs",
     "demo:check": "node scripts/import-demo-library.mjs --check",

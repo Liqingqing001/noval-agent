@@ -1,14 +1,15 @@
 import { createStore } from 'zustand/vanilla';
 import { storageKey } from '@/lib/runtime';
 import { readReferenceWorkspace, writeReferenceWorkspace } from '@/lib/referencePersistence';
-import { emptyBoard, remapBoardCharacter, seedCharacterRelationships, validateCharacterBoard } from '@/lib/characterBoard';
-import type { CharacterBoardData, CharacterNode, CharacterEdge } from '@/lib/characterBoard';
+import { emptyBoard, remapBoardCharacter, seedCharacterRelationships, validateCharacterBoard, setCharacterEdgeBend } from '@/lib/characterBoard';
+import type { BoardPoint, CharacterBoardData, CharacterNode, CharacterEdge } from '@/lib/characterBoard';
 import type { Character } from '@/types';
 
 interface BoardState {
   data: CharacterBoardData; ready: boolean; saving: boolean; error: string; remaps: Record<string, string>;
   editNode: (id: string, patch: Partial<CharacterNode>) => void;
   saveEdge: (edge: CharacterEdge) => void;
+  moveEdge: (id: string, bend: BoardPoint | undefined) => void;
   removeEdge: (id: string) => void;
   removeCharacter: (id: string) => void;
   layout: (positions: Record<string, CharacterNode>) => void;
@@ -38,6 +39,7 @@ function makeStore(key: string) {
         if (get().data.edges.some(item => item.id !== edge.id && item.source === edge.source && item.target === edge.target && item.label.trim() === edge.label.trim())) throw new Error('这条人物关系已经存在。');
         commit({ ...get().data, edges: [...get().data.edges.filter(item => item.id !== edge.id), edge] });
       },
+      moveEdge: (id, bend) => commit(setCharacterEdgeBend(get().data, id, bend)),
       removeEdge: id => commit({ ...get().data, edges: get().data.edges.filter(edge => edge.id !== id) }),
       removeCharacter: id => { if (!get().ready) { void loaded.then(() => { if (get().ready) get().removeCharacter(id); }).catch(() => {}); return; } const nodes = { ...get().data.nodes }; delete nodes[id]; commit({ ...get().data, nodes, edges: get().data.edges.filter(edge => edge.source !== id && edge.target !== id) }); },
       layout: positions => commit({ ...get().data, nodes: { ...get().data.nodes, ...positions } }),
