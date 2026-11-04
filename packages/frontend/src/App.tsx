@@ -40,6 +40,7 @@ const getDefaultSidebarWidth = () => {
 };
 
 function App() {
+  const [showOfflineChat, setShowOfflineChat] = useState(false);
   const [publicationOpen, setPublicationOpen] = useState(false);
   const openPublication = () => { flushActiveEditor(); setPublicationOpen(true); };
   const [mobilePanel, setMobilePanel] = useState<'bookshelf' | 'content' | 'assistant'>('content');
@@ -189,7 +190,7 @@ function App() {
       />
 
       <div id="workspace-assistant" style={{ width: agentPanelWidth }} className="workspace-panel workspace-assistant flex-shrink-0">
-        {IS_DEMO && !configured ? <Suspense fallback={<p className="p-4 text-sm">正在载入演示…</p>}><DemoAssistant onNavigate={showContent} /></Suspense> : <AgentPanel currentView={currentView} />}
+        {IS_DEMO && !configured && !showOfflineChat ? <Suspense fallback={<p className="p-4 text-sm">正在载入演示…</p>}><DemoAssistant onNavigate={showContent} onOpenChat={() => setShowOfflineChat(true)} /></Suspense> : <AgentPanel currentView={currentView} onShowDemo={IS_DEMO && !configured ? () => setShowOfflineChat(false) : undefined} />}
       </div>
       </div>
       <nav className="workspace-mobile-nav" aria-label="工作区切换">

@@ -36,3 +36,24 @@ test('missing original requests and slash commands do not become billable retrie
   assert.equal(generationOperation('请检查最近5章的通顺性'), '检查章节');
   assert.equal(generationOperation('私人内容不应出现在账本标签中'), '创作对话');
 });
+
+test('AI slash retries retain the expanded request, original command and read-only scope', () => {
+  const request = { ...user, sourceCommand: '/check 1-5' };
+  const reply = { ...failed, generation: { ...failed.generation, syncPolicy: 'review-only' } };
+  const before = structuredClone({ request, reply });
+  assert.deepEqual(generationRetry([{ ...session, messages: [request, reply] }], 'book-a', 'session-a', 'reply'), {
+    content: user.content, retryOf: 'call-first', sourceCommand: '/check 1-5', syncPolicy: 'review-only', reviewCount: 5,
+  });
+  assert.deepEqual({ request, reply }, before);
+});
+
+test('persisted scoped command retries retain their original chapter target', () => {
+  const request = { ...user, sourceCommand: '/polish 对话更自然' };
+  const reply = { ...failed, generation: { ...failed.generation, syncPolicy: 'current-chapter', scopeChapterId: 'original-chapter' } };
+  const persisted = JSON.parse(JSON.stringify({ ...session, messages: [request, reply] }));
+  const retried = generationRetry([persisted], 'book-a', 'session-a', 'reply');
+  assert.equal(retried.scopeChapterId, 'original-chapter');
+  assert.equal(retried.sourceCommand, request.sourceCommand);
+  assert.equal(retried.syncPolicy, 'current-chapter');
+  assert.equal(persisted.messages[1].content, failed.content);
+});

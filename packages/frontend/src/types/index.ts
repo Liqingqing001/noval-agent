@@ -70,6 +70,7 @@ export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  sourceCommand?: string;
   timestamp: number;
   agentType?: string;
   generation?: {
@@ -78,6 +79,8 @@ export interface Message {
     callId?: string;
     retryOf?: string;
     reviewCount?: number;
+    syncPolicy?: 'review-only' | 'current-chapter';
+    scopeChapterId?: string;
   };
   syncStatus?: {
     state: 'pending' | 'success' | 'warning' | 'error' | 'partial';

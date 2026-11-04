@@ -8,6 +8,28 @@ const base = () => ({ novel, chapters, characters: [], worldSettings: [], plotCa
 const payload = result => result.messages.map(message => message.content).join('\n');
 const message = (id, role, content, extra = {}) => ({ id, role, content, timestamp: 1, ...extra });
 
+test('expanded slash AI requests remain in history while new local aliases and malformed local commands stay out', () => {
+  const result = buildChatContext({ ...base(), history: [
+    message('local-usage', 'user', '/预算'), message('usage-result', 'system', '不应进入模型的本地用量结果'),
+    message('local-timeline', 'user', '/时间线 林夏'), message('timeline-result', 'system', '不应进入模型的跳转结果'),
+    message('local-invalid', 'user', '/clear 错误参数'), message('cmd-unknown-legacy', 'user', '/早期已移除的本地命令'),
+    message('ai-request', 'user', '请检查当前章节的人物动机，只提出建议。', { sourceCommand: '/check 当前' }),
+    message('ai-reply', 'assistant', '发现一处动机需要补充。', { generation: { status: 'succeeded', requestMessageId: 'ai-request', syncPolicy: 'review-only' } }),
+  ] });
+  const text = payload(result);
+  assert.match(text, /人物动机，只提出建议/);
+  assert.match(text, /历史只读审阅回复：未写入作品/);
+  assert.doesNotMatch(text, /\/预算|\/时间线|错误参数|早期已移除|不应进入模型/);
+  assert.equal(result.summary.historyIncluded, 2);
+});
+
+test('an explicit review-only request never receives a prose-length demand from quoted writing vocabulary', () => {
+  const result = buildChatContext({ ...base(), request: '请讨论如何重写当前章节，不要实际写入。', reviewOnly: true });
+  assert.equal(result.blockedReason, undefined);
+  assert.doesNotMatch(payload(result), /【本次章节字数要求】/);
+  assert.match(payload(result), /请讨论如何重写当前章节/);
+});
+
 test('current chapter and preceding body are sent in story order without the book ending', () => {
   const input = base(), original = structuredClone(input), result = buildChatContext(input), text = payload(result);
   assert.equal(result.blockedReason, undefined);

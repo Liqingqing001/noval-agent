@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Bot, Play, Settings2 } from 'lucide-react';
+import { Bot, Play, Settings2, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNovelStore } from '@/stores/novelStore';
 import { readManuscript, paragraphText } from '@/lib/manuscript';
 import sample from './library.json';
 
-export function DemoAssistant({ onNavigate }: { onNavigate?: () => void }) {
+export function DemoAssistant({ onNavigate, onOpenChat }: { onNavigate?: () => void; onOpenChat?: () => void }) {
   const [length, setLength] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -40,6 +40,6 @@ export function DemoAssistant({ onNavigate }: { onNavigate?: () => void }) {
       </div>}
       <div className="grid grid-cols-2 gap-2">{([['outline', '查看大纲'], ['characters', '查看人物'], ['world', '查看世界观'], ['chapters', '返回章节']] as const).map(([view, label]) => <Button key={view} variant="outline" size="sm" onClick={() => navigate(view)}>{label}</Button>)}</div>
     </div>
-    <div className="border-t p-4"><Button variant="outline" className="w-full" onClick={() => navigate('settings')}><Settings2 className="h-4 w-4" />配置自己的 API</Button><p className="mt-2 text-xs leading-relaxed text-muted-foreground">真实调用由你的模型账户计费。Key 仅保存在此浏览器的独立演示设置中，直连接口需支持 CORS。</p></div>
+    <div className="border-t p-4">{onOpenChat && <Button variant="outline" className="mb-2 w-full" onClick={onOpenChat}><Terminal className="h-4 w-4" />本地命令与对话</Button>}<Button variant="outline" className="w-full" onClick={() => navigate('settings')}><Settings2 className="h-4 w-4" />配置自己的 API</Button><p className="mt-2 text-xs leading-relaxed text-muted-foreground">本地命令可直接使用。AI 创作需配置模型，真实调用由你的模型账户计费；接口需支持 CORS。</p></div>
   </aside>;
 }

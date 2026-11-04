@@ -11,6 +11,9 @@ export function generationRetry(sessions: Session[], novelId: string, sessionId:
   const request = session.messages.slice(0, failedIndex).find(item => item.id === failed.generation?.requestMessageId && item.role === 'user');
   if (!request?.content.trim() || request.content.trimStart().startsWith('/')) return null;
   return { content: request.content, retryOf: failed.generation.callId,
+    ...(request.sourceCommand ? { sourceCommand: request.sourceCommand } : {}),
+    ...(failed.generation.syncPolicy ? { syncPolicy: failed.generation.syncPolicy } : {}),
+    ...(failed.generation.scopeChapterId ? { scopeChapterId: failed.generation.scopeChapterId } : {}),
     reviewCount: Number.isInteger(failed.generation.reviewCount) && failed.generation.reviewCount! >= 0 ? failed.generation.reviewCount : undefined };
 }
 

@@ -3,13 +3,14 @@ import type { ChatMessage } from '../services/modelService';
 import { estimateChatTokens, estimateTextTokens } from './modelUsage';
 import { reviewVisibleText } from './reviewText';
 import { writingRequirement } from './writingContext';
+import { isLocalSlashCommandText } from './slashCommands';
 
 export const CHAT_CONTEXT_TOKEN_BUDGET = 24_000;
 export const CHAT_HISTORY_LIMIT = 15;
 export interface ChatContextInput {
   novel: Novel; chapters: Chapter[]; characters: Character[]; worldSettings: WorldSetting[]; plotCards: PlotCard[];
   foreshadowings?: Foreshadowing[]; currentChapterId?: string | null; request: string; history: Message[];
-  systemPrompt: string; reviewCount?: number; historyLimit?: number; inputTokenBudget?: number;
+  systemPrompt: string; reviewCount?: number; historyLimit?: number; inputTokenBudget?: number; reviewOnly?: boolean;
 }
 export interface ChatContextSummary {
   chapterIds: string[]; chapterTitles: string[]; chapterCount: number;
@@ -20,7 +21,6 @@ export interface ChatContextResult { messages: ChatMessage[]; summary: ChatConte
 const READ_INTENT = /检查|核对|校对|审读|修改|改写|重写|润色|分析/;
 const SETTINGS_ONLY = /大纲|卷纲|世界观|设定集|人物(?:档案|设定|背景|关系)|角色(?:档案|设定|背景|关系)|(?:生成|设计|创建|新增).{0,5}(?:角色|人物)/;
 const BODY_EXPLICIT = /正文|本章|本章节|当前章|这章|这一章|这一段|这段|续写|扩写|重写|改写|第[零〇一二两三四五六七八九十百千万\d]+章/;
-const LOCAL_COMMAND = /^\s*\/(?:clear|status|help|export|compact)(?:\s|$)/i;
 const structured = /【(?:基本信息|角色|人物|世界观|卷|大纲|章节大纲|章节|修改|删除|插入|替换|合并|拆分|重排)】/;
 const numberPattern = '[零〇一二两三四五六七八九十百千万\\d]+';
 
@@ -61,7 +61,7 @@ function historyTurns(messages: Message[]): Message[][] {
     if (message.role === 'system' || !message.content.trim()) continue;
     if (message.role === 'user') {
       current = undefined;
-      if (failedUserIds.has(message.id) || LOCAL_COMMAND.test(message.content)) continue;
+      if (failedUserIds.has(message.id) || message.id.startsWith('cmd-') || isLocalSlashCommandText(message.content)) continue;
       current = [message]; turns.push(current);
     } else {
       if (!current || message.generation && message.generation.status !== 'succeeded' || message.syncStatus?.state === 'partial' || /^【历史对话摘要】/.test(message.content)) continue;
@@ -72,7 +72,7 @@ function historyTurns(messages: Message[]): Message[][] {
 }
 
 function historyProjection(message: Message): { role: 'user' | 'assistant'; content: string; excerpt: boolean } {
-  const text = message.content;
+  const text = message.generation?.syncPolicy === 'review-only' ? `【历史只读审阅回复：未写入作品】\n${message.content}` : message.content;
   const limit = message.role === 'assistant' && message.syncStatus?.state === 'success' && structured.test(text) ? 900 : 3600;
   if (text.length <= limit && estimateTextTokens(text) <= 2400) return { role: message.role as 'user' | 'assistant', content: text, excerpt: false };
   const points = Array.from(text), side = Math.floor(Math.min(limit, 1600) / 2);
@@ -152,7 +152,7 @@ export function buildChatContext(input: ChatContextInput): ChatContextResult {
   ];
   if (input.novel.agentPrompt?.trim()) parts.push(`【本书常用要求】\n${input.novel.agentPrompt}\n本次用户提出更具体或不同的要求时，以本次需求为准。`);
   const modelHistory: ChatMessage[] = [];
-  const requirement = writingRequirement(input.request, input.novel.agentPrompt);
+  const requirement = input.reviewOnly ? '' : writingRequirement(input.request, input.novel.agentPrompt);
   const footer = () => `【本次资料范围】\n${selected.length ? `已附完整正文：${labelList(ordered(selected))}。` : '没有附加章节正文。'}未附章节正文不代表已经阅读。${omitted.length ? `本次未完整带入：${omitted.join('；')}。` : ''}\n\n【用户的问题】\n${input.request}${requirement}`;
   const messages = (): ChatMessage[] => [{ role: 'system', content: input.systemPrompt }, ...modelHistory, { role: 'user', content: `${parts.join('\n\n')}\n\n${ordered(selected).map(chapter => `【已保存章节正文：${chapterLabel(chapter)}】\n${bodies.get(chapter.id) || ''}`).join('\n\n')}\n\n${footer()}` }];
   const tokenCount = () => estimateChatTokens(messages());

@@ -7,6 +7,8 @@
     "packages/*"
   ],
   "scripts": {
+    "test:slash": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/slashCommands.test.mjs packages/frontend/tests/slashComposer.test.mjs packages/frontend/tests/slashSync.test.mjs",
+    "test:slash-browser": "node packages/frontend/tests/slashCommands.browser.cjs",
     "test:chat": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/chatContext.test.mjs packages/frontend/tests/chatDraft.test.mjs packages/frontend/tests/chatPrompt.test.mjs packages/frontend/tests/chatClipboard.test.mjs",
     "test:chat-browser": "node packages/frontend/tests/chatExperience.browser.cjs",
     "test:review": "tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/chapterHistory.test.mjs packages/frontend/tests/bookConsistency.test.mjs packages/frontend/tests/consistencyStore.test.mjs packages/frontend/tests/characterTimeline.test.mjs",
