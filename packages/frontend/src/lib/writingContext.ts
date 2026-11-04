@@ -17,7 +17,10 @@ function wordNumber(raw: string): number {
 
 /** Preserve the full requested range, including Chinese numbers, instead of treating its end as a minimum. */
 export function writingRequirement(request: string, customPrompt = ''): string {
-  if (!/(?:续写|扩写|重写|补写|撰写|写|创作|生成).{0,24}(?:章|正文)|(?:章节|正文).{0,12}(?:续写|扩写|重写|创作|生成)/.test(request)) return '';
+  // Critique vocabulary such as “写法” and a negated “不要重写本章”
+  // must not inject a prose-generation length requirement into an analysis.
+  const intent = request.replace(/(?:不(?:要|用|必|需|需要)?|无需|禁止)\s*(?:再|直接|自动|帮我)?\s*(?:续写|扩写|重写|改写|补写|撰写|写作|创作|生成|写(?!法))\s*(?:当前章节|当前章|本章|章节|正文|内容)?/g, '');
+  if (!/(?:续写|扩写|重写|补写|撰写|写(?!法)|创作|生成).{0,24}(?:章|正文)|(?:章节|正文).{0,12}(?:续写|扩写|重写|创作|生成)/.test(intent)) return '';
   if (/(?:生成|优化|写|规划).{0,6}(?:大纲|角色|世界观|设定)/.test(request) && !/(?:正文|续写|扩写|重写|写[一二两三四五六七八九十\d]+章)/.test(request)) return '';
   const number = '[\\d零〇一二两三四五六七八九十百千万.,，]+';
   const range = request.match(new RegExp(`(${number})\\s*(?:字\\s*)?(?:[-—－~～至到]|与)\\s*(${number})\\s*字`));

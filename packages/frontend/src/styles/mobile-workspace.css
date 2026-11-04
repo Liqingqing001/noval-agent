@@ -71,6 +71,20 @@
   .workspace-app .manuscript-page > input { font-size: 19px; margin-bottom: 12px; letter-spacing: 0; }
   .workspace-app .workspace-mobile-nav button { min-height: 50px; flex-direction: row; gap: 8px; }
   .workspace-app .workspace-mobile-nav { border-top-width: 1px; }
+  .workspace-app .workspace-assistant .chat-panel > .chat-header { flex-wrap: nowrap; min-height: 46px; padding: 7px 12px; }
+  .workspace-app .workspace-assistant .chat-panel > .chat-header::after { display: none; }
+  .workspace-app .chat-quick-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 6px 8px; }
+  .workspace-app .chat-quick-actions > button { min-width: 0; min-height: 32px; height: auto; gap: 2px; padding: 4px 6px; font-size: 11px; }
+  .workspace-app .chat-quick-actions > button svg { width: 12px; height: 12px; margin-right: 2px; flex-shrink: 0; }
+  .workspace-app .chat-status { padding: 5px 12px; font-size: 10px; }
+  .workspace-app [data-chat-context] { padding: 6px 12px; }
+  .workspace-app [data-chat-scroll] { padding: 12px; }
+  .workspace-app .chat-composer { padding: 8px 12px; }
+  .workspace-app .chat-composer > p { margin-top: 4px; font-size: 10px; line-height: 1.5; }
+}
+@media (min-width: 600px) and (max-width: 1279px) and (max-height: 500px) {
+  .workspace-app .chat-quick-actions { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .workspace-app .workspace-assistant .chat-panel > .chat-header { min-height: 36px; padding-top: 3px; padding-bottom: 3px; }
 }
 @media (max-width: 1279px) and (max-height: 500px) {
   .workspace-app .bookshelf-header { min-height: 48px; padding-top: 6px; padding-bottom: 6px; }

@@ -12,8 +12,10 @@ test('writing requests preserve Arabic and Chinese word-count ranges', () => {
 });
 
 test('outline generation and chapter reviews never acquire a default body-length requirement', () => {
-  for (const request of ['请帮我生成这本小说的大纲，请先问我一些关键问题', '请帮我优化当前大纲', '请检查最近5章逻辑问题', '请写章节大纲']) assert.equal(writingRequirement(request), '');
+  for (const request of ['请帮我生成这本小说的大纲，请先问我一些关键问题', '请帮我优化当前大纲', '请检查最近5章逻辑问题', '请写章节大纲', '请检查当前章节，只讨论写法，不修改正文。', '分析本章，不要重写本章', '比较两种写法，先不用生成正文', '这一章人物表现如何？无需改写本章']) assert.equal(writingRequirement(request), '', request);
   assert.match(writingRequirement('请按照大纲顺序续写一章'), /3000-4000/);
+  assert.match(writingRequirement('请检查并重写当前章节，控制在2000字'), /2000/);
+  assert.match(writingRequirement('不要重写本章，续写下一章，最多800字'), /最多800字/);
   assert.equal(writingRequirement('续写当前章节', '本书每章1500字'), '');
 });
 

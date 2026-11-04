@@ -61,6 +61,7 @@ export interface Session {
   agentType: string;
   title: string;
   messages: Message[];
+  contextHistoryLimit?: number;
   createdAt: number;
   updatedAt: number;
 }

@@ -1,7 +1,9 @@
-import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Bot, Send, Sparkles, User, AlertCircle, Settings2, X, Check, Trash2, Info, HelpCircle, Download, Layers, ReceiptText, RotateCcw } from 'lucide-react';
+import { memo, useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
+import { Bot, Send, Sparkles, User, AlertCircle, Settings2, Check, Trash2, Info, HelpCircle, Download, Layers, ReceiptText, RotateCcw, ArrowDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useNovelStore } from '@/stores/novelStore';
+import { useAuthStore } from '@/stores/authStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { API_PRESETS, isModelConfigured } from '@/lib/modelConfig';
 import type { GenerationPhase } from '@/services/modelService';
@@ -13,10 +15,15 @@ import { AgentType, AGENT_CONFIGS } from '@/types/agents';
 import type { Message, ViewType } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { timelineContext, writingRequirement } from '@/lib/writingContext';
 import { autoSyncContent, hasSyncableContent } from '@/lib/autoSync';
-import { completedGenerationHistory, generationOperation, generationRetry, interruptedGenerations } from '@/lib/generationRetry';
+import { generationOperation, generationRetry, interruptedGenerations } from '@/lib/generationRetry';
 import { openUsageSettings } from '@/lib/usageNavigation';
+import { openReview } from '@/lib/reviewNavigation';
+import { flushActiveEditor } from '@/lib/editorEvents';
+import { buildChatContext } from '@/lib/chatContext';
+import type { ChatContextSummary } from '@/lib/chatContext';
+import { chatDraftKey, chatDraftNamespace, clearSentChatDraft, hasUnsavedChatDrafts, readChatDraft, readLegacyChatDraft, restoreLegacyChatDraft, writeChatDraft } from '@/lib/chatDraft';
+import { sanitizeExportFilename } from '@/lib/novelExport';
 
 // Markdown options are static at each call site; history text does not change on stream updates.
 const MemoMarkdown = memo(ReactMarkdown, (previous, next) => previous.children === next.children);
@@ -24,9 +31,6 @@ const MemoMarkdown = memo(ReactMarkdown, (previous, next) => previous.children =
 interface AgentPanelProps {
   currentView: ViewType;
 }
-
-// localStorage key for input draft
-const INPUT_DRAFT_KEY = 'novel-agent-input-draft';
 
 // 斜杠命令定义
 interface SlashCommand {
@@ -68,7 +72,7 @@ const SLASH_COMMANDS: Record<string, SlashCommand> = {
   },
   compact: {
     name: '/compact',
-    description: '手动压缩历史消息',
+    description: '精简发送给 AI 的历史，保留完整会话',
     usage: '/compact',
     icon: Layers,
     action: () => 'COMPACT_MESSAGES',
@@ -76,7 +80,18 @@ const SLASH_COMMANDS: Record<string, SlashCommand> = {
 };
 
 export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
-  const [input, setInput] = useState(() => localStorage.getItem(INPUT_DRAFT_KEY) || '');
+  const currentNovelId = useNovelStore((state) => state.currentNovelId);
+  const userId = useAuthStore(state => state.user?.id);
+  const namespace = chatDraftNamespace(userId);
+  const draftKey = chatDraftKey(namespace, currentNovelId);
+  const [input, setInput] = useState('');
+  const inputRef = useRef('');
+  const inputRevisionRef = useRef(0);
+  const pendingDraftRef = useRef<{ key: string; value: string } | null>(null);
+  const [draftError, setDraftError] = useState('');
+  const [legacyDraft, setLegacyDraft] = useState('');
+  const compositionRef = useRef(false);
+  const [coarsePointer, setCoarsePointer] = useState(false);
   const [activeAgent] = useState<AgentType>(AgentType.MASTER);
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
@@ -84,25 +99,28 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
   const [generationStartedAt, setGenerationStartedAt] = useState(0);
   const streamTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [contextBlocked, setContextBlocked] = useState(false);
   const [budgetWarning, setBudgetWarning] = useState('');
   const [showPromptDialog, setShowPromptDialog] = useState(false);
   const [promptText, setPromptText] = useState('');
+  const promptScopeRef = useRef<{ novelId: string; namespace: string } | null>(null);
   const [slashCommandHint, setSlashCommandHint] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const followLatestRef = useRef(true);
+  const [unreadReply, setUnreadReply] = useState(false);
+  const [lastContext, setLastContext] = useState<ChatContextSummary>();
   const streamingContentRef = useRef('');
   const generationRef = useRef<AbortController | null>(null);
   const activeReplyIdRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
   const inputSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const currentNovelId = useNovelStore((state) => state.currentNovelId);
-  useEffect(() => () => generationRef.current?.abort(), [currentNovelId]);
+  useEffect(() => () => generationRef.current?.abort(), [draftKey]);
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; generationRef.current?.abort(); }; }, []);
-  useEffect(() => { setError(null); setBudgetWarning(''); }, [currentNovelId]);
+  useEffect(() => { setError(null); setContextBlocked(false); setBudgetWarning(''); setLastContext(undefined); setShowPromptDialog(false); }, [draftKey]);
   const allSessions = useNovelStore((state) => state.sessions);
   const addSession = useNovelStore((state) => state.addSession);
   const updateSession = useNovelStore((state) => state.updateSession);
-  const apiKey = useSettingsStore((state) => state.apiKey);
   const modelConfigured = useSettingsStore(isModelConfigured);
   const apiProvider = useSettingsStore((state) => state.apiProvider);
   const model = useSettingsStore((state) => state.model);
@@ -116,24 +134,53 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
   const currentChapterId = useNovelStore((state) => state.currentChapterId);
   const allCharacters = useNovelStore((state) => state.characters);
   const allWorldSettings = useNovelStore((state) => state.worldSettings);
+  const allForeshadowings = useNovelStore(state => state.foreshadowings);
 
-  // 保存输入框内容到 localStorage（防抖）
-  const saveInputDraft = useCallback((value: string) => {
-    if (inputSaveTimeoutRef.current) {
-      clearTimeout(inputSaveTimeoutRef.current);
-    }
-    inputSaveTimeoutRef.current = setTimeout(() => {
-      localStorage.setItem(INPUT_DRAFT_KEY, value);
-    }, 300);
+  const flushInputDraft = useCallback(() => {
+    if (inputSaveTimeoutRef.current) clearTimeout(inputSaveTimeoutRef.current);
+    inputSaveTimeoutRef.current = null;
+    const pending = pendingDraftRef.current;
+    if (!pending) return;
+    const error = writeChatDraft(pending.key, pending.value);
+    if (!error) pendingDraftRef.current = null;
+    if (mountedRef.current) setDraftError(error);
   }, []);
 
-  // 清理定时器
+  // Capture the destination key when typing; a later book/account switch cannot
+  // send this timer's text into the newly selected book.
+  const saveInputDraft = useCallback((value: string) => {
+    if (!draftKey) return;
+    if (inputSaveTimeoutRef.current) clearTimeout(inputSaveTimeoutRef.current);
+    pendingDraftRef.current = { key: draftKey, value };
+    inputSaveTimeoutRef.current = setTimeout(flushInputDraft, 300);
+  }, [draftKey, flushInputDraft]);
+
+  useLayoutEffect(() => {
+    flushInputDraft();
+    const result = readChatDraft(draftKey);
+    inputRef.current = result.value;
+    inputRevisionRef.current++;
+    setInput(result.value); setDraftError(result.error);
+    setLegacyDraft(readLegacyChatDraft());
+    setLastContext(undefined);
+    followLatestRef.current = true; setUnreadReply(false);
+    return flushInputDraft;
+  }, [draftKey, flushInputDraft]);
+
   useEffect(() => {
-    return () => {
-      if (inputSaveTimeoutRef.current) {
-        clearTimeout(inputSaveTimeoutRef.current);
-      }
+    const saveBeforeLeave = (event: BeforeUnloadEvent) => {
+      flushInputDraft();
+      if (pendingDraftRef.current || hasUnsavedChatDrafts()) { event.preventDefault(); event.returnValue = ''; }
     };
+    window.addEventListener('beforeunload', saveBeforeLeave);
+    return () => window.removeEventListener('beforeunload', saveBeforeLeave);
+  }, [flushInputDraft]);
+
+  useEffect(() => {
+    const media = window.matchMedia('(pointer: coarse)');
+    const update = () => setCoarsePointer(media.matches);
+    update(); media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
   }, []);
 
   const plotCards = useMemo(() => {
@@ -145,19 +192,6 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
     if (!currentNovelId) return [];
     return allChapters.filter((c) => c.novelId === currentNovelId).sort((a, b) => a.sequence - b.sequence);
   }, [allChapters, currentNovelId]);
-
-  const characters = useMemo(() => {
-    if (!currentNovelId) return [];
-    const roleOrder: Record<string, number> = { protagonist: 0, supporting: 1, minor: 2 };
-    return allCharacters
-      .filter((c) => c.novelId === currentNovelId)
-      .sort((a, b) => (roleOrder[a.role || 'supporting'] ?? 1) - (roleOrder[b.role || 'supporting'] ?? 1));
-  }, [allCharacters, currentNovelId]);
-
-  const worldSettings = useMemo(() => {
-    if (!currentNovelId) return [];
-    return allWorldSettings.filter((w) => w.novelId === currentNovelId);
-  }, [allWorldSettings, currentNovelId]);
 
   const currentChapter = useMemo(() => {
     if (!currentChapterId) return null;
@@ -178,102 +212,38 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
     if (recovered !== activeSession.messages) updateSession(activeSession.id, { messages: recovered });
   }, [activeSession, isLoading, updateSession]);
 
+  const scrollToLatest = useCallback(() => {
+    followLatestRef.current = true;
+    setUnreadReply(false);
+    const element = scrollRef.current;
+    if (element) element.scrollTo({ top: element.scrollHeight, behavior: 'auto' });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (followLatestRef.current) scrollToLatest();
+    else if (streamingContent || messages.length) setUnreadReply(true);
+  }, [messages.length, streamingContent, isLoading, draftKey, scrollToLatest]);
+
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: isLoading ? 'instant' : 'smooth' });
-    }
-  }, [messages.length, streamingContent, isLoading]);
+    const element = scrollRef.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => { if (followLatestRef.current) scrollToLatest(); });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [scrollToLatest, draftKey]);
 
   useEffect(() => () => { if (streamTimerRef.current) clearTimeout(streamTimerRef.current); }, []);
 
-  const getOutlineContext = useCallback(() => {
-    if (plotCards.length === 0) return '';
-
-    // 分卷显示大纲
-    const volumes = plotCards.filter(c => c.type === 'volume').sort((a, b) => a.sequence - b.sequence);
-    const chapters = plotCards.filter(c => c.type === 'chapter');
-
-    let text = '';
-    volumes.forEach((vol, i) => {
-      text += `\n第${i + 1}卷：${vol.title}\n情节概要：${vol.summary || '暂无'}\n`;
-      // 该卷下的章节大纲
-      const volChapters = chapters.filter(c => c.volumeId === vol.id).sort((a, b) => a.sequence - b.sequence);
-      volChapters.forEach((ch, j) => {
-        text += `  第${j + 1}章：${ch.title}\n    状态: ${ch.status === 'completed' ? '✅ 已完成' : '⏳ 待写作'}\n    情节: ${ch.summary || '暂无'}\n`;
-      });
+  const contextPreview = useMemo(() => {
+    if (lastContext && (isLoading || !input.trim())) return { summary: lastContext, blockedReason: contextBlocked ? error || undefined : undefined };
+    if (!currentNovel) return;
+    return buildChatContext({ novel: currentNovel, chapters: allChapters, characters: allCharacters,
+      worldSettings: allWorldSettings, plotCards: allPlotCards, foreshadowings: allForeshadowings, currentChapterId,
+      request: input.trim() || '请根据当前作品继续协助创作。', history: messages,
+      systemPrompt: AGENT_CONFIGS[activeAgent].systemPrompt,
+      historyLimit: activeSession?.contextHistoryLimit,
     });
-
-    // 如果没有卷结构，直接显示章节大纲
-    if (volumes.length === 0 && chapters.length > 0) {
-      text = chapters.sort((a, b) => a.sequence - b.sequence).map((c, i) =>
-        `第${i + 1}章：${c.title}\n  状态: ${c.status === 'completed' ? '✅ 已完成' : '⏳ 待写作'}\n  情节: ${c.summary || '暂无'}`).join('\n');
-    }
-
-    return `\n\n【当前大纲】\n${text}`;
-  }, [plotCards]);
-
-  const getChaptersContext = useCallback(() => {
-    if (chapters.length === 0) return '';
-    const text = chapters.map((c, i) => `第${i + 1}章: ${c.title} (${c.wordCount}字)`).join('\n');
-    return `\n\n【章节列表】\n${text}`;
-  }, [chapters]);
-
-  // 人物上下文（按角色定位排序：主角 > 配角 > 龙套）
-  const getCharactersContext = useCallback(() => {
-    if (characters.length === 0) return '';
-    const text = characters.map((c) => {
-      const roleLabel = c.role === 'protagonist' ? '主角' : c.role === 'supporting' ? '配角' : '龙套';
-      return `【${roleLabel}】${c.name}\n性格: ${c.personality || '暂无'}\n背景: ${c.background || '暂无'}\n外貌: ${c.appearance || '暂无'}\n简介: ${c.description || '暂无'}`;
-    }).join('\n\n');
-    return `\n\n【人物设定】\n${text}`;
-  }, [characters]);
-
-  // 世界观上下文
-  const getWorldContext = useCallback(() => {
-    if (worldSettings.length === 0) return '';
-    const text = worldSettings.map((w) => `【${w.category}】${w.title}\n${w.content}`).join('\n\n');
-    return `\n\n【世界观设定】\n${text}`;
-  }, [worldSettings]);
-
-  // 前N章完整内容（用于续写参考）
-  const getPreviousChaptersContent = useCallback((count: number = 3) => {
-    const prevChapters = chapters.slice(-count);
-    if (prevChapters.length === 0) return '';
-    const text = prevChapters.map((c) => `【${c.title}】（${c.wordCount}字）\n${c.content}`).join('\n\n---\n\n');
-    return `\n\n【最近章节内容】\n${text}`;
-  }, [chapters]);
-
-  // 创作阶段和大纲完整性判断
-  const getCreationStage = useCallback(() => {
-    // 检查大纲完整性
-    const volumes = plotCards.filter(c => c.type === 'volume');
-    const chapterOutlines = plotCards.filter(c => c.type === 'chapter');
-
-    // 判断大纲是否完整
-    const incompleteChapters = chapterOutlines.filter(c => !c.summary || c.summary.trim() === '');
-    const hasIncompleteOutline = incompleteChapters.length > 0;
-    const hasEmptyOutline = chapterOutlines.length === 0;
-
-    // 判断是否有基础设定
-    const hasBasicSetting = currentNovel?.summary || characters.length > 0 || worldSettings.length > 0;
-
-    if (!hasBasicSetting && chapters.length === 0) {
-      return '空白阶段：小说刚创建，尚未建立任何设定。你需要引导用户建立世界观和角色设定。';
-    }
-    if (hasEmptyOutline) {
-      return '大纲缺失：尚未建立章节大纲。你必须引导用户先建立卷结构和章节大纲，禁止直接写章节内容。';
-    }
-    if (hasIncompleteOutline) {
-      const incompleteTitles = incompleteChapters.map(c => c.title).join('、');
-      return `大纲不完整：以下章节缺少情节概要：${incompleteTitles}。你必须帮用户补充这些概要，禁止直接写章节内容。`;
-    }
-    if (chapters.length === 0) {
-      return `准备写作：大纲完整（${volumes.length} 卷，${chapterOutlines.length} 章），可以开始写作。请按大纲顺序写作。`;
-    }
-    const writtenCount = chapters.length;
-    const pendingOutlines = chapterOutlines.filter(c => c.status === 'pending');
-    return `创作中：已写 ${writtenCount} 章，大纲共 ${chapterOutlines.length} 章。待写作章节：${pendingOutlines.length} 章。请按大纲顺序继续写作。`;
-  }, [plotCards, chapters, characters, worldSettings, currentNovel]);
+  }, [isLoading, lastContext, contextBlocked, error, currentNovel, allChapters, allCharacters, allWorldSettings, allPlotCards, allForeshadowings, currentChapterId, input, messages, activeAgent, activeSession?.contextHistoryLimit]);
 
   // Formatting must never claim that a store write succeeded.
   const formatAIResponse = useCallback((content: string): string => content
@@ -289,277 +259,146 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
     if (latest) updateSession(latest.id, { messages: latest.messages.map(m => m.id === message.id ? { ...m, syncStatus: status } : m) });
   }, [currentNovelId, activeSession, isLoading, updateSession]);
 
-  // 上下文管理：限制消息数量，避免超出token限制
-  const MAX_MESSAGES = 15; // 保留最近15条消息
-
-  const getTrimmedMessages = useCallback((msgs: Message[]) => {
-    if (msgs.length <= MAX_MESSAGES) return msgs;
-
-    // 保留最新的消息，将旧消息压缩为摘要
-    const recentMessages = msgs.slice(-MAX_MESSAGES);
-    const oldMessages = msgs.slice(0, -MAX_MESSAGES);
-
-    // 创建一个摘要消息替代旧消息（包含用户和助手的关键内容）
-    const summaryParts: string[] = [];
-
-    oldMessages.forEach(m => {
-      if (m.role === 'user') {
-        // 保留用户请求的关键内容
-        const content = m.content.slice(0, 150);
-        summaryParts.push(`用户: ${content}`);
-      } else if (m.role === 'assistant') {
-        // 提取结构化内容的关键信息
-        const content = m.content;
-        // 检查是否有章节、大纲等关键内容
-        if (content.includes('【章节】')) {
-          const chapterMatches = content.match(/标题[：:]\s*(.+?)(?:\n|内容)/g);
-          if (chapterMatches) {
-            const chapters = chapterMatches.map(m => m.replace(/标题[：:]\s*/, '').trim());
-            summaryParts.push(`已生成章节: ${chapters.join(', ')}`);
-          }
-        } else if (content.includes('【大纲】')) {
-          summaryParts.push('已生成大纲');
-        } else if (content.includes('【角色】')) {
-          summaryParts.push('已生成角色');
-        } else if (content.includes('【删除】')) {
-          summaryParts.push('已执行删除操作');
-        } else if (content.includes('【修改】')) {
-          summaryParts.push('已执行修改操作');
-        } else {
-          // 普通回复，保留前100字符
-          summaryParts.push(`AI: ${content.slice(0, 100)}`);
-        }
-      }
-    });
-
-    const summaryContent = summaryParts.slice(-10).join('\n'); // 只保留最近10条摘要
-
-    if (summaryContent) {
-      const summaryMessage: Message = {
-        id: 'summary-' + Date.now(),
-        role: 'assistant',
-        content: `【历史对话摘要】\n${summaryContent}\n（已压缩${oldMessages.length}条历史消息，当前大纲和章节已保存在左侧面板）`,
-        timestamp: oldMessages[oldMessages.length - 1]?.timestamp || Date.now(),
-        agentType: activeAgent,
-      };
-      return [summaryMessage, ...recentMessages];
-    }
-
-    return recentMessages;
-  }, [activeAgent]);
-
-  // 处理斜杠命令 - 命令和结果显示在对话中，不发送给AI
+  // Local commands are displayed and exported, but never become model instructions.
   const handleSlashCommand = useCallback((cmd: string): boolean => {
-    const commandName = cmd.slice(1).toLowerCase(); // 去掉 / 并转小写
+    if (!currentNovelId || generationRef.current) return false;
+    const commandName = cmd.slice(1).trim().toLowerCase();
     const command = SLASH_COMMANDS[commandName];
-
     if (!command) {
-      // 显示命令提示
-      const matchingCommands = Object.keys(SLASH_COMMANDS).filter(k =>
-        k.startsWith(commandName)
-      );
-      if (matchingCommands.length > 0) {
-        setSlashCommandHint(`可用命令: ${matchingCommands.map(k => `/${k}`).join(', ')}`);
-      } else {
-        setSlashCommandHint(`未知命令。输入 /help 查看所有命令`);
-      }
-      setTimeout(() => setSlashCommandHint(null), 3000);
-      return true;
+      const matching = Object.keys(SLASH_COMMANDS).filter(name => name.startsWith(commandName));
+      setSlashCommandHint(matching.length ? '可用命令: ' + matching.map(name => '/' + name).join(', ') : '未知命令。输入 /help 查看所有命令');
+      return false;
     }
-
-    // 添加用户命令消息到对话（仅展示，不发送给AI）
-    const userCmdMessage: Message = {
-      id: `cmd-${Date.now()}`,
-      role: 'user',
-      content: cmd,
-      timestamp: Date.now(),
-    };
-
-    let resultContent = '';
-
-    // 执行命令
-    switch (command.action()) {
+    const latest = useNovelStore.getState();
+    let session = latest.sessions.find(value => value.novelId === currentNovelId && value.agentType === activeAgent);
+    const previous = session?.messages || [];
+    const action = command.action();
+    if (action === 'CLEAR_SESSION' && previous.length && !window.confirm('清空当前作品的 AI 会话？章节、人物和世界观不会删除。可先用 /export 导出会话。')) return false;
+    if (!session) session = addSession({ novelId: currentNovelId, agentType: activeAgent,
+      title: AGENT_CONFIGS[activeAgent].name + ' - ' + new Date().toLocaleString(), messages: [] });
+    const commandMessage: Message = { id: 'cmd-' + crypto.randomUUID(), role: 'user', content: cmd, timestamp: Date.now() };
+    let result = '';
+    switch (action) {
       case 'CLEAR_SESSION':
-        if (activeSession) {
-          updateSession(activeSession.id, { messages: [userCmdMessage] });
-          resultContent = '✅ 已清空当前会话历史';
-        } else {
-          resultContent = '⚠️ 当前没有活跃会话';
-        }
+        result = '已清空当前会话。章节、人物和世界观仍保留。';
         break;
-
       case 'SHOW_STATUS':
-        const totalChars = messages.reduce((sum, m) => sum + m.content.length, 0);
-        const estimatedTokens = Math.round(totalChars / 2);
-        resultContent =
-          `📊 **状态信息**\n` +
-          `- API 提供商: ${API_PRESETS[apiProvider]?.name ?? '自定义'}\n` +
-          `- 模型: ${model || '未设置'}\n` +
-          `- Temperature: ${temperature}\n` +
-          `- Max Tokens: ${maxTokens}\n` +
-          `- 当前会话消息数: ${messages.length}\n` +
-          `- 估算 Token 数: ~${estimatedTokens}\n` +
-          `- API Key: ${apiKey ? '✅ 已配置' : '❌ 未配置'}`;
+        result = '模型：' + (API_PRESETS[apiProvider]?.name ?? '自定义') + ' / ' + (model || '未设置') + '\n'
+          + 'Temperature：' + temperature + ' · 最大输出：' + maxTokens + ' tokens\n'
+          + '会话记录：' + previous.length + ' 条 · ' + (contextPreview?.summary.scopeLabel || '尚未选择上下文') + '\n'
+          + '本次预计输入：' + (contextPreview?.summary.estimatedInputTokens.toLocaleString() || '0') + ' tokens（文本估算）\n'
+          + '模型配置：' + (modelConfigured ? '已配置' : '未配置完整');
         break;
-
       case 'SHOW_HELP':
-        const helpText = Object.values(SLASH_COMMANDS)
-          .map(c => `**${c.name}** - ${c.description}`)
-          .join('\n');
-        resultContent = `📖 **可用命令**\n${helpText}`;
+        result = Object.values(SLASH_COMMANDS).map(value => '**' + value.name + '** — ' + value.description).join('\n');
         break;
-
-      case 'EXPORT_SESSION':
-        if (messages.length === 0) {
-          resultContent = '⚠️ 当前会话没有内容可导出';
-        } else {
-          const exportText = messages
-            .map(m => `[${m.role === 'user' ? '用户' : m.role === 'system' ? '系统' : 'AI'}]\n${m.content}`)
-            .join('\n\n---\n\n');
-          const blob = new Blob([exportText], { type: 'text/plain;charset=utf-8' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `session-${currentNovel?.title || 'export'}-${new Date().toISOString().slice(0, 10)}.txt`;
-          a.click();
-          URL.revokeObjectURL(url);
-          resultContent = '✅ 会话已导出';
-        }
+      case 'EXPORT_SESSION': {
+        if (!previous.length) { result = '当前会话没有内容可导出。'; break; }
+        const exported = previous.map(value => '[' + (value.role === 'user' ? '用户' : value.role === 'system' ? '系统' : 'AI') + ']\n' + value.content).join('\n\n---\n\n');
+        const url = URL.createObjectURL(new Blob(['\uFEFF', exported.replace(/\r?\n/g, '\r\n')], { type: 'text/plain;charset=utf-8' }));
+        const link = document.createElement('a'); link.href = url;
+        link.download = sanitizeExportFilename(currentNovel?.title || '会话') + '-AI会话-' + new Date().toISOString().slice(0, 10) + '.txt';
+        link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+        result = '完整会话已导出。';
         break;
-
-      case 'COMPACT_MESSAGES':
-        if (messages.length <= MAX_MESSAGES) {
-          resultContent = `ℹ️ 当前消息数(${messages.length})未超过限制(${MAX_MESSAGES})，无需压缩`;
-        } else if (activeSession) {
-          const trimmed = getTrimmedMessages(messages);
-          // 添加命令消息和结果到压缩后的消息列表
-          const newMessages = [...trimmed, userCmdMessage];
-          updateSession(activeSession.id, { messages: newMessages });
-          resultContent = `✅ 已压缩 ${messages.length - trimmed.length} 条历史消息`;
-        }
-        break;
-    }
-
-    // 添加系统结果消息到对话（仅展示，不发送给AI）
-    if (resultContent) {
-      const resultMessage: Message = {
-        id: `result-${Date.now()}`,
-        role: 'system',
-        content: resultContent,
-        timestamp: Date.now(),
-      };
-
-      // 对于clear命令，已经处理过了，不需要再添加
-      if (command.action() !== 'CLEAR_SESSION' && activeSession) {
-        updateSession(activeSession.id, {
-          messages: [...messages, userCmdMessage, resultMessage]
-        });
-      } else if (command.action() === 'CLEAR_SESSION' && activeSession) {
-        // clear 命令已经把 userCmdMessage 加进去了，现在加结果
-        updateSession(activeSession.id, {
-          messages: [userCmdMessage, resultMessage]
-        });
       }
+      case 'COMPACT_MESSAGES':
+        result = '已启用精简上下文：后续请求最多携带最近 8 条有效历史，仍受输入预算约束。完整会话保留在本页并可导出；章节和设定仍从作品读取。';
+        break;
     }
-
+    const resultMessage: Message = { id: 'result-' + crypto.randomUUID(), role: 'system', content: result, timestamp: Date.now() };
+    updateSession(session.id, { messages: action === 'CLEAR_SESSION' ? [commandMessage, resultMessage] : [...previous, commandMessage, resultMessage],
+      ...(action === 'COMPACT_MESSAGES' ? { contextHistoryLimit: 8 } : action === 'CLEAR_SESSION' ? { contextHistoryLimit: undefined } : {}) });
+    setSlashCommandHint(null);
     return true;
-  }, [activeSession, messages, apiProvider, model, temperature, maxTokens, apiKey, currentNovel, updateSession, getTrimmedMessages]);
+  }, [currentNovelId, activeAgent, addSession, apiProvider, model, temperature, maxTokens, modelConfigured, contextPreview, currentNovel, updateSession]);
 
   const handleSend = useCallback(async (content?: string, reviewCount?: number, retry?: { sessionId: string; failedMessageId: string }) => {
     if (!currentNovelId || isLoading || generationRef.current || useNovelStore.getState().currentNovelId !== currentNovelId) return;
+    const capturedNamespace = namespace;
+    const sameAccount = () => chatDraftNamespace(useAuthStore.getState().user?.id) === capturedNamespace;
+    if (!sameAccount()) return;
+    const sentDraft = inputRef.current, sentRevision = inputRevisionRef.current;
     const retryRequest = retry ? generationRetry(useNovelStore.getState().sessions, currentNovelId, retry.sessionId, retry.failedMessageId) : null;
     if (retry && !retryRequest) { setError('原请求已不存在，或已切换作品，请在当前作品重新输入需求。'); return; }
-    const sendContent = retryRequest?.content || content || input.trim();
+    const sendContent = retryRequest?.content || content || sentDraft.trim();
     const requestedReviewCount = retryRequest?.reviewCount ?? reviewCount;
     if (!sendContent) return;
 
-    // Keep a typed draft during a shortcut or explicit retry. A budget rejection also keeps it.
+    flushInputDraft();
+    // Changes made while budget/storage preflight waits belong to the next draft,
+    // even if the author deleted and retyped the exact same words.
     const clearInputDraft = () => {
-      if (content || retry) return;
+      if (content || retry || !draftKey || !sameAccount() || useNovelStore.getState().currentNovelId !== currentNovelId || inputRevisionRef.current !== sentRevision || inputRef.current !== sentDraft) return;
+      const failed = clearSentChatDraft(draftKey);
+      setDraftError(failed);
+      if (failed) return;
       if (inputSaveTimeoutRef.current) clearTimeout(inputSaveTimeoutRef.current);
       inputSaveTimeoutRef.current = null;
-      setInput('');
-      localStorage.removeItem(INPUT_DRAFT_KEY);
+      if (pendingDraftRef.current?.key === draftKey) pendingDraftRef.current = null;
+      inputRef.current = ''; inputRevisionRef.current++; setInput('');
     };
 
-    // 检查是否为斜杠命令
     if (sendContent.startsWith('/')) {
-      clearInputDraft();
-      handleSlashCommand(sendContent);
+      try { if (handleSlashCommand(sendContent)) clearInputDraft(); }
+      catch { setError('会话暂未保存，本地命令未完成。草稿仍在输入框，请检查浏览器存储后重试。'); }
       return;
     }
-
-    if (!modelConfigured) {
+    if (!isModelConfigured(useSettingsStore.getState())) {
       setError('请先在“模型设置”中填写有效的地址、模型和认证信息');
       return;
     }
 
-    setError(null);
-    setBudgetWarning('');
-
-    const userMessage: Message = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: sendContent,
-      timestamp: Date.now(),
-    };
-
-    let enhancedContent = sendContent;
-    if (currentNovel) {
-      enhancedContent = `【小说信息】\n书名: ${currentNovel.title}\n题材: ${currentNovel.genre || '未设置'}\n简介: ${currentNovel.summary || '未设置'}\n状态: ${currentNovel.status === 'draft' ? '草稿' : currentNovel.status === 'writing' ? '创作中' : '已完成'}`;
-    }
-    enhancedContent += getOutlineContext();       // 大纲
-    enhancedContent += getCharactersContext();    // 人物设定
-    enhancedContent += getWorldContext();         // 世界观设定
-    enhancedContent += getChaptersContext();      // 章节列表
-    enhancedContent += getPreviousChaptersContent(requestedReviewCount ?? 3);
-    enhancedContent += timelineContext(chapters);
-    if (currentChapter) {
-      enhancedContent += `\n\n【当前编辑章节】\n${currentChapter.title}\n字数: ${currentChapter.wordCount}`;
-    }
-
-    // 🔴 核心新增：创作阶段判断（决定 AI 行为）
-    enhancedContent += `\n\n【创作阶段】${getCreationStage()}`;
-
-    // 大纲完整性要求提醒
-    enhancedContent += `\n\n【大纲完整性要求】必须建立完整的卷和章节大纲结构，每个章节都要有情节概要（summary），才能开始写作章节内容。如果创作阶段显示"大纲缺失"或"大纲不完整"，你必须拒绝写章节请求并引导用户先完成大纲。`;
-
-    enhancedContent += `\n\n【用户的问题】\n${sendContent}`;
-
-    enhancedContent += writingRequirement(sendContent, currentNovel?.agentPrompt);
-
-    // 在用户消息末尾再次强调自定义要求
-    if (currentNovel?.agentPrompt) {
-      enhancedContent += `\n\n【再次提醒：必须遵守的用户自定义要求】\n${currentNovel.agentPrompt}\n请严格遵守以上要求！`;
-    }
-
-    let sessionId = retry?.sessionId || activeSession?.id;
-    if (!sessionId) {
-      const newSession = addSession({
-        novelId: currentNovelId,
-        agentType: activeAgent,
-        title: `${AGENT_CONFIGS[activeAgent].name} - ${new Date().toLocaleString()}`,
-        messages: [],
-      });
-      sessionId = newSession.id;
-    }
-
-    const generation = new AbortController();
-    generationRef.current = generation;
+    flushActiveEditor();
+    const latest = useNovelStore.getState();
+    const novel = latest.novels.find(value => value.id === currentNovelId);
+    if (!novel || latest.currentNovelId !== currentNovelId || !sameAccount()) return;
+    const previousSession = retry ? latest.sessions.find(value => value.id === retry.sessionId && value.novelId === currentNovelId)
+      : latest.sessions.find(value => value.novelId === currentNovelId && value.agentType === activeAgent);
+    const history = previousSession?.messages || [];
+    const context = buildChatContext({ novel, chapters: latest.chapters, characters: latest.characters,
+      worldSettings: latest.worldSettings, plotCards: latest.plotCards, foreshadowings: latest.foreshadowings,
+      currentChapterId: latest.currentChapterId, request: sendContent, history,
+      systemPrompt: AGENT_CONFIGS[activeAgent].systemPrompt, reviewCount: requestedReviewCount,
+      historyLimit: previousSession?.contextHistoryLimit });
+    setLastContext(context.summary);
+    setContextBlocked(!!context.blockedReason);
+    if (context.blockedReason) { setError(context.blockedReason); return; }
+    setError(null); setBudgetWarning('');
+    const userMessage: Message = { id: crypto.randomUUID(), role: 'user', content: sendContent, timestamp: Date.now() };
+    let sessionId = previousSession?.id || '';
     const replyId = crypto.randomUUID();
-    activeReplyIdRef.current = replyId;
     let generationMetadata: NonNullable<Message['generation']> = {
       status: 'running', requestMessageId: userMessage.id,
       ...(retryRequest?.retryOf ? { retryOf: retryRequest.retryOf } : {}),
       ...(requestedReviewCount === undefined ? {} : { reviewCount: requestedReviewCount }),
     };
-    // Save the original request and one reply slot before networking, so reload can recover it.
-    const history = useNovelStore.getState().sessions.find(session => session.id === sessionId && session.novelId === currentNovelId)?.messages || [];
-    updateSession(sessionId, { messages: [...history, userMessage, {
-      id: replyId, role: 'assistant', content: '', timestamp: Date.now(), agentType: activeAgent,
-      generation: generationMetadata,
-      syncStatus: { state: 'partial', message: '调用尚未完成，收到的文字会暂存；未完成内容不会自动同步。' },
-    }] });
+    // Do not mark an active generation until the request/reply slot is saved.
+    // Zustand may update memory before its persistence middleware throws.
+    try {
+      if (!sessionId) sessionId = addSession({ novelId: currentNovelId, agentType: activeAgent,
+        title: AGENT_CONFIGS[activeAgent].name + ' - ' + new Date().toLocaleString(), messages: [] }).id;
+      updateSession(sessionId, { messages: [...history, userMessage, {
+        id: replyId, role: 'assistant', content: '', timestamp: Date.now(), agentType: activeAgent,
+        generation: generationMetadata,
+        syncStatus: { state: 'partial', message: '调用尚未完成，收到的文字会暂存；未完成内容不会自动同步。' },
+      }] });
+    } catch {
+      const partialSession = useNovelStore.getState().sessions.find(value => value.id === sessionId && value.novelId === currentNovelId);
+      if (partialSession?.messages.some(value => value.id === replyId)) {
+        try { updateSession(sessionId, { messages: partialSession.messages.map(value => value.id === replyId ? {
+          ...value, content: '会话保存失败，本次没有发送模型请求。',
+          generation: { ...generationMetadata, status: 'failed' },
+          syncStatus: { state: 'partial', message: '未发送模型请求。释放浏览器空间后可手动重试。' },
+        } : value) }); } catch { /* The unsent status remains in memory when persistence is still unavailable. */ }
+      }
+      setError('会话暂未保存，本次没有发送模型请求。草稿仍在输入框，请复制备份并检查浏览器存储后重试。');
+      return;
+    }
+
+    const generation = new AbortController();
+    generationRef.current = generation;
+    activeReplyIdRef.current = replyId;
 
     setIsLoading(true);
     setGenerationPhase('connecting');
@@ -569,8 +408,9 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
 
     const deepseek = new DeepSeekService();
     let received = '', settled = false, lastSnapshot = 0, inputCleared = false;
-    const visible = () => mountedRef.current && generationRef.current === generation && useNovelStore.getState().currentNovelId === currentNovelId;
+    const visible = () => mountedRef.current && sameAccount() && generationRef.current === generation && useNovelStore.getState().currentNovelId === currentNovelId;
     const updateReply = (patch: Partial<Message>) => {
+      if (!sameAccount()) return;
       const latest = useNovelStore.getState().sessions.find(session => session.id === sessionId && session.novelId === currentNovelId);
       if (latest?.messages.some(message => message.id === replyId)) updateSession(sessionId, { messages: latest.messages.map(message => message.id === replyId ? { ...message, ...patch, generation: generationMetadata } : message) });
     };
@@ -587,31 +427,13 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
       await new Promise(resolve => setTimeout(resolve, 50));
       generation.signal.throwIfAborted();
 
-      // 使用压缩后的消息列表发送请求
-      const trimmedMessages = getTrimmedMessages(completedGenerationHistory(history));
-
-      // 在 system prompt 中提示 AI 使用选项格式
-      let enhancedSystemPrompt = AGENT_CONFIGS[activeAgent].systemPrompt;
-
-      // 附加用户自定义的提示词（必须遵守）
-      if (currentNovel?.agentPrompt) {
-        enhancedSystemPrompt += `\n\n========================================\n【必须遵守的用户自定义要求】\n以下是用户为本书设定的专属要求，你必须严格遵守，不能忽略：\n========================================\n${currentNovel.agentPrompt}\n========================================\n以上要求必须100%遵守，特别是字数要求！\n========================================`;
-
-      }
-
-      console.log('📤 发送的 system prompt 长度:', enhancedSystemPrompt.length);
-      console.log('📤 发送的消息数量:', trimmedMessages.length + 2);
-
+      if (!sameAccount() || useNovelStore.getState().currentNovelId !== currentNovelId) { generation.abort(); generation.signal.throwIfAborted(); }
       await deepseek.chatStream({
         signal: generation.signal,
         usageContext: { operation: generationOperation(sendContent), novelId: currentNovelId, sessionId, retryOf: retryRequest?.retryOf },
         onCallId: callId => { generationMetadata = { ...generationMetadata, callId }; updateReply({}); },
         onBudgetWarning: warning => { if (visible()) setBudgetWarning(warning); },
-        messages: [
-          { role: 'system', content: enhancedSystemPrompt },
-          ...trimmedMessages.map((m) => ({ role: m.role as 'system' | 'user' | 'assistant', content: m.content })),
-          { role: 'user', content: enhancedContent },
-        ],
+        messages: context.messages,
         agentType: activeAgent,
         onProgress: (phase) => {
           if (visible()) {
@@ -638,7 +460,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
         },
         onComplete: async (finalContent) => {
           received = finalContent;
-          if (generation.signal.aborted) { finishPartial(); return; }
+          if (generation.signal.aborted || !sameAccount()) { finishPartial(); return; }
           settled = true;
           generationMetadata = { ...generationMetadata, status: 'succeeded' };
           if (streamTimerRef.current) clearTimeout(streamTimerRef.current);
@@ -657,13 +479,13 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
           await new Promise<void>(resolve => setTimeout(resolve, 16));
           if (aiMessage.syncStatus) {
             let status: NonNullable<Message['syncStatus']>;
-            if (generation.signal.aborted || useNovelStore.getState().currentNovelId !== currentNovelId) status = { state: 'warning', message: '自动同步已取消，可检查回复后重新同步。' };
+            if (generation.signal.aborted || !sameAccount() || useNovelStore.getState().currentNovelId !== currentNovelId) status = { state: 'warning', message: '自动同步已取消，可检查回复后重新同步。' };
             else {
               try { status = syncFeedback(autoSyncContent(finalContent, currentNovelId)); }
               catch { status = { state: 'error', message: '同步未完成，可能有部分内容已写入；请检查面板后重试。' }; }
             }
             const current = useNovelStore.getState().sessions.find(s => s.id === sessionId && s.novelId === currentNovelId);
-            if (current) updateSession(sessionId, { messages: current.messages.map(m => m.id === aiMessage.id ? { ...m, syncStatus: status } : m) });
+            if (current && sameAccount()) updateSession(sessionId, { messages: current.messages.map(m => m.id === aiMessage.id ? { ...m, syncStatus: status } : m) });
           }
         },
       });
@@ -681,7 +503,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
         if (mountedRef.current) { setIsLoading(false); setStreamingContent(''); }
       }
     }
-  }, [input, currentNovelId, isLoading, modelConfigured, currentChapter, activeAgent, activeSession, messages, addSession, updateSession, getOutlineContext, getCharactersContext, getWorldContext, getTrimmedMessages, getChaptersContext, getPreviousChaptersContent, chapters, getCreationStage, currentNovel, handleSlashCommand]);
+  }, [currentNovelId, isLoading, namespace, draftKey, flushInputDraft, handleSlashCommand, activeAgent, addSession, updateSession]);
 
   if (!currentNovelId) {
     return (
@@ -694,9 +516,9 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden border-l bg-muted/40">
+    <div className="chat-panel flex h-full min-h-0 flex-col overflow-hidden border-l bg-muted/40">
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between p-4 border-b">
+      <div className="chat-header flex shrink-0 items-center justify-between p-4 border-b">
         <div className="flex min-w-0 items-center gap-2">
           <Bot className="h-5 w-5 shrink-0 text-primary" />
           <span className="shrink-0 font-semibold">AI助手</span>
@@ -711,10 +533,12 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
           size="icon"
           className={`h-7 w-7 rounded-lg ${currentNovel?.agentPrompt ? 'text-primary hover:bg-primary/10' : 'text-muted-foreground hover:bg-muted'}`}
           onClick={() => {
+            if (currentNovelId) promptScopeRef.current = { novelId: currentNovelId, namespace };
             setPromptText(currentNovel?.agentPrompt || '');
             setShowPromptDialog(true);
           }}
           disabled={!currentNovelId}
+          aria-label="自定义 Agent 提示词"
           title="自定义Agent提示词"
         >
           <Settings2 className="h-4 w-4" />
@@ -735,7 +559,7 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
       {/* 简化：不再显示子Agent团队 */}
 
       {/* Quick Actions */}
-      <div className="px-3 py-2 border-b flex shrink-0 flex-wrap gap-2">
+      <div className="chat-quick-actions px-3 py-2 border-b flex shrink-0 flex-wrap gap-2">
         <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleSend('请帮我生成这本小说的大纲，请先问我一些关键问题')} disabled={!modelConfigured || isLoading}>生成大纲</Button>
         <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleSend('请帮我优化当前大纲')} disabled={!modelConfigured || isLoading || plotCards.length === 0}>优化大纲</Button>
         <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleSend('请帮我续写当前章节')} disabled={!modelConfigured || isLoading || !currentChapter}>续写章节</Button>
@@ -759,13 +583,30 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
         </Button>
       </div>
 
-      <div className="shrink-0 border-b px-4 py-2 text-xs text-muted-foreground">
+      <div className="chat-status shrink-0 border-b px-4 py-2 text-xs text-muted-foreground">
         {isLoading ? '生成中，可随时停止' : modelConfigured ? '就绪' : '等待完成模型设置'}
         {' · 结构化内容自动同步 · 长回复自动折叠'}
       </div>
 
+      {contextPreview && <details data-chat-context className="shrink-0 border-b px-4 py-2 text-xs">
+        <summary className="cursor-pointer text-muted-foreground">本次上下文 · {contextPreview.summary.chapterCount} 章 · 约 {contextPreview.summary.estimatedInputTokens.toLocaleString()} 输入 tokens</summary>
+        <div className="mt-2 max-h-24 space-y-1 overflow-y-auto break-words leading-relaxed text-muted-foreground sm:max-h-40">
+          <p>{contextPreview.summary.scopeLabel}</p>
+          {!!contextPreview.summary.chapterTitles.length && <p>正文：{contextPreview.summary.chapterTitles.join('、')}</p>}
+          <p>有效历史 {contextPreview.summary.historyIncluded} 条{contextPreview.summary.historyOmitted ? ` · 未带入 ${contextPreview.summary.historyOmitted} 条` : ''}；完整记录仍保留。</p>
+          {activeSession?.contextHistoryLimit === 8 && <p>已启用精简历史（/compact）。<button type="button" disabled={isLoading} className="ml-2 text-primary underline disabled:opacity-50" onClick={() => updateSession(activeSession.id, { contextHistoryLimit: undefined })}>恢复常规上下文</button></p>}
+          {[...contextPreview.summary.warnings, ...contextPreview.summary.omitted].map((value, index) => <p key={index}>{value}</p>)}
+          {contextPreview.blockedReason && <p className="text-amber-800 dark:text-amber-200">{contextPreview.blockedReason}</p>}
+          <p>未输入新需求时显示最近一次请求范围。用量为文本估算，实际以调用记录为准；发送前会读取刚保存的正文。</p>
+        </div>
+      </details>}
+
       {/* Chat Area */}
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-thin" ref={scrollRef}>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 scrollbar-thin" ref={scrollRef} data-chat-scroll="true" aria-label="对话消息" onScroll={event => {
+        const element = event.currentTarget;
+        followLatestRef.current = element.scrollHeight - element.scrollTop - element.clientHeight <= 80;
+        if (followLatestRef.current) setUnreadReply(false);
+      }}>
         {messages.length === 0 && !streamingContent ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-center text-sm text-muted-foreground space-y-4">
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-3xl">
@@ -860,12 +701,15 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
         )}
       </div>
 
+      {unreadReply && <div className="shrink-0 border-t px-4 py-1 text-center"><Button size="sm" variant="outline" className="h-8 text-xs" onClick={scrollToLatest}><ArrowDown className="mr-1 h-3 w-3" />回到最新</Button></div>}
+
       {budgetWarning && <div role="status" className="shrink-0 border-t border-amber-200 bg-amber-50 px-4 py-2 text-xs leading-relaxed text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">{budgetWarning}<button type="button" className="ml-2 underline underline-offset-2" onClick={openUsageSettings}>查看调用与预算</button></div>}
 
       {/* Error */}
       {error && (
         <div className="px-4 py-2 bg-red-50 border-t border-red-200 dark:bg-red-950 dark:border-red-800">
-          <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">{error}</p>
+          {contextBlocked && <button type="button" className="mt-1 text-xs text-primary underline" onClick={() => openReview('consistency')}>打开全书一致性检查</button>}
         </div>
       )}
 
@@ -876,100 +720,63 @@ export function AgentPanel({ currentView: _currentView }: AgentPanelProps) {
         </div>
       )}
 
-      {/* Prompt Dialog */}
-      {showPromptDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background rounded-xl shadow-xl w-full max-w-md mx-4 animate-slide-up">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="font-semibold text-sm">自定义 Agent 提示词</h3>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowPromptDialog(false)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="p-4">
-              <p className="text-xs text-muted-foreground mb-3">
-                为这本书设置专属的 Agent 提示词，每次对话都会附加发送。
-              </p>
-              <textarea
-                value={promptText}
-                onChange={(e) => setPromptText(e.target.value)}
-                placeholder="例如：&#10;• 每章固定写2000字左右&#10;• 禁止出现现实中的地名&#10;• 使用轻松幽默的文风"
-                rows={6}
-                className="w-full px-3 py-2 text-sm bg-muted border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-              />
-              <div className="flex justify-end gap-2 mt-4">
-                <Button variant="outline" size="sm" onClick={() => setShowPromptDialog(false)}>
-                  取消
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    if (currentNovelId) {
-                      updateNovel(currentNovelId, { agentPrompt: promptText.trim() || undefined });
-                      setShowPromptDialog(false);
-                    }
-                  }}
-                >
-                  <Check className="h-3 w-3 mr-1" />
-                  保存
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <Dialog open={showPromptDialog} onOpenChange={setShowPromptDialog}>
+        <DialogContent className="max-h-[85dvh] max-w-[calc(100vw-24px)] overflow-y-auto sm:max-w-md">
+          <DialogHeader><DialogTitle>自定义 Agent 提示词</DialogTitle><DialogDescription>为本书设置风格、人物与篇幅要求，每次对话携带一次；本次明确提出的要求优先。</DialogDescription></DialogHeader>
+          <textarea aria-label="本书 Agent 提示词" value={promptText} onChange={event => setPromptText(event.target.value)}
+            placeholder="例如：每章约2000字，保持轻松幽默的文风" rows={7}
+            className="w-full min-w-0 resize-y rounded-lg border bg-muted px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+          <DialogFooter><Button variant="outline" onClick={() => setShowPromptDialog(false)}>取消</Button><Button onClick={() => {
+            const scope = promptScopeRef.current;
+            if (!scope || useNovelStore.getState().currentNovelId !== scope.novelId || chatDraftNamespace(useAuthStore.getState().user?.id) !== scope.namespace) {
+              setShowPromptDialog(false); setError('作品或账号已切换，请重新打开本书提示词。'); return;
+            }
+            updateNovel(scope.novelId, { agentPrompt: promptText.trim() || undefined }); setShowPromptDialog(false);
+          }}><Check className="mr-1 h-3 w-3" />保存</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Input */}
-      <div className="shrink-0 p-4 border-t bg-muted/40">
+      <div className="chat-composer shrink-0 border-t bg-muted/40 p-3 sm:p-4">
+        {draftError && <p role="alert" className="mb-2 text-xs leading-relaxed text-amber-800 dark:text-amber-200">{draftError}<button type="button" className="ml-2 underline" onClick={() => {
+          const error = writeChatDraft(draftKey, inputRef.current); setDraftError(error);
+          if (!error && pendingDraftRef.current?.key === draftKey) pendingDraftRef.current = null;
+        }}>重试保存草稿</button></p>}
+        {!!legacyDraft && !input && !draftError && <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"><span>发现一份旧版未归属草稿。</span><button type="button" className="text-primary underline" onClick={() => {
+          if (!draftKey || inputRef.current) return;
+          const restored = restoreLegacyChatDraft(draftKey);
+          inputRef.current = restored.value; inputRevisionRef.current++; setInput(restored.value); setDraftError(restored.error);
+          setLegacyDraft(readLegacyChatDraft());
+        }}>恢复旧版草稿</button></div>}
         <div className="flex gap-2">
           <textarea
-            ref={(el) => {
-              if (el) {
-                // 自动调整高度
-                el.style.height = 'auto';
-                el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-              }
+            aria-label="AI 创作需求"
+            ref={element => {
+              if (element) { element.style.height = 'auto'; element.style.height = Math.min(element.scrollHeight, 120) + 'px'; }
             }}
             value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-              saveInputDraft(e.target.value);
+            onChange={event => {
+              const value = event.target.value;
+              inputRef.current = value; inputRevisionRef.current++;
+              setInput(value); saveInputDraft(value);
             }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                if (e.shiftKey) {
-                  // Shift+Enter: 手动插入换行符
-                  e.preventDefault();
-                  const textarea = e.currentTarget;
-                  const start = textarea.selectionStart;
-                  const end = textarea.selectionEnd;
-                  const newValue = input.substring(0, start) + '\n' + input.substring(end);
-                  setInput(newValue);
-                  saveInputDraft(newValue);
-                  // 延迟设置光标位置
-                  requestAnimationFrame(() => {
-                    textarea.selectionStart = textarea.selectionEnd = start + 1;
-                  });
-                } else {
-                  // Enter: 发送消息
-                  e.preventDefault();
-                  handleSend();
-                }
-              }
+            onCompositionStart={() => { compositionRef.current = true; }}
+            onCompositionEnd={() => { compositionRef.current = false; }}
+            onKeyDown={event => {
+              if (event.key !== 'Enter' || compositionRef.current || event.nativeEvent.isComposing || event.keyCode === 229) return;
+              if (event.shiftKey || isLoading || coarsePointer && !event.ctrlKey && !event.metaKey) return;
+              event.preventDefault(); void handleSend();
             }}
-                        placeholder={modelConfigured ? '输入需求... (/help 查看命令)' : '请先完成模型设置'}
-            disabled={!modelConfigured || isLoading}
+            placeholder={isLoading ? '可继续写下一条需求，完成后再发送' : modelConfigured ? '输入需求... (/help 查看命令)' : '可先写下需求，配置模型后发送；/help 查看命令'}
             rows={1}
-            className="flex-1 px-3 py-2 text-sm bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 resize-none overflow-hidden min-h-[36px] max-h-[120px]"
+            className="min-h-[36px] max-h-[120px] min-w-0 flex-1 resize-none overflow-y-auto rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
           {isLoading && <Button variant="outline" onClick={() => generationRef.current?.abort()} className="self-end">停止生成</Button>}
-          <Button size="icon" aria-label="发送需求" onClick={() => void handleSend()} disabled={!input.trim() || !modelConfigured || isLoading} className="self-end">
+          <Button size="icon" aria-label="发送需求" onClick={() => void handleSend()} disabled={!input.trim() || isLoading || !modelConfigured && !input.trimStart().startsWith('/')} className="self-end">
             <Send className="h-4 w-4" />
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          Enter发送 · /help 命令 · {messages.length} 条对话
-        </p>
+        <p className="mt-2 text-xs text-muted-foreground">{coarsePointer ? '回车换行 · 点击发送' : 'Enter 发送 · Shift+Enter 换行'} · /help 命令 · {messages.length} 条对话{isLoading ? ' · 正在生成，可先写下一条' : ''}</p>
       </div>
     </div>
   );
