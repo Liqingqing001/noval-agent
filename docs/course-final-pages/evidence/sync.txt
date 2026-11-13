@@ -1,0 +1,790 @@
+
+> novel-agent-monorepo@0.2.0 test:sync
+> tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/structuredContent.test.mjs packages/frontend/tests/autoSync.test.mjs packages/frontend/tests/modificationInstructions.test.mjs
+
+📚 解析章节大纲块: 卷="第一卷 觉醒", 章节数=2
+  第1章: "开端" - "遇到危险..."
+  第2章: "再次出发" - "离开校园..."
+📚 解析章节大纲块: 卷="第二卷 重逢", 章节数=1
+  第1章: "重逢" - "重新见面..."
+新增卷: 第一卷 觉醒
+📚 解析章节大纲块: 卷="第一卷 觉醒", 章节数=2
+  第1章: "开端" - "遇到危险..."
+  第2章: "再次出发" - "离开校园..."
+📚 解析章节大纲块: 卷="第二卷 重逢", 章节数=1
+  第1章: "重逢" - "重新见面..."
+新增章节大纲: 开端 (卷: 第一卷 觉醒, volumeId: xc6akskzt3f)
+新增章节大纲: 再次出发 (卷: 第一卷 觉醒, volumeId: xc6akskzt3f)
+自动创建卷: 第二卷 重逢
+新增章节大纲: 重逢 (卷: 第二卷 重逢, volumeId: ejc840qlc3l)
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 5,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 0,
+  modificationResults: [],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+更新卷: 第一卷 觉醒
+📚 解析章节大纲块: 卷="第一卷 觉醒", 章节数=2
+  第1章: "开端" - "遇到危险..."
+  第2章: "再次出发" - "离开校园..."
+📚 解析章节大纲块: 卷="第二卷 重逢", 章节数=1
+  第1章: "重逢" - "重新见面..."
+更新章节大纲: 开端
+更新章节大纲: 再次出发
+更新章节大纲: 重逢
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 4,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 0,
+  modificationResults: [],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 0,
+  modificationResults: [],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 0,
+  modificationResults: [],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+从章节列表更新了 1 个大纲状态
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 1,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 0,
+  modificationResults: [],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 0,
+  modificationResults: [],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+新增角色: 程砚，定位: protagonist
+新增世界观: 校园
+新增世界观: 病毒
+自动同步完成: {
+  basicInfo: true,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 1,
+  worldCount: 2,
+  chapterCount: 0,
+  modifyCount: 0,
+  modificationResults: [],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+更新角色: 程砚，定位: protagonist
+更新世界观: 校园
+更新世界观: 病毒
+自动同步完成: {
+  basicInfo: true,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 1,
+  worldCount: 2,
+  chapterCount: 0,
+  modifyCount: 0,
+  modificationResults: [],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 0,
+  modificationResults: [],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 0,
+  modificationResults: [],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+✔ new volumes immediately own their outlines and retries never duplicate them (11.068631ms)
+✔ status updates require a complete real block, are scoped and report actual writes (3.426956ms)
+✔ recovered data reaches the actual store and repeated sync updates existing records (4.608023ms)
+✔ retry never replays destructive commands and incomplete commands do nothing (0.863592ms)
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 6,
+  modificationResults: [
+    {
+      index: 1,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    },
+    {
+      index: 2,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    },
+    {
+      index: 3,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    },
+    {
+      index: 4,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    },
+    {
+      index: 5,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    },
+    {
+      index: 6,
+      target: '章节',
+      title: '数',
+      state: 'applied',
+      message: '已修改正文'
+    }
+  ],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 6,
+  modificationResults: [
+    {
+      index: 1,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    },
+    {
+      index: 2,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    },
+    {
+      index: 3,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    },
+    {
+      index: 4,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    },
+    {
+      index: 5,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    },
+    {
+      index: 6,
+      target: '章节',
+      title: '数',
+      state: 'applied',
+      message: '已修改正文'
+    }
+  ],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 1,
+  modificationResults: [
+    {
+      index: 1,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    }
+  ],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 1,
+  modifyCount: 1,
+  modificationResults: [
+    {
+      index: 1,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    }
+  ],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 1,
+  modificationResults: [
+    {
+      index: 1,
+      target: '章节',
+      title: '范围',
+      state: 'applied',
+      message: '已修改正文'
+    }
+  ],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 0,
+  modificationResults: [
+    {
+      index: 1,
+      target: '章节',
+      title: '范围',
+      state: 'already-applied',
+      message: '已包含新内容，未重复写入'
+    }
+  ],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 0,
+  modificationResults: [],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 1,
+  modificationResults: [
+    {
+      index: 1,
+      target: '章节',
+      title: '数',
+      state: 'applied',
+      message: '已修改正文'
+    }
+  ],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 5,
+  modificationResults: [
+    {
+      index: 1,
+      target: undefined,
+      title: undefined,
+      state: 'failed',
+      message: '缺少【修改】开头或目标信息，未执行该条修改'
+    },
+    {
+      index: 2,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    },
+    {
+      index: 3,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    },
+    {
+      index: 4,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    },
+    {
+      index: 5,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    },
+    {
+      index: 6,
+      target: '章节',
+      title: '数',
+      state: 'applied',
+      message: '已修改正文'
+    }
+  ],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 1,
+  modificationResults: [
+    {
+      index: 1,
+      target: undefined,
+      title: undefined,
+      state: 'failed',
+      message: '缺少目标标题，未执行修改'
+    },
+    {
+      index: 2,
+      target: undefined,
+      title: undefined,
+      state: 'failed',
+      message: '缺少闭合标签，未执行该条修改'
+    },
+    {
+      index: 3,
+      target: '章节',
+      title: '数',
+      state: 'applied',
+      message: '已修改正文'
+    }
+  ],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 1,
+  modificationResults: [
+    {
+      index: 1,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    }
+  ],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 1,
+  modificationResults: [
+    {
+      index: 1,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    }
+  ],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 0,
+  modificationResults: [
+    {
+      index: 1,
+      target: '章节',
+      title: '四个小时',
+      state: 'failed',
+      message: '找到 2 个同名章节，请提供唯一标题'
+    }
+  ],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 0,
+  modificationResults: [
+    {
+      index: 1,
+      target: '章节',
+      title: '四个小时',
+      state: 'failed',
+      message: '未找到章节《四个小时》，未修改其他内容'
+    },
+    {
+      index: 2,
+      target: '章节',
+      title: '数',
+      state: 'failed',
+      message: '未找到原内容，请核对当前正文和引用原文'
+    }
+  ],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 2,
+  modificationResults: [
+    {
+      index: 1,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    },
+    {
+      index: 2,
+      target: '章节',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    }
+  ],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 3,
+  modificationResults: [
+    {
+      index: 1,
+      target: '角色',
+      title: '周聿',
+      state: 'applied',
+      message: '已修改正文'
+    },
+    {
+      index: 2,
+      target: '世界观',
+      title: '校园',
+      state: 'applied',
+      message: '已修改正文'
+    },
+    {
+      index: 3,
+      target: '大纲',
+      title: '四个小时',
+      state: 'applied',
+      message: '已修改正文'
+    }
+  ],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+自动同步完成: {
+  basicInfo: false,
+  outlineCount: 0,
+  statusCount: 0,
+  characterCount: 0,
+  worldCount: 0,
+  chapterCount: 0,
+  modifyCount: 0,
+  modificationResults: [
+    {
+      index: 1,
+      target: '角色',
+      title: '周聿',
+      state: 'failed',
+      message: '不支持该角色字段，未修改'
+    },
+    {
+      index: 2,
+      target: '世界观',
+      title: '校园',
+      state: 'failed',
+      message: '未找到原内容，请核对当前正文和引用原文'
+    }
+  ],
+  deleteCount: 0,
+  insertCount: 0,
+  replaceCount: 0,
+  mergeCount: 0,
+  splitCount: 0,
+  reorderCount: 0
+}
+✔ the six user edits parse separately with inline fields and exclude explanations (3.580751ms)
+✔ all six edits reach the correct chapters and persisted data, retaining the rest of the manuscript (11.893885ms)
+✔ multiple edits to one chapter produce one combined save per chapter (3.304103ms)
+✔ creation-like tags quoted in a replacement cannot create or replace a separate chapter (0.933566ms)
+✔ mixed chapter creation and modification cannot overwrite the already applied edit (1.869967ms)
+✔ retries are idempotent, including replacements that contain the original (1.075802ms)
+✔ retry can apply safe modifications without replaying deletion or replacement commands (1.190038ms)
+✔ an orphan first block is reported while later valid blocks still apply (3.421636ms)
+✔ missing closure and missing fields never swallow later edits or crash the batch (1.464319ms)
+✔ code examples and quoted instruction tags cannot modify content (1.540529ms)
+✔ a deletion block quoted in the new content is text rather than an executable command (2.670496ms)
+✔ Markdown fields, Windows newlines and literal brackets inside the replacement are supported (0.268413ms)
+✔ empty or repeated fields are invalid instead of becoming whole-document writes (0.789444ms)
+✔ numbered titles normalize only the prefix and never remove numbers within the title (1.710767ms)
+✔ ambiguous chapter titles and repeated original passages are rejected without changes (0.677245ms)
+✔ missing targets and mismatched numbers do not fall back to other chapters (0.873328ms)
+✔ sequential edits use the latest version rather than restoring earlier changes (1.016797ms)
+✔ quote and whitespace differences are tolerated; replacement dollar signs stay literal (0.921539ms)
+✔ character, world and outline edits require matching originals and preserve unrelated text (2.428402ms)
+✔ missing closures stop at the next section and recover final EOF (4.097549ms)
+✔ a missing closure before another same-kind block does not consume either item (3.900446ms)
+✔ several worlds in one block retain category and multiline contents per item (0.638954ms)
+✔ several characters retain their roles and Markdown field labels (0.430551ms)
+✔ rendered headings from the user example work without fake success annotations (0.685163ms)
+✔ empty fields, ordinary prose, quoted tags, fenced examples and destructive headings are not creation data (0.731661ms)
+✔ unclosed chapter is bounded by another section; very short fragments stay unsynced (0.597966ms)
+✔ normalization recovers volume boundaries without manufacturing commands (0.625798ms)
+✔ trailing role/category belongs to the current item; empty worlds are rejected (0.685669ms)
+✔ sync feedback reflects actual counts and distinguishes no write (1.239226ms)
+ℹ tests 33
+ℹ suites 0
+ℹ pass 33
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 772.847264

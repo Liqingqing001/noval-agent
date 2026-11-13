@@ -1,0 +1,23 @@
+这是最新的“现有 NovelAgent + GitHub Pages 课堂展示”版本。
+不包含另建的四表程序，不把原系统替换成简化应用。
+
+优先打开 deliverables/NovelAgent-Pages-Defense.pptx：30页。
+按放映按钮“开始10分钟路线 / 下一讲”只走13页精讲；其余保留为备查分析。
+路线：1→2→3→5→7→8→10→11→14→15→18→19→20。
+第19页切到你现有的GitHub Pages，约3分钟完成查、增、改、删，再回PPT去总结。
+
+在线系统：https://liqingqing001.github.io/noval-agent/
+每页顶部按钮可直接打开；目录与附录按钮可在PPT内部跳转。
+按钮在放映模式单击；编辑模式可以Ctrl+单击。
+同名PDF也保留在线链接和内部跳转，可作备用。
+
+配套：
+NovelAgent-Report.docx：18页，含全部7类实体关系与当前模型67字段字典。
+NovelAgent-Talk-Guide.docx：6页，含计时、讲稿、现场操作卡与常见问题。
+
+注意：Pages是静态界面，修改保存在当前浏览器；原系统完整版经API/Prisma保存SQLite。
+不要把Pages刷新回读说成远端数据库更新。原项目59项专项测试与SQLite结构证据在evidence/。
+历史迁移另保留PlotCard.actNumber列，当前Prisma不使用；报告附录已区分67模型字段与68物理列。
+
+提交前填写姓名、学号、班级、实际分工，在本机Office打开核对并亲自练一次。
+截图来自同代码的本地Pages模式，线上地址请课前用自己的电脑打开确认。

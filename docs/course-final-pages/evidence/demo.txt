@@ -1,0 +1,20 @@
+
+> novel-agent-monorepo@0.2.0 test:demo
+> node --import tsx --test packages/frontend/tests/demo.test.mjs packages/frontend/tests/demoSeedPolicy.test.mjs
+
+✔ database-exported library opens with the new novel and retains both complete linked manuscripts (32.081981ms)
+✔ both cases include individual portraits, full profiles and valid character relationships (0.618992ms)
+✔ public snapshot excludes accounts and credentials, maps relationships and packages referenced artwork (12.167358ms)
+✔ an empty browser receives both complete cases with School first (2.824424ms)
+✔ historical Tide migration recognizes the retired pristine sample (23.512896ms)
+✔ library upgrades add both complete cases without removing edited or visitor-created books (4.411165ms)
+✔ edited Tide survives new-book initialization; explicit restore affects only the selected case (4.391449ms)
+✔ historical Tide replacement guard protects edits and visitor books (9.714631ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 492.445985

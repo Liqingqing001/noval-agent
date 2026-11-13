@@ -1,0 +1,24 @@
+
+> novel-agent-monorepo@0.2.0 test:editor
+> tsx --tsconfig packages/frontend/tsconfig.app.json --test packages/frontend/tests/editorExport.test.mjs
+
+✔ editor defaults use normal line spacing without a paragraph gap (1.771411ms)
+✔ corrupt or unavailable local preferences fall back safely (0.300064ms)
+✔ AI blank lines do not become extra blank editor paragraphs; existing HTML is retained (0.539759ms)
+✔ explicit blank cleanup retains rich content, lists and non-text nodes without mutating input (0.3091ms)
+✔ plain manuscript preserves paragraph boundaries, visible symbols and soft indentation (0.351691ms)
+✔ exports are restricted to this novel, sorted without modifying source arrays (0.695386ms)
+✔ single chapter retains its position in the novel and does not include the synopsis (0.446052ms)
+✔ existing numbered and special chapter titles do not receive duplicate numbering (0.415368ms)
+✔ TXT uses Windows CRLF and UTF-8 BOM and never joins adjacent paragraphs (1.259442ms)
+✔ Markdown emits real headings, basic marks and escapes executable HTML and controls (0.613039ms)
+✔ Windows filenames reject reserved names, controls, forbidden characters and trailing periods (0.371851ms)
+✔ Word output is a real DOCX with explicit CJK fonts, stable spacing and chapter breaks (114.383224ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 369.825179

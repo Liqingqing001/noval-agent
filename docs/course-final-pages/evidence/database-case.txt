@@ -1,0 +1,15 @@
+
+> novel-agent-monorepo@0.2.0 test:database-case
+> node --test packages/backend/tests/tideDemo.test.mjs packages/backend/tests/demoLibrary.test.mjs
+
+✔ two-book database export is deterministic, linked, sanitized, and preserves unrelated existing records (3448.254071ms)
+✔ database import preserves unrelated records, is idempotent, and exports only verified novel data (2768.819369ms)
+✔ multiple unrelated owners require an explicit choice and do not receive an accidental import (670.546738ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3696.297782

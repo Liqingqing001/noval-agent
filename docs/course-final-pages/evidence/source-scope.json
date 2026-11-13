@@ -1,0 +1,14 @@
+{
+  "sourceCommit": "29589e4c0a78f95b9ac4e71d408c4adde30dd319",
+  "scope": "现有原系统；仅新增课堂材料，不改业务逻辑或数据模型",
+  "models": 7,
+  "scalarFields": 67,
+  "physicalForeignKeys": 6,
+  "pagesURL": "https://liqingqing001.github.io/noval-agent/",
+  "onlineProbe": "403 returned in managed cloud environment; not claimed verified",
+  "screenshots": "same source, local VITE_DEMO_MODE=true; actual UI, no mocked API",
+  "oldFourTableAppUsed": false,
+  "oldFifteenTableDesignUsed": false,
+  "migratedPhysicalColumns": 68,
+  "legacyMigrationColumn": "PlotCard.actNumber (not in current Prisma schema)"
+}
