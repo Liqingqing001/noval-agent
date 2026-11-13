@@ -178,7 +178,7 @@ def make_deck():
  s=base(14,'08 / 前后端与部署设计');
  for j,(title,parts) in enumerate([('普通完整版：数据库保存',['React / Zustand','Express API + JWT 归属校验','Prisma → SQLite']),('课堂 Pages：当前浏览器保存',['同一套 React 创作组件','数据库导出快照初始化','localStorage / IndexedDB'])]):
   y=2.65+j*1.85;rect(s,.7,y,11.9,1.6,WHITE);txt(s,.95,y+.2,3,.9,title,20,G,True)
-  for k,a in enumerate(parts):x=4.15+k*2.8;rect(s,x,y+.3,2.55,.9,SOFT);txt(s,x+.12,y+.46,2.31,.6,a,15,INK); 
+  for k,a in enumerate(parts):x=4.15+k*2.8;rect(s,x,y+.3,2.55,.9,SOFT);txt(s,x+.12,y+.46,2.31,.6,a,15,INK);
  caption(s,'Pages 不运行 Express / SQLite，也不会把浏览器修改写回仓库；两条路径不能混说。')
  s=base(15,'09 / 保存流程');steps=['修改正文','500ms 防抖','更新状态','按模式持久化','刷新回读']
  for j,a in enumerate(steps):x=.7+j*2.42;rect(s,x,2.85,2.2,1.05,WHITE);txt(s,x+.12,3.13,1.96,.55,a,19,G,True)
