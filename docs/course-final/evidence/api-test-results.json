@@ -1,0 +1,170 @@
+{
+  "executedAt": "2026-11-13T07:42:45.557Z",
+  "node": "v24.19.0",
+  "database": "Node内置SQLite 3.53.3",
+  "scope": "独立课程简化版，非原系统",
+  "passed": 32,
+  "failed": 0,
+  "results": [
+    {
+      "id": "T01",
+      "name": "首页静态页面可访问",
+      "result": "PASS"
+    },
+    {
+      "id": "T02",
+      "name": "未登录访问小说接口被拒绝",
+      "result": "PASS"
+    },
+    {
+      "id": "T03",
+      "name": "错误密码登录被拒绝",
+      "result": "PASS"
+    },
+    {
+      "id": "T04",
+      "name": "正确账号登录并返回 HttpOnly 会话",
+      "result": "PASS"
+    },
+    {
+      "id": "T05",
+      "name": "注册新用户且不返回密码散列",
+      "result": "PASS"
+    },
+    {
+      "id": "T06",
+      "name": "重复邮箱注册被拒绝",
+      "result": "PASS"
+    },
+    {
+      "id": "T07",
+      "name": "弱密码注册被拒绝",
+      "result": "PASS"
+    },
+    {
+      "id": "T08",
+      "name": "新增小说",
+      "result": "PASS"
+    },
+    {
+      "id": "T09",
+      "name": "查询新增小说",
+      "result": "PASS"
+    },
+    {
+      "id": "T10",
+      "name": "修改小说并回读数据库",
+      "result": "PASS"
+    },
+    {
+      "id": "T11",
+      "name": "空小说名被拒绝",
+      "result": "PASS"
+    },
+    {
+      "id": "T12",
+      "name": "非法小说状态被拒绝",
+      "result": "PASS"
+    },
+    {
+      "id": "T13",
+      "name": "新增章节并自动排序",
+      "result": "PASS"
+    },
+    {
+      "id": "T14",
+      "name": "修改章节并计算字数",
+      "result": "PASS"
+    },
+    {
+      "id": "T15",
+      "name": "空章节名被拒绝",
+      "result": "PASS"
+    },
+    {
+      "id": "T16",
+      "name": "新增人物",
+      "result": "PASS"
+    },
+    {
+      "id": "T17",
+      "name": "修改人物并回读",
+      "result": "PASS"
+    },
+    {
+      "id": "T18",
+      "name": "非法人物定位被拒绝",
+      "result": "PASS"
+    },
+    {
+      "id": "T19",
+      "name": "不同用户的小说列表隔离",
+      "result": "PASS"
+    },
+    {
+      "id": "T20",
+      "name": "跨用户查询小说被拒绝",
+      "result": "PASS"
+    },
+    {
+      "id": "T21",
+      "name": "跨用户修改章节被拒绝",
+      "result": "PASS"
+    },
+    {
+      "id": "T22",
+      "name": "跨用户删除小说被拒绝",
+      "result": "PASS"
+    },
+    {
+      "id": "T23",
+      "name": "不存在记录返回 404",
+      "result": "PASS"
+    },
+    {
+      "id": "T24",
+      "name": "单引号及 SQL 片段按普通文本保存",
+      "result": "PASS"
+    },
+    {
+      "id": "T25",
+      "name": "外键阻止孤立章节",
+      "result": "PASS"
+    },
+    {
+      "id": "T26",
+      "name": "同一小说重复章节序号被拒绝",
+      "result": "PASS"
+    },
+    {
+      "id": "T27",
+      "name": "数据库拒绝非法状态",
+      "result": "PASS"
+    },
+    {
+      "id": "T28",
+      "name": "删除人物后数据库不再存在",
+      "result": "PASS"
+    },
+    {
+      "id": "T29",
+      "name": "删除章节后数据库不再存在",
+      "result": "PASS"
+    },
+    {
+      "id": "T30",
+      "name": "删除小说级联删除其章节和人物",
+      "result": "PASS"
+    },
+    {
+      "id": "T31",
+      "name": "数据落盘并在重新打开后保留",
+      "result": "PASS"
+    },
+    {
+      "id": "T32",
+      "name": "退出后会话失效",
+      "result": "PASS"
+    }
+  ]
+}

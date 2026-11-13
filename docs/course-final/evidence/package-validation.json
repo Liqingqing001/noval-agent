@@ -1,0 +1,11 @@
+{
+  "result": "PASS",
+  "sourceArchive": "04_可运行源码.zip",
+  "isolatedExtraction": true,
+  "thirdPartyDependenciesRequired": false,
+  "sourceFilesMatchArchive": true,
+  "nodeTestsPassedIncludingParent": 33,
+  "nodeTestsFailed": 0,
+  "runtime": "Node.js v24.19.0 on Linux",
+  "windowsOfficeActualTest": false
+}
