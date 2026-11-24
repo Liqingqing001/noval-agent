@@ -1,0 +1,418 @@
+{
+  "User": [
+    {
+      "name": "id",
+      "type": "String",
+      "optional": false,
+      "definition": "id           String   @id @default(cuid())"
+    },
+    {
+      "name": "email",
+      "type": "String",
+      "optional": false,
+      "definition": "email        String   @unique"
+    },
+    {
+      "name": "passwordHash",
+      "type": "String",
+      "optional": false,
+      "definition": "passwordHash String"
+    },
+    {
+      "name": "nickname",
+      "type": "String",
+      "optional": true,
+      "definition": "nickname     String?"
+    },
+    {
+      "name": "createdAt",
+      "type": "DateTime",
+      "optional": false,
+      "definition": "createdAt    DateTime @default(now())"
+    },
+    {
+      "name": "updatedAt",
+      "type": "DateTime",
+      "optional": false,
+      "definition": "updatedAt    DateTime @updatedAt"
+    }
+  ],
+  "Novel": [
+    {
+      "name": "id",
+      "type": "String",
+      "optional": false,
+      "definition": "id                  String   @id @default(cuid())"
+    },
+    {
+      "name": "userId",
+      "type": "String",
+      "optional": false,
+      "definition": "userId              String"
+    },
+    {
+      "name": "title",
+      "type": "String",
+      "optional": false,
+      "definition": "title               String"
+    },
+    {
+      "name": "cover",
+      "type": "String",
+      "optional": true,
+      "definition": "cover               String?"
+    },
+    {
+      "name": "wordCount",
+      "type": "Int",
+      "optional": false,
+      "definition": "wordCount           Int      @default(0)"
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "optional": false,
+      "definition": "status              String   @default(\"draft\") // draft | writing | completed"
+    },
+    {
+      "name": "genre",
+      "type": "String",
+      "optional": true,
+      "definition": "genre               String?"
+    },
+    {
+      "name": "summary",
+      "type": "String",
+      "optional": true,
+      "definition": "summary             String?"
+    },
+    {
+      "name": "agentPrompt",
+      "type": "String",
+      "optional": true,
+      "definition": "agentPrompt         String?"
+    },
+    {
+      "name": "lastOpenedChapterId",
+      "type": "String",
+      "optional": true,
+      "definition": "lastOpenedChapterId String?"
+    },
+    {
+      "name": "createdAt",
+      "type": "DateTime",
+      "optional": false,
+      "definition": "createdAt           DateTime @default(now())"
+    },
+    {
+      "name": "updatedAt",
+      "type": "DateTime",
+      "optional": false,
+      "definition": "updatedAt           DateTime @updatedAt"
+    }
+  ],
+  "Chapter": [
+    {
+      "name": "id",
+      "type": "String",
+      "optional": false,
+      "definition": "id        String   @id @default(cuid())"
+    },
+    {
+      "name": "novelId",
+      "type": "String",
+      "optional": false,
+      "definition": "novelId   String"
+    },
+    {
+      "name": "title",
+      "type": "String",
+      "optional": false,
+      "definition": "title     String"
+    },
+    {
+      "name": "content",
+      "type": "String",
+      "optional": false,
+      "definition": "content   String   @default(\"\")"
+    },
+    {
+      "name": "wordCount",
+      "type": "Int",
+      "optional": false,
+      "definition": "wordCount Int      @default(0)"
+    },
+    {
+      "name": "sequence",
+      "type": "Int",
+      "optional": false,
+      "definition": "sequence  Int"
+    },
+    {
+      "name": "createdAt",
+      "type": "DateTime",
+      "optional": false,
+      "definition": "createdAt DateTime @default(now())"
+    },
+    {
+      "name": "updatedAt",
+      "type": "DateTime",
+      "optional": false,
+      "definition": "updatedAt DateTime @updatedAt"
+    }
+  ],
+  "Character": [
+    {
+      "name": "id",
+      "type": "String",
+      "optional": false,
+      "definition": "id                       String  @id @default(cuid())"
+    },
+    {
+      "name": "novelId",
+      "type": "String",
+      "optional": false,
+      "definition": "novelId                  String"
+    },
+    {
+      "name": "name",
+      "type": "String",
+      "optional": false,
+      "definition": "name                     String"
+    },
+    {
+      "name": "aliases",
+      "type": "String",
+      "optional": false,
+      "definition": "aliases                  String  @default(\"[]\") // JSON 字符串数组"
+    },
+    {
+      "name": "description",
+      "type": "String",
+      "optional": false,
+      "definition": "description              String  @default(\"\")"
+    },
+    {
+      "name": "appearance",
+      "type": "String",
+      "optional": true,
+      "definition": "appearance               String?"
+    },
+    {
+      "name": "personality",
+      "type": "String",
+      "optional": true,
+      "definition": "personality              String?"
+    },
+    {
+      "name": "background",
+      "type": "String",
+      "optional": true,
+      "definition": "background               String?"
+    },
+    {
+      "name": "avatar",
+      "type": "String",
+      "optional": true,
+      "definition": "avatar                   String?"
+    },
+    {
+      "name": "relationships",
+      "type": "String",
+      "optional": false,
+      "definition": "relationships            String  @default(\"[]\") // 显式人物关系 JSON 数组，targetId 指向同书角色"
+    },
+    {
+      "name": "firstAppearanceChapterId",
+      "type": "String",
+      "optional": true,
+      "definition": "firstAppearanceChapterId String?"
+    },
+    {
+      "name": "role",
+      "type": "String",
+      "optional": false,
+      "definition": "role                     String  @default(\"supporting\") // protagonist | supporting | minor"
+    },
+    {
+      "name": "sequence",
+      "type": "Int",
+      "optional": false,
+      "definition": "sequence                 Int     @default(0)"
+    }
+  ],
+  "WorldSetting": [
+    {
+      "name": "id",
+      "type": "String",
+      "optional": false,
+      "definition": "id       String @id @default(cuid())"
+    },
+    {
+      "name": "novelId",
+      "type": "String",
+      "optional": false,
+      "definition": "novelId  String"
+    },
+    {
+      "name": "category",
+      "type": "String",
+      "optional": false,
+      "definition": "category String @default(\"其他\")"
+    },
+    {
+      "name": "title",
+      "type": "String",
+      "optional": false,
+      "definition": "title    String"
+    },
+    {
+      "name": "content",
+      "type": "String",
+      "optional": false,
+      "definition": "content  String @default(\"\")"
+    }
+  ],
+  "PlotCard": [
+    {
+      "name": "id",
+      "type": "String",
+      "optional": false,
+      "definition": "id        String   @id @default(cuid())"
+    },
+    {
+      "name": "novelId",
+      "type": "String",
+      "optional": false,
+      "definition": "novelId   String"
+    },
+    {
+      "name": "type",
+      "type": "String",
+      "optional": false,
+      "definition": "type      String   @default(\"chapter\") // volume | chapter"
+    },
+    {
+      "name": "title",
+      "type": "String",
+      "optional": false,
+      "definition": "title     String"
+    },
+    {
+      "name": "summary",
+      "type": "String",
+      "optional": false,
+      "definition": "summary   String   @default(\"\")"
+    },
+    {
+      "name": "sequence",
+      "type": "Int",
+      "optional": false,
+      "definition": "sequence  Int      @default(0)"
+    },
+    {
+      "name": "volumeId",
+      "type": "String",
+      "optional": true,
+      "definition": "volumeId  String?  // 章节大纲所属的卷ID"
+    },
+    {
+      "name": "chapterId",
+      "type": "String",
+      "optional": true,
+      "definition": "chapterId String?  // 关联的已写章节"
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "optional": false,
+      "definition": "status    String   @default(\"pending\") // pending | completed"
+    },
+    {
+      "name": "statusMode",
+      "type": "String",
+      "optional": false,
+      "definition": "statusMode String  @default(\"auto\") // auto | manual"
+    },
+    {
+      "name": "createdAt",
+      "type": "DateTime",
+      "optional": false,
+      "definition": "createdAt DateTime @default(now())"
+    },
+    {
+      "name": "updatedAt",
+      "type": "DateTime",
+      "optional": false,
+      "definition": "updatedAt DateTime @updatedAt"
+    }
+  ],
+  "Foreshadowing": [
+    {
+      "name": "id",
+      "type": "String",
+      "optional": false,
+      "definition": "id                 String   @id @default(cuid())"
+    },
+    {
+      "name": "novelId",
+      "type": "String",
+      "optional": false,
+      "definition": "novelId            String"
+    },
+    {
+      "name": "title",
+      "type": "String",
+      "optional": false,
+      "definition": "title              String"
+    },
+    {
+      "name": "description",
+      "type": "String",
+      "optional": false,
+      "definition": "description        String   @default(\"\")"
+    },
+    {
+      "name": "plantedChapterId",
+      "type": "String",
+      "optional": true,
+      "definition": "plantedChapterId   String?"
+    },
+    {
+      "name": "resolvedChapterId",
+      "type": "String",
+      "optional": true,
+      "definition": "resolvedChapterId  String?"
+    },
+    {
+      "name": "plantedPlotCardId",
+      "type": "String",
+      "optional": true,
+      "definition": "plantedPlotCardId  String?"
+    },
+    {
+      "name": "resolvedPlotCardId",
+      "type": "String",
+      "optional": true,
+      "definition": "resolvedPlotCardId String?"
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "optional": false,
+      "definition": "status             String   @default(\"planted\") // planted | hinted | resolved"
+    },
+    {
+      "name": "createdAt",
+      "type": "DateTime",
+      "optional": false,
+      "definition": "createdAt          DateTime @default(now())"
+    },
+    {
+      "name": "updatedAt",
+      "type": "DateTime",
+      "optional": false,
+      "definition": "updatedAt          DateTime @updatedAt"
+    }
+  ]
+}

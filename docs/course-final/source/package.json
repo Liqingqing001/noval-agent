@@ -1,0 +1,1 @@
+{"name":"novel-agent-course-demo","version":"1.0.0","private":true,"type":"module","description":"小说创作管理系统课程简化版，零第三方依赖","engines":{"node":">=22.13.0"},"scripts":{"start":"node server.mjs --seed","test":"node --test test.mjs"}}

@@ -1,0 +1,15 @@
+
+> novel-agent-monorepo@0.2.0 test:profiles
+> node --import tsx --test packages/backend/tests/characterProfiles.test.mjs
+
+✔ profile payloads accept JSON storage and arrays without double encoding (2.08568ms)
+✔ malformed relationships and avatar data are rejected before writes (0.738806ms)
+✔ character API persists avatars and explicit same-book relationships, rejecting cross-book links (977.470106ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1379.343179

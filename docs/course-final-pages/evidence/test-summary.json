@@ -1,0 +1,32 @@
+{
+  "scope": "原系统现有5组专项测试，非四表课堂简化版；非全量回归",
+  "suites": {
+    "database-case": {
+      "tests": 3,
+      "pass": 3,
+      "fail": 0
+    },
+    "profiles": {
+      "tests": 3,
+      "pass": 3,
+      "fail": 0
+    },
+    "demo": {
+      "tests": 8,
+      "pass": 8,
+      "fail": 0
+    },
+    "sync": {
+      "tests": 33,
+      "pass": 33,
+      "fail": 0
+    },
+    "editor": {
+      "tests": 12,
+      "pass": 12,
+      "fail": 0
+    }
+  },
+  "total": 59,
+  "allPassed": true
+}
